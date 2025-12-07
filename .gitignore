@@ -12,6 +12,8 @@ env/
 serviceAccountKey.json
 env
 cfg.ini
+cfg_services.ini
 cvelistV5-main/
 cve_list.json
 finetune_data.jsonl
+llm_test_fine/

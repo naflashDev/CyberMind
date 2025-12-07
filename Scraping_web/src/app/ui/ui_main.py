@@ -6,7 +6,7 @@
 
 @date Created: 2025-11-27 12:17:59
 @author naflashDev
-@project Cebolla
+@project CyberMind
 """
 
 

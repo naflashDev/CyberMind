@@ -6,7 +6,7 @@
 a specified WSL distribution before launching the FastAPI application.
 @date Created: 2025-11-27 12:17:59
 @author naflashDev
-@project Cebolla
+@project CyberMind
 """
 
 import subprocess
@@ -172,7 +172,7 @@ def ensure_infrastructure(parameters):
     - Docker container with DB + Tiny RSS (via docker start)
     """
     logger.info("Ensuring WSL infrastructure (OpenSearch, Dashboards, Tiny stack)...")
-    ensure_opensearch_scripts(parameters[0],parameters[1])
+    #ensure_opensearch_scripts(parameters[0],parameters[1])
     ensure_tiny_stack_container(parameters[2],parameters[0])
     logger.info("WSL infrastructure check finished.")
     logger.info("Starting UI service in a separate console...")

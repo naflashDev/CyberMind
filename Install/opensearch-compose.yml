@@ -9,7 +9,8 @@ services:
       - node.name=node-1
       - discovery.type=single-node
       - bootstrap.memory_lock=true
-      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - DISABLE_SECURITY_PLUGIN=true
     ulimits:
       memlock:
         soft: -1
@@ -17,26 +18,46 @@ services:
       nofile:
         soft: 65536
         hard: 65536
+
+    deploy:
+      resources:
+        limits:
+          memory: 1.3G
+          cpus: "2.0"
+
     volumes:
       - ./opensearch.yml:/usr/share/opensearch/config/opensearch.yml
       - opensearch-data:/usr/share/opensearch/data
+
     ports:
       - "9200:9200"
       - "9600:9600"
+
     networks:
       - opensearch-net
+
 
   dashboards:
     image: opensearchproject/opensearch-dashboards:latest
     container_name: opensearch-dashboards
     depends_on:
       - opensearch
+
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
     ports:
       - "5601:5601"
+
     networks:
       - opensearch-net
+
     volumes:
       - ./opensearch_dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
+
 
 volumes:
   opensearch-data:

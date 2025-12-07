@@ -33,7 +33,7 @@ def _load_json(path: str):
 def build_finetune_dataset(
     cve_path: str = "./data/cve_list.json",
     news_path: str = "./outputs/result.json",
-    output_path: str = "./data/finetune_data.jsonl",
+    output_path: str = "./outputs/finetune_data.jsonl",
 ) -> None:
     """
     @brief Builds a JSONL dataset mixing CVE and news examples.
