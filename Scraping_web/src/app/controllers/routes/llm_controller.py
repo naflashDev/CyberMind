@@ -7,6 +7,7 @@
 
 from fastapi import APIRouter
 from pydantic import BaseModel
+from loguru import logger
 from app.services.llm.llm_client import query_llm
 from app.services.llm.llm_trainer import run_periodic_training
 
@@ -28,6 +29,7 @@ async def llm_query(payload: LLMQuery):
     @return JSON object containing 'response' string.
     """
     response = query_llm(payload.prompt)
+    logger.debug(f"[LLM Client] Sending response to the user.")
     return {"response": response}
 
 def background_cve_and_finetune_loop() -> None:

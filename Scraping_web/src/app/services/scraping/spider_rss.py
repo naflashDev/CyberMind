@@ -47,7 +47,7 @@ def read_urls_from_file(file_path) -> List[str] | List:
 
     Returns:
         List[str]: A list of non-empty, stripped URL strings. If an error
-        occurs, an empty list is returned and the error is printed.
+        occurs, an empty list is returned and the error is logger.infoed.
     """
     try:
         with open(file_path, "r") as file:
@@ -152,7 +152,7 @@ async def extract_rss_and_save(pool, file_path) -> None:
     """
     urls = read_urls_from_file(file_path)
     if not urls:
-        print("No URLs found to process.")
+        logger.info("No URLs found to process.")
         return
 
     queue = Queue()

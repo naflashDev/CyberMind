@@ -15,7 +15,7 @@ import threading
 import subprocess
 import sys
 from pathlib import Path
-
+from loguru import logger
 
 def clone_repository(repo_url: str, repo_dir: str) -> None:
     """
@@ -26,14 +26,14 @@ def clone_repository(repo_url: str, repo_dir: str) -> None:
     """
     try:
         if os.path.exists(repo_dir):
-            print(f"Repository already exists at {repo_dir}, skipping clone.")
+            logger.info(f"Repository already exists at {repo_dir}, skipping clone.")
             return
 
-        print(f"Cloning repository from {repo_url} into {repo_dir} ...")
+        logger.info(f"Cloning repository from {repo_url} into {repo_dir} ...")
         subprocess.check_call(["git", "clone", repo_url, repo_dir])
-        print("Repository cloned successfully.")
+        logger.info("Repository cloned successfully.")
     except subprocess.CalledProcessError as e:
-        print(f"Error while cloning repository: {e}")
+        logger.error(f"Error while cloning repository: {e}")
         # In infrastructure context, raising allows the caller to handle failures.
         raise
 
@@ -46,14 +46,14 @@ def update_repository(repo_dir: str) -> None:
     """
     try:
         if not os.path.exists(repo_dir):
-            print(f"Repository directory {repo_dir} does not exist. Cannot run git pull.")
+            logger.info(f"Repository directory {repo_dir} does not exist. Cannot run git pull.")
             return
 
-        print(f"Updating repository in {repo_dir} ...")
+        logger.info(f"Updating repository in {repo_dir} ...")
         subprocess.check_call(["git", "-C", repo_dir, "pull"])
-        print("Repository updated successfully.")
+        logger.info("Repository updated successfully.")
     except subprocess.CalledProcessError as e:
-        print(f"Error while updating repository: {e}")
+        logger.error(f"Error while updating repository: {e}")
         raise
 
 
@@ -75,7 +75,7 @@ def process_file(file_path: Path, aggregated_data: list, lock: threading.Lock) -
         transformed = transform_json(data)
 
         if not transformed:
-            print(f"{file_path} was not included (CVE not published or error).")
+            logger.info(f"{file_path} was not included (CVE not published or error).")
         else:
             # Lock to avoid race conditions when appending to the list.
             with lock:
@@ -83,9 +83,9 @@ def process_file(file_path: Path, aggregated_data: list, lock: threading.Lock) -
                 aggregated_data.extend(transformed)
 
     except json.JSONDecodeError:
-        print(f"Warning: {file_path} is not valid JSON. Skipping.")
+        logger.warning(f"Warning: {file_path} is not valid JSON. Skipping.")
     except Exception as e:
-        print(f"Error processing {file_path}: {e}")
+        logger.error(f"Error processing {file_path}: {e}")
 
 
 def consolidate_json(base_dir: str, output_file: str) -> None:
@@ -104,7 +104,7 @@ def consolidate_json(base_dir: str, output_file: str) -> None:
         # Find all .json files under the repository root.
         json_files = list(root_dir.rglob("*.json"))
         total_files = len(json_files)
-        print(f"Processing {total_files} JSON files...")
+        logger.info(f"Processing {total_files} JSON files...")
 
         aggregated_data: list = []
         lock = threading.Lock()  # Avoid race conditions.
@@ -130,10 +130,10 @@ def consolidate_json(base_dir: str, output_file: str) -> None:
         with open(output_file, "w", encoding="utf-8") as f:
             json.dump(aggregated_data, f, indent=2, ensure_ascii=False)
 
-        print(f"\nConsolidation completed. Processed {total_files} JSON files.")
-        print(f"Output file saved as: {output_file}")
+        logger.info(f"\nConsolidation completed. Processed {total_files} JSON files.")
+        logger.info(f"Output file saved as: {output_file}")
     except Exception as e:
-        print(f"Error during consolidation: {e}")
+        logger.error(f"Error during consolidation: {e}")
         raise
 
 
@@ -354,7 +354,7 @@ According to enrichment information (for example CISA ADP), the exploitation sta
         )
 
     except Exception as e:
-        print(f"Error transforming CVE: {e}")
+        logger.error(f"Error transforming CVE: {e}")
 
     return records
 
@@ -362,7 +362,7 @@ According to enrichment information (for example CISA ADP), the exploitation sta
 def update_cve_repo_and_build_list(
     repo_url: str = "https://github.com/CVEProject/cvelistV5.git",
     repo_dir: str = "./data/cvelistV5-main",
-    output_dir: str = "./Data",
+    output_dir: str = "./data",
     output_file_name: str = "cve_list.json",
 ) -> None:
     """
@@ -380,12 +380,12 @@ def update_cve_repo_and_build_list(
 
     # Clone or update repository.
     if not os.path.exists(repo_dir):
-        print("Repository not found, starting initial clone...")
+        logger.info("Repository not found, starting initial clone...")
         clone_repository(repo_url, repo_dir)
     else:
-        print("Repository found, running git pull...")
+        logger.info("Repository found, running git pull...")
         update_repository(repo_dir)
 
     # Consolidate all JSON files from the repository.
-    print("\nConsolidating JSON files from repository...")
+    logger.info("\nConsolidating JSON files from repository...")
     consolidate_json(repo_dir, full_output_path)

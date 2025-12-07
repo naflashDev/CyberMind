@@ -16,7 +16,7 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 
 # Name of the model installed in Ollama.
 # In this project we will use "llama3" by default.
-OLLAMA_MODEL_NAME = os.getenv("OLLAMA_MODEL_NAME", "llama3")
+OLLAMA_MODEL_NAME = os.getenv("OLLAMA_MODEL_NAME", "llama3-cve")
 
 
 def query_llm(prompt: str, system_prompt: str | None = None) -> str:
