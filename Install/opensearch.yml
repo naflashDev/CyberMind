@@ -1,0 +1,53 @@
+# ======================== OpenSearch Configuration =========================
+#
+# NOTE: OpenSearch comes with reasonable defaults for most settings.
+#       Before you set out to tweak and tune the configuration, make sure you
+#       understand what are you trying to accomplish and the consequences.
+#
+# The primary way of configuring a node is via this file. This template lists
+# the most important settings you may want to configure for a production cluster.
+#
+# Please consult the documentation for further information on configuration options:
+# https://www.opensearch.org
+#
+# ---------------------------------- Cluster -----------------------------------
+#
+cluster.name: opensearch-cluster
+#
+# ------------------------------------ Node ------------------------------------
+#
+node.name: node-1
+#
+# Add custom attributes to the node:
+#
+#node.attr.rack: r1
+#
+# ----------------------------------- Paths ------------------------------------
+#
+#path.data: /path/to/data
+#path.logs: /path/to/logs
+#
+# ----------------------------------- Memory -----------------------------------
+#
+bootstrap.memory_lock: true
+#
+# ---------------------------------- Network -----------------------------------
+#
+network.host: 0.0.0.0
+http.port: 9200
+#
+# --------------------------------- Discovery ----------------------------------
+#
+discovery.type: single-node
+#
+# ---------------------------------- Gateway -----------------------------------
+#
+#gateway.recover_after_nodes: 3
+#
+# ---------------------------------- Various -----------------------------------
+#
+action.destructive_requires_name: true
+#
+# ---------------------------------- Security -----------------------------------
+#
+plugins.security.disabled: true

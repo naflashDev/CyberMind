@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Panel FastAPI + Datos</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: 220px;
+      background: #111827;
+      color: #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      box-sizing: border-box;
+      transition: width 0.2s ease, transform 0.2s ease;
+    }
+
+    .sidebar.hidden {
+      width: 0;
+      padding: 16px 0;
+      transform: translateX(-100%);
+    }
+
+    .sidebar h1 {
+      font-size: 18px;
+      margin: 0 0 16px;
+      color: #f9fafb;
+      white-space: nowrap;
+    }
+
+    .nav-button {
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      border-radius: 6px;
+      border: none;
+      background: #1f2937;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    .nav-button:hover {
+      background: #374151;
+    }
+
+    .nav-button.active {
+      background: #2563eb;
+      color: #f9fafb;
+    }
+
+    /* Toggle button (always visible) */
+    .toggle-wrapper {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      background: #111827;
+    }
+
+    .toggle-sidebar {
+      background: #111827;
+      color: #e5e7eb;
+      border: none;
+      padding: 8px 6px;
+      cursor: pointer;
+      font-size: 16px;
+      border-radius: 0 4px 4px 0;
+    }
+
+    .main {
+      flex: 1;
+      background: #f3f4f6;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 0;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .view {
+      width: 100%;
+      height: 100%;
+      display: none;
+    }
+
+    .view.active {
+      display: block;
+    }
+
+
+    .embed-frame {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #ffffff;
+    }
+
+    /* LLM console styles: full-size */
+    #view-llm {
+      background: #0d1117;
+      color: #e6edf3;
+      padding: 0;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #llm-panel {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #161b22;
+      border-radius: 0;
+      border: 1px solid #30363d;
+      padding: 16px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #llm-panel h2 {
+      margin: 0 0 4px 0;
+      font-size: 18px;
+    }
+
+    #llm-panel p {
+      margin: 0 0 12px 0;
+      font-size: 13px;
+      color: #ffffff;
+    }
+
+    #llm-messages {
+      flex: 1;
+      height: auto;
+      overflow-y: auto;
+      padding: 8px;
+      border: 1px solid #444;
+      border-radius: 4px;
+      background-color: #36465f;
+      font-size: 13px;
+      line-height: 1.4;
+      box-sizing: border-box;
+    }
+
+    #llm-input-row {
+      display: flex;
+      margin-top: 10px;
+      gap: 8px;
+    }
+
+    #llm-prompt {
+      flex: 1;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #555;
+      background-color: #101010;
+      color: #f1f1f1;
+    }
+
+    #llm-prompt::placeholder {
+      color: #6e7681;
+    }
+
+    #llm-send-btn {
+      padding: 8px 16px;
+      border-radius: 4px;
+      border: none;
+      background: #238636;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    #llm-send-btn:hover {
+      background: #2ea043;
+    }
+
+    /* Chat bubbles */
+    .user-message {
+      text-align: right;
+      margin-bottom: 4px;
+      font-size: 15px;
+    }
+
+    .user-message span {
+      display: inline-block;
+      background: #1d4ed8;
+      color: #ffffff;
+      padding: 4px 8px;
+      border-radius: 10px;
+      max-width: 80%;
+      word-wrap: break-word;
+    }
+
+    .bot-message {
+      text-align: left;
+      margin-bottom: 8px;
+    }
+
+    .bot-message span {
+      display: inline-block;
+      background: #3a548a;
+      color: #ffffff;
+      padding: 4px 8px;
+      border-radius: 10px;
+      max-width: 80%;
+      word-wrap: break-word;
+    }
+  </style>
+
+  <!-- Markdown parser (marked) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> <!-- [web:67] -->
+</head>
+
+<body>
+  <!-- Botón fijo para mostrar/ocultar la sidebar -->
+  <div class="toggle-wrapper">
+    <button class="toggle-sidebar" id="btn-toggle">&laquo;</button>
+  </div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <h1>Panel Cebolla</h1>
+    <button class="nav-button active" data-view="fastapi" id="btn-fastapi">Operaciones FastAPI</button>
+    <button class="nav-button" data-view="datos" id="btn-datos">Datos</button>
+    <button class="nav-button" data-view="tiny" id="btn-tiny">Noticias Tiny</button>
+    <button class="nav-button" data-view="llm" id="btn-llm">LLM Console</button>
+
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="main-content">
+      <!-- Vista: FastAPI /docs -->
+      <div class="view active" id="view-fastapi">
+        <iframe class="embed-frame" src="http://localhost:8000/docs"></iframe>
+      </div>
+
+      <!-- Vista: Datos (OpenSearch en localhost:5601) -->
+      <div class="view" id="view-datos">
+        <iframe class="embed-frame" src="http://127.0.0.1:5601/"></iframe>
+      </div>
+
+      <!-- Vista: Noticias Tiny (Tiny RSS en 127.0.0.1:8280/tt-rss/) -->
+      <div class="view" id="view-tiny">
+        <iframe class="embed-frame" src="http://127.0.0.1:8280/tt-rss/"></iframe>
+      </div>
+
+      <!-- Vista LLM full-size -->
+      <div class="view" id="view-llm">
+        <div id="llm-panel">
+          <h2>LLM Console (Cyberintelligence)</h2>
+          <p>Interactúa con el modelo local (llama3 en Ollama) para consultar CVE y noticias procesadas.</p>
+
+          <div id="llm-messages"></div>
+
+          <div id="llm-input-row">
+            <input id="llm-prompt" type="text"
+              placeholder="Escribe tu pregunta al LLM (por ejemplo, explica un CVE o resume una noticia)..." />
+            <button id="llm-send-btn">Enviar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const sidebar = document.getElementById("sidebar");
+    const btnToggle = document.getElementById("btn-toggle");
+
+    const buttons = document.querySelectorAll(".nav-button");
+    const views = {
+      fastapi: document.getElementById("view-fastapi"),
+      datos: document.getElementById("view-datos"),
+      tiny: document.getElementById("view-tiny"),
+      llm: document.getElementById("view-llm"),
+    };
+
+    function activateView(viewName) {
+      // desactiva todos los botones
+      buttons.forEach(btn => btn.classList.remove("active"));
+      // activa el botón correspondiente
+      const activeBtn = document.querySelector(`.nav-button[data-view="${viewName}"]`);
+      if (activeBtn) activeBtn.classList.add("active");
+
+      // oculta todas las vistas
+      Object.values(views).forEach(v => v.classList.remove("active"));
+      // muestra solo la seleccionada
+      if (views[viewName]) views[viewName].classList.add("active");
+    }
+
+    buttons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const view = btn.dataset.view;
+        activateView(view);
+      });
+    });
+
+    btnToggle.addEventListener("click", () => {
+      const hidden = sidebar.classList.toggle("hidden");
+      btnToggle.innerHTML = hidden ? "☰" : "«";
+    });
+
+    // vista inicial
+    activateView("fastapi");
+  </script>
+
+
+  <!-- LLM client JS -->
+  <script>
+    (function () {
+      const messagesEl = document.getElementById("llm-messages");
+      const promptEl = document.getElementById("llm-prompt");
+      const sendBtn = document.getElementById("llm-send-btn");
+
+      // Cambia esto al host/puerto del FastAPI que expone /llm/query
+      const LLM_API_BASE = "http://127.0.0.1:8000";
+
+      if (!messagesEl || !promptEl || !sendBtn) {
+        return;
+      }
+
+      function appendMessage(text, role) {
+        const wrapper = document.createElement("div");
+        const span = document.createElement("span");
+
+        if (role === "user") {
+          wrapper.className = "user-message";
+          span.textContent = text;
+        } else {
+          wrapper.className = "bot-message";
+          const html = window.marked ? window.marked.parse(text) : text;
+          span.innerHTML = html;
+        }
+
+        wrapper.appendChild(span);
+        messagesEl.appendChild(wrapper);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+
+      async function sendPrompt() {
+        const prompt = promptEl.value.trim();
+        if (!prompt) {
+          return;
+        }
+
+        appendMessage("Tú: " + prompt, "user");
+        promptEl.value = "";
+        sendBtn.disabled = true;
+
+        try {
+          const response = await fetch(LLM_API_BASE + "/llm/query", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: prompt })
+          });
+
+          const data = await response.json();
+          appendMessage(data.response || "[Respuesta vacía]", "bot");
+        } catch (err) {
+          appendMessage("Error llamando al LLM: " + err, "bot");
+        } finally {
+          sendBtn.disabled = false;
+          promptEl.focus();
+        }
+      }
+
+      sendBtn.addEventListener("click", sendPrompt);
+      promptEl.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendPrompt();
+        }
+      });
+    })();
+  </script>
+</body>
+
+</html>

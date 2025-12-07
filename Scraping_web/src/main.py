@@ -1,0 +1,236 @@
+"""
+@file main.py
+@brief Entry point for the Cyberintelligence FastAPI application.
+
+@details This script initializes the FastAPI app, sets up routes for
+RSS feed ingestion and news scraping using Scrapy, schedules periodic
+tasks such as NLP processing with spaCy, and launches a dynamic spider
+from PostgreSQL using asyncpg.
+
+@date Created: 2025-05-05 12:17:59
+@author RootAnto
+@project Cebolla
+"""
+
+import os
+import asyncio
+import threading
+from contextlib import asynccontextmanager
+from pathlib import Path 
+
+import asyncpg
+import uvicorn
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.responses import FileResponse
+from loguru import logger
+from app.utils.utils import get_connection_service_parameters, create_config_file 
+from app.utils.run_services import ensure_infrastructure
+
+from app.controllers.routes import (
+    scrapy_news_controller,
+    spacy_controller,
+    tiny_postgres_controller,
+    llm_controller,
+)
+from app.controllers.routes.scrapy_news_controller import (
+    recurring_google_alert_scraper,
+    background_scraping_feeds,
+    background_scraping_news,
+    run_dynamic_spider_from_db,
+)
+from app.controllers.routes.tiny_postgres_controller import (
+    background_rss_process_loop,
+)
+from app.controllers.routes.spacy_controller import (
+    background_process_every_24h,
+)
+
+from app.controllers.routes.llm_controller import (
+    background_cve_and_finetune_loop,
+)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    @brief Handles FastAPI application startup and shutdown events.
+
+    @details On startup, it:
+    - Connects to PostgreSQL
+    - Starts Google Alerts recurring scraping
+    - Starts RSS feed extraction
+    - Starts immediate scraping for feeds and news
+    - Starts NLP labeling with spaCy every 24 hours
+    - Starts dynamic Scrapy spider from PostgreSQL config
+
+    On shutdown, it:
+    - Closes the PostgreSQL connection pool
+    """
+
+    # Ensure infrastructure is running
+    parameters: tuple = (
+                    'Ubuntu',
+                    'nacho',
+                    'install_updater_1,install_web-nginx_1,install_app_1,install_db_1'
+                )
+    file_name: str = 'cfg_services.ini'
+    file_content: list[str] = [
+                    '# Configuration file.\n',
+                    '# This file contains the parameters for connecting to the opensearch database server.\n',
+                    '# ONLY one uncommented line is allowed.\n',
+                    '# The valid line format is:distro_name,user,dockers_name\n',
+                    f'{parameters[0]};{parameters[1]};{parameters[2]}\n'
+                ]
+
+                # Get the connection parameters or assign default ones
+    retorno_otros = get_connection_service_parameters(file_name)
+    logger.info(retorno_otros[1])
+
+    if retorno_otros[0] != 0:
+        logger.info('Recreating configuration file...')
+        retorno_otros = create_config_file(file_name, file_content)
+        logger.info(retorno_otros[1])
+        # If the file had to be recreated, default values will be used
+
+        if retorno_otros[0] != 0:
+            logger.error('Configuration file missing. Execution cannot continue without a configuration file.')
+            return
+    else:
+        parameters = retorno_otros[2]  # Get parameters read from the config file
+    try:
+        ensure_infrastructure(parameters)
+    except Exception as e:
+        logger.error(f"Error while ensuring infrastructure: {e}")
+
+    processes = []
+
+
+    loop = asyncio.get_running_loop()
+    logger.info("[Lifespan] Starting background tasks...")
+
+    # PostgreSQL connection
+    try:
+        logger.info("Connecting to PostgreSQL database...")
+        pool = await asyncpg.create_pool(
+            user="postgres",
+            password="password123",
+            database="postgres",
+            host="127.0.0.1",
+            port=5432,
+            min_size=5,
+            max_size=20,
+        )
+        app.state.pool = pool
+        logger.info("[Startup] PostgreSQL connection established.")
+    except Exception:
+        logger.exception("[Startup] Failed to connect to PostgreSQL.")
+        pool = None
+
+    # Required paths
+    google_alerts_path = "./data/google_alert_rss.txt"
+    urls_path = "./data/urls_cybersecurity_ot_it.txt"
+    input_path = "./outputs/result.json"
+    output_path = "./outputs/labels_result.json"
+
+    # Google Alerts scraper
+    if os.path.exists(google_alerts_path):
+        threading.Thread(
+            args=(loop,),
+            daemon=True,
+        ).start()
+        logger.info("[Startup] Google Alerts scheduler started.")
+    else:
+        logger.warning("[Startup] google_alert_rss.txt not found.")
+
+    # RSS feed extraction
+    if os.path.exists(urls_path):
+        threading.Thread(
+            target=background_rss_process_loop,
+            args=(pool, urls_path, loop),
+            daemon=True,
+        ).start()
+        logger.info("[Startup] RSS extractor scheduled.")
+    else:
+        logger.warning("[Startup] urls_cybersecurity_ot_it.txt not found.")
+
+    # Immediate feed & news scraping
+    threading.Thread(
+        target=background_scraping_feeds,
+        args=(loop,),
+        daemon=True,
+    ).start()
+    threading.Thread(
+        target=background_scraping_news,
+        args=(loop,),
+        daemon=True,
+    ).start()
+    logger.info("[Startup] Feed and news scraping launched.")
+
+    # NLP processing (spaCy)
+    if os.path.exists(input_path):
+        threading.Thread(
+            target=background_process_every_24h,
+            args=(input_path, output_path),
+            daemon=True,
+        ).start()
+        logger.info("[Startup] spaCy NLP labeling scheduled every 24h.")
+    else:
+        logger.warning("[Startup] result.json not found. NLP not launched.")
+
+    # LLM CVE + dataset updater (every 7 days)
+    threading.Thread(
+        target=background_cve_and_finetune_loop,
+        daemon=True,
+    ).start()
+    logger.info("[Startup] LLM CVE & dataset 7-day scheduler started.")
+
+    # Dynamic Scrapy spider from DB
+    if pool:
+        asyncio.create_task(run_dynamic_spider_from_db(pool))
+        logger.info("[Startup] Dynamic spider from DB started.")
+    else:
+        logger.warning("[Startup] DB-based scraper not started (no DB).")
+
+    yield
+
+    # Shutdown
+    logger.info("[Lifespan] Application shutting down.")
+    if pool:
+        await pool.close()
+
+
+# FastAPI app instance
+app = FastAPI(
+    title="Cyberintelligence API",
+    description="Automated processing of RSS feeds, news scraping, "
+                "and named entity recognition",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+# Register route modules
+app.include_router(scrapy_news_controller.router)
+app.include_router(spacy_controller.router)
+app.include_router(tiny_postgres_controller.router)
+app.include_router(llm_controller.router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:8080",  # origen de TU UI
+        "http://localhost:8001",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+# Entry point
+if __name__ == "__main__":
+    """
+    @brief Launches the FastAPI app using Uvicorn in development mode.
+
+    @details The server runs locally on http://127.0.0.1:8000 with
+    auto-reload enabled for development.
+    """
+    logger.info("Initializing FastAPI application...")
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

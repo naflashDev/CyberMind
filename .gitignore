@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+*.log
+*.env
+.venv/
+venv/
+env/
+serviceAccountKey.json
+env
+cfg.ini
+cvelistV5-main/
+cve_list.json
+finetune_data.jsonl
