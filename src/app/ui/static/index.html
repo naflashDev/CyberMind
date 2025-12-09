@@ -221,6 +221,84 @@
       max-width: 80%;
       word-wrap: break-word;
     }
+
+    /* Controllers pane (FastAPI) - dark theme */
+    .controllers-pane {
+      width: 280px;
+      background: #0b1220; /* dark background */
+      color: #e6eef8;
+      border-right: 1px solid #111827;
+      padding: 12px;
+      box-sizing: border-box;
+      overflow: auto;
+    }
+
+    .controllers-pane h3 {
+      margin-top: 0;
+      color: #e6eef8;
+    }
+
+    .controller-section {
+      margin-bottom: 8px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    .controller-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      background: transparent;
+      color: #dbeafe;
+      font-weight: 600;
+      border: none;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .controller-header .toggle-icon {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-left: 8px;
+    }
+
+    .ops-container {
+      margin-top: 6px;
+      display: block;
+    }
+
+    .controller-section.collapsed .ops-container {
+      display: none;
+    }
+
+    .op-btn {
+      display: block;
+      width: 100%;
+      margin-bottom: 6px;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.02);
+      color: #e6eef8;
+      text-align: left;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .op-btn:hover {
+      background: rgba(255,255,255,0.04);
+    }
+
+    .op-btn.active {
+      background: #2563eb; /* blue highlight */
+      color: #f8fafc;
+      border-color: rgba(37,99,235,0.8);
+    }
+
   </style>
 
   <!-- Markdown parser (marked) -->
@@ -246,9 +324,31 @@
   <!-- MAIN -->
   <div class="main">
     <div class="main-content">
-      <!-- Vista: FastAPI /docs -->
+      <!-- Vista: FastAPI - Operaciones de los controllers -->
       <div class="view active" id="view-fastapi">
-        <iframe class="embed-frame" src="http://localhost:8000/docs"></iframe>
+        <div style="display:flex; height:100%;">
+          <!-- Left: controllers list inside the fastapi view -->
+          <div class="controllers-pane">
+            <h3>Controllers</h3>
+            <div id="controllers-list"></div>
+          </div>
+
+          <!-- Right: operation form and result -->
+          <div style="flex:1; padding:12px; box-sizing:border-box; display:flex; flex-direction:column;">
+            <div style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+              <h3 id="op-title" style="margin:0;">Seleccione una operación</h3>
+              <div style="font-size:13px; color:#6b7280;">FastAPI API: <code>http://127.0.0.1:8000</code></div>
+            </div>
+
+            <div id="op-form" style="margin-bottom:12px;">
+              <p style="color:#6b7280;">Seleccione una operación en la izquierda para ver los parámetros y ejecutarla.</p>
+            </div>
+
+            <div style="flex:1; overflow:auto;">
+              <pre id="op-result" style="background:#0b1220; color:#e6eef8; padding:12px; border-radius:6px; white-space:pre-wrap;">Respuesta aquí...</pre>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Vista: Datos (OpenSearch en localhost:5601) -->
@@ -318,6 +418,169 @@
 
     // vista inicial
     activateView("fastapi");
+  </script>
+
+  <!-- FastAPI operations panel script -->
+  <script>
+    (function () {
+      const API_BASE = window.__CYBERMIND_API_BASE__ || "http://127.0.0.1:8000";
+
+      // Known controller operations (hardcoded from server routes)
+      const controllers = {
+        "Scrapy": [
+          { id: "scrape-news", title: "Scrape News", method: "GET", path: "/newsSpider/scrape-news", params: [] },
+          { id: "start-google-alerts", title: "Start Google Alerts", method: "GET", path: "/newsSpider/start-google-alerts", params: [] },
+          { id: "save-feed-google-alerts", title: "Save Feed Google Alerts", method: "POST", path: "/newsSpider/save-feed-google-alerts", params: [{name: "link", type: "text", placeholder: "URL o texto del feed"}] },
+          { id: "scrapy-google-dk-feeds", title: "Scrapy Google DK Feeds", method: "GET", path: "/newsSpider/scrapy/google-dk/feeds", params: [] },
+          { id: "scrapy-google-dk-news", title: "Scrapy Google DK News", method: "GET", path: "/newsSpider/scrapy/google-dk/news", params: [] }
+        ],
+        "SpaCy": [
+          { id: "start-spacy", title: "Start SpaCy", method: "GET", path: "/start-spacy", params: [] }
+        ],
+        "Tiny": [
+          { id: "search-and-insert-rss", title: "Search and Insert RSS", method: "GET", path: "/postgre-ttrss/search-and-insert-rss", params: [{name: "q", type: "text", placeholder: "consulta (opcional)"}] },
+          { id: "feeds", title: "List Feeds", method: "GET", path: "/postgre-ttrss/feeds", params: [] }
+        ]
+      };
+
+      const controllersList = document.getElementById("controllers-list");
+      const opTitle = document.getElementById("op-title");
+      const opForm = document.getElementById("op-form");
+      const opResult = document.getElementById("op-result");
+
+      function renderControllers() {
+        controllersList.innerHTML = "";
+        Object.keys(controllers).forEach(name => {
+          const wrapper = document.createElement("div");
+          wrapper.className = "controller-section";
+
+          // header with collapse toggle
+          const headerBtn = document.createElement("button");
+          headerBtn.className = "controller-header";
+          headerBtn.type = "button";
+          headerBtn.innerHTML = `<span>${name}</span><span class="toggle-icon">▾</span>`;
+          headerBtn.addEventListener("click", () => {
+            wrapper.classList.toggle("collapsed");
+            const icon = headerBtn.querySelector('.toggle-icon');
+            if (icon) icon.textContent = wrapper.classList.contains('collapsed') ? '▸' : '▾';
+          });
+          wrapper.appendChild(headerBtn);
+
+          const opsContainer = document.createElement("div");
+          opsContainer.className = "ops-container";
+
+          controllers[name].forEach(op => {
+            const opBtn = document.createElement("button");
+            opBtn.className = "op-btn";
+            opBtn.textContent = op.title;
+            opBtn.type = "button";
+            opBtn.addEventListener("click", () => {
+              // set active visual state for buttons
+              document.querySelectorAll('.op-btn').forEach(b => b.classList.remove('active'));
+              opBtn.classList.add('active');
+              selectOperation(name, op, opBtn);
+            });
+            opsContainer.appendChild(opBtn);
+          });
+
+          wrapper.appendChild(opsContainer);
+          controllersList.appendChild(wrapper);
+        });
+      }
+
+      function selectOperation(controllerName, op, btnEl) {
+        opTitle.textContent = controllerName + " — " + op.title + " (" + op.method + ")";
+        renderForm(op);
+        opResult.textContent = "Respuesta aquí...";
+      }
+
+      function renderForm(op) {
+        opForm.innerHTML = "";
+        const info = document.createElement("div");
+        info.style.marginBottom = "8px";
+        info.style.color = "#cbd5e1";
+        info.innerHTML = `<strong>${op.path}</strong> — ${op.method}`;
+        opForm.appendChild(info);
+
+        const form = document.createElement("form");
+        form.onsubmit = async (e) => {
+          e.preventDefault();
+          await submitOperation(op, new FormData(form));
+        };
+
+        // params
+        if (op.params && op.params.length) {
+          op.params.forEach(p => {
+            const label = document.createElement("label");
+            label.style.display = "block";
+            label.style.marginBottom = "6px";
+            label.innerHTML = `<div style='font-size:13px;color:#cbd5e1;margin-bottom:4px;'>${p.name}</div>`;
+
+            const input = document.createElement("input");
+            input.name = p.name;
+            input.placeholder = p.placeholder || "";
+            input.style.width = "100%";
+            input.style.padding = "8px";
+            input.style.boxSizing = "border-box";
+            input.style.marginBottom = "6px";
+            label.appendChild(input);
+            form.appendChild(label);
+          });
+        }
+
+        const submit = document.createElement("button");
+        submit.textContent = "Ejecutar";
+        submit.type = "submit";
+        submit.className = "exec-btn";
+        submit.style.padding = "8px 12px";
+        submit.style.background = "#2563eb";
+        submit.style.color = "#fff";
+        submit.style.border = "none";
+        submit.style.borderRadius = "6px";
+        submit.style.cursor = "pointer";
+
+        form.appendChild(submit);
+        opForm.appendChild(form);
+      }
+
+      async function submitOperation(op, formData) {
+        const url = API_BASE + op.path;
+        opResult.textContent = "Cargando...";
+
+        try {
+          let resp;
+          if (op.method === "GET") {
+            // append query params
+            const params = new URLSearchParams();
+            for (const [k, v] of formData.entries()) if (v) params.append(k, v);
+            const final = params.toString() ? url + "?" + params.toString() : url;
+            resp = await fetch(final);
+          } else {
+            const obj = {};
+            for (const [k, v] of formData.entries()) obj[k] = v;
+            resp = await fetch(url, {
+              method: op.method,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(obj)
+            });
+          }
+
+          const text = await resp.text();
+          // try parse json
+          try {
+            const j = JSON.parse(text);
+            opResult.textContent = JSON.stringify(j, null, 2);
+          } catch (e) {
+            opResult.textContent = text;
+          }
+        } catch (err) {
+          opResult.textContent = "Error: " + err;
+        }
+      }
+
+      // initial render
+      renderControllers();
+    })();
   </script>
 
 

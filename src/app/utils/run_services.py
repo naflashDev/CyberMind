@@ -331,38 +331,9 @@ def ensure_infrastructure(parameters):
     # pass distro_arg (None for host Docker) and the container list
     ensure_containers(parameters[1], distro_arg)
     logger.info("WSL infrastructure check finished.")
+    '''
     logger.info("Starting UI service in a separate console...")
     start_ui_in_separate_terminal()
     logger.info("UI service launch command executed.")
-
-def start_ui_in_separate_terminal():
-    """
-    Start the UI Python script in a separate Windows Terminal (wt.exe) window.
-
-    This function automatically detects the project root (the directory that
-    contains the 'Scraping_web' folder) and runs
-    `python Scraping_web/ui/ui_main.py` from there, so imports work correctly.
-    """
-    try:
-        # Current file: .../Scraping_web/main.py
-        # Project root: directory that contains "Scraping_web"
-        project_root = Path(__file__).resolve().parent.parent
-        ui_script = project_root /"ui" / "ui_main.py"
-
-        logger.info(f"Project root detected as: {project_root}")
-        logger.info(f"UI script path: {ui_script}")
-
-        subprocess.Popen(
-            [
-                "wt.exe",
-                "new-tab",
-                "cmd",
-                "/k",
-                f"python {ui_script}",
-            ],
-            shell=False,
-            cwd=str(project_root),
-        )
-        logger.success("UI script started in a separate Windows Terminal.")
-    except Exception as e:
-        logger.error(f"Error starting UI script in Windows Terminal: {e}")
+    '''
+    time.sleep(15)  # give some time for services to start

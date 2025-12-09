@@ -68,21 +68,47 @@ async def lifespan(app: FastAPI):
     - Closes the PostgreSQL connection pool
     """
 
+    # We will defer heavy startup work until the UI is first accessed.
+    # Initialize flags used by the UI-triggered initializer.
+    app.state.ui_initialized = False
+    app.state.ui_init_lock = None
+
+    yield
+
+    # Shutdown: close DB pool if it was created by the UI initializer
+    logger.info("[Lifespan] Application shutting down.")
+    pool = getattr(app.state, "pool", None)
+    if pool:
+        try:
+            await pool.close()
+            logger.info("[Shutdown] PostgreSQL pool closed.")
+        except Exception:
+            logger.exception("[Shutdown] Error closing PostgreSQL pool.")
+
+
+async def initialize_background_tasks(app: FastAPI):
+    """Initialize the services that used to run at startup.
+
+    This function is triggered on the first UI access and will:
+    - Ensure infrastructure
+    - Create DB pool and store it in `app.state.pool`
+    - Start background threads/tasks
+    """
     # Ensure infrastructure is running
     parameters: tuple = (
-                    'Ubuntu',
-                    'install_updater_1,install_web-nginx_1,install_app_1,install_db_1,opensearch-dashboards,opensearch'
-                )
+        'Ubuntu',
+        'install_updater_1,install_web-nginx_1,install_app_1,install_db_1,opensearch-dashboards,opensearch'
+    )
     file_name: str = 'cfg_services.ini'
     file_content: list[str] = [
-                    '# Configuration file.\n',
-                    '# This file contains the parameters for connecting to the opensearch database server.\n',
-                    '# ONLY one uncommented line is allowed.\n',
-                    '# The valid line format is:distro_name,dockers_name\n',
-                    f'{parameters[0]};{parameters[1]}\n'
-                ]
+        '# Configuration file.\n',
+        '# This file contains the parameters for connecting to the opensearch database server.\n',
+        '# ONLY one uncommented line is allowed.\n',
+        '# The valid line format is:distro_name,dockers_name\n',
+        f'{parameters[0]};{parameters[1]}\n'
+    ]
 
-                # Get the connection parameters or assign default ones
+    # Get the connection parameters or assign default ones
     retorno_otros = get_connection_service_parameters(file_name)
     logger.info(retorno_otros[1])
 
@@ -93,24 +119,22 @@ async def lifespan(app: FastAPI):
         # If the file had to be recreated, default values will be used
 
         if retorno_otros[0] != 0:
-            logger.error('Configuration file missing. Execution cannot continue without a configuration file.')
+            logger.error('Configuration file missing. Initialization aborted.')
             return
     else:
         parameters = retorno_otros[2]  # Get parameters read from the config file
+
     try:
         ensure_infrastructure(parameters)
     except Exception as e:
         logger.error(f"Error while ensuring infrastructure: {e}")
 
-    processes = []
-
-
     loop = asyncio.get_running_loop()
-    logger.info("[Lifespan] Starting background tasks...")
+    logger.info("[UI-init] Starting background tasks triggered by UI access...")
 
     # PostgreSQL connection
     try:
-        logger.info("Connecting to PostgreSQL database...")
+        logger.info("[UI-init] Connecting to PostgreSQL database...")
         pool = await asyncpg.create_pool(
             user="postgres",
             password="password123",
@@ -121,9 +145,9 @@ async def lifespan(app: FastAPI):
             max_size=20,
         )
         app.state.pool = pool
-        logger.info("[Startup] PostgreSQL connection established.")
+        logger.info("[UI-init] PostgreSQL connection established.")
     except Exception:
-        logger.exception("[Startup] Failed to connect to PostgreSQL.")
+        logger.exception("[UI-init] Failed to connect to PostgreSQL.")
         pool = None
 
     # Required paths
@@ -138,9 +162,9 @@ async def lifespan(app: FastAPI):
             args=(loop,),
             daemon=True,
         ).start()
-        logger.info("[Startup] Google Alerts scheduler started.")
+        logger.info("[UI-init] Google Alerts scheduler started.")
     else:
-        logger.warning("[Startup] google_alert_rss.txt not found.")
+        logger.warning("[UI-init] google_alert_rss.txt not found.")
 
     # RSS feed extraction
     if os.path.exists(urls_path):
@@ -149,9 +173,9 @@ async def lifespan(app: FastAPI):
             args=(pool, urls_path, loop),
             daemon=True,
         ).start()
-        logger.info("[Startup] RSS extractor scheduled.")
+        logger.info("[UI-init] RSS extractor scheduled.")
     else:
-        logger.warning("[Startup] urls_cybersecurity_ot_it.txt not found.")
+        logger.warning("[UI-init] urls_cybersecurity_ot_it.txt not found.")
 
     # Immediate feed & news scraping
     threading.Thread(
@@ -164,7 +188,7 @@ async def lifespan(app: FastAPI):
         args=(loop,),
         daemon=True,
     ).start()
-    logger.info("[Startup] Feed and news scraping launched.")
+    logger.info("[UI-init] Feed and news scraping launched.")
 
     # NLP processing (spaCy)
     if os.path.exists(input_path):
@@ -173,30 +197,26 @@ async def lifespan(app: FastAPI):
             args=(input_path, output_path),
             daemon=True,
         ).start()
-        logger.info("[Startup] spaCy NLP labeling scheduled every 24h.")
+        logger.info("[UI-init] spaCy NLP labeling scheduled every 24h.")
     else:
-        logger.warning("[Startup] result.json not found. NLP not launched.")
+        logger.warning("[UI-init] result.json not found. NLP not launched.")
 
     # LLM CVE + dataset updater (every 7 days)
     threading.Thread(
         target=background_cve_and_finetune_loop,
         daemon=True,
     ).start()
-    logger.info("[Startup] LLM CVE & dataset 7-day scheduler started.")
+    logger.info("[UI-init] LLM CVE & dataset 7-day scheduler started.")
 
     # Dynamic Scrapy spider from DB
     if pool:
         asyncio.create_task(run_dynamic_spider_from_db(pool))
-        logger.info("[Startup] Dynamic spider from DB started.")
+        logger.info("[UI-init] Dynamic spider from DB started.")
     else:
-        logger.warning("[Startup] DB-based scraper not started (no DB).")
+        logger.warning("[UI-init] DB-based scraper not started (no DB).")
 
-    yield
-
-    # Shutdown
-    logger.info("[Lifespan] Application shutting down.")
-    if pool:
-        await pool.close()
+    # mark initialized
+    app.state.ui_initialized = True
 
 
 # FastAPI app instance
@@ -213,6 +233,40 @@ app.include_router(spacy_controller.router)
 app.include_router(tiny_postgres_controller.router)
 app.include_router(llm_controller.router)
 
+# Serve UI static files (simple single-file UI under app/ui/static)
+STATIC_DIR = Path(__file__).resolve().parent / "app" / "ui" / "static"
+if STATIC_DIR.exists():
+    logger.info(f"Mounting UI static files from {STATIC_DIR}")
+    app.mount("/ui", StaticFiles(directory=str(STATIC_DIR)), name="ui")
+
+    @app.get("/", include_in_schema=False)
+    async def root_index():
+        index_path = STATIC_DIR / "index.html"
+        if index_path.exists():
+            # Trigger UI-based initialization on first access (non-blocking)
+            if not getattr(app.state, "ui_initialized", False):
+                # create lock lazily bound to current event loop
+                if getattr(app.state, "ui_init_lock", None) is None:
+                    app.state.ui_init_lock = asyncio.Lock()
+
+                async def _init_if_needed():
+                    async with app.state.ui_init_lock:
+                        if getattr(app.state, "ui_initialized", False):
+                            return
+                        try:
+                            await initialize_background_tasks(app)
+                        except Exception:
+                            logger.exception("[UI-init] Exception during initialization triggered by UI access")
+
+                # schedule initialization in background so UI loads fast
+                asyncio.create_task(_init_if_needed())
+
+            return FileResponse(index_path)
+        else:
+            return {"error": "index.html not found in UI static directory"}
+else:
+    logger.warning(f"UI static directory not found at {STATIC_DIR}; UI will not be served from main.py")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -223,6 +277,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 # Entry point
 if __name__ == "__main__":
     """
