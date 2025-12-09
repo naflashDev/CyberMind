@@ -18,3 +18,4 @@ cve_list.json
 finetune_data.jsonl
 labels_result.json
 result.json
+.vscode/

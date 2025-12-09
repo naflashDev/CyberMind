@@ -15,6 +15,10 @@ from app.models.opensearh_db import store_in_opensearch,text_exists_in_opensearc
 # with auto-reload during development).
 _models = {}
 
+# Public alias for tests and external callers that expect `models` to exist.
+# Keep `_models` as the internal lazy container; `models` points to the same dict.
+models = _models
+
 def _get_model(lang_code: str):
     """Return a spaCy model for the requested language, loading it on first use.
 
