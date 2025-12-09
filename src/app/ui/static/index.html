@@ -299,6 +299,80 @@
       border-color: rgba(37,99,235,0.8);
     }
 
+    /* Response rendering styles */
+    #op-result {
+      display: none;
+      background:#0b1220;
+      color:#e6eef8;
+      padding:12px;
+      border-radius:6px;
+      box-sizing:border-box;
+      white-space:normal;
+    }
+
+    #op-result .response-box {
+      font-size:13px;
+      line-height:1.45;
+    }
+
+    #op-result .response-header {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:8px;
+      gap:12px;
+    }
+
+    #op-result .response-meta { color:#9aa6b2; font-size:12px }
+    #op-result .response-key { color:#93c5fd; font-weight:600; margin-right:6px }
+    #op-result .response-value { color:#e6eef8 }
+    #op-result .response-list { margin:0; padding-left:18px }
+    #op-result .response-error { color:#fca5a5 }
+    #op-result pre { background:transparent; color:inherit; border:0; padding:0; margin:0; white-space:pre-wrap }
+
+    .copy-json-btn {
+      background: #0b1220;
+      color: #93c5fd;
+      border: 1px solid rgba(147,197,253,0.15);
+      padding: 6px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .copy-json-btn:hover { background:#071122 }
+
+    .toast {
+      position:fixed;
+      right:20px;
+      bottom:20px;
+      background:#111827;
+      color:#e6eef8;
+      padding:8px 12px;
+      border-radius:6px;
+      box-shadow:0 6px 18px rgba(2,6,23,0.6);
+      opacity:0;
+      transition:opacity .18s ease;
+      z-index:9999;
+    }
+
+    .toast.show { opacity:1 }
+
+    /* Two-column response layout */
+    .response-two-col { display:flex; gap:12px; align-items:flex-start }
+    .response-two-col .left-pane { flex:1; min-width:0 }
+    .response-two-col .right-pane { width:420px; max-width:40%; box-sizing:border-box }
+
+    .raw-box { background:#071025; border:1px solid rgba(255,255,255,0.03); padding:10px; border-radius:6px; }
+    .raw-box .raw-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px }
+    .raw-box pre { max-height:480px; overflow:auto; background:transparent; color:inherit; white-space:pre-wrap }
+
+    /* Panel collapse behaviour */
+    .panel { border-radius:6px; overflow:hidden }
+    .panel .panel-body { transition: max-height 0.18s ease; }
+    .panel.collapsed .panel-body { display:none }
+    .panel-toggle { background:transparent; border:0; color:#9aa6b2; cursor:pointer; font-size:14px; padding:4px 8px; }
+
   </style>
 
   <!-- Markdown parser (marked) -->
@@ -329,7 +403,7 @@
         <div style="display:flex; height:100%;">
           <!-- Left: controllers list inside the fastapi view -->
           <div class="controllers-pane">
-            <h3>Controllers</h3>
+            <h3>Services</h3>
             <div id="controllers-list"></div>
           </div>
 
@@ -345,7 +419,7 @@
             </div>
 
             <div style="flex:1; overflow:auto;">
-              <pre id="op-result" style="background:#0b1220; color:#e6eef8; padding:12px; border-radius:6px; white-space:pre-wrap;">Respuesta aquí...</pre>
+              <div id="op-result" style="display:none; background:#0b1220; color:#e6eef8; padding:12px; border-radius:6px; box-sizing:border-box;"></div>
             </div>
           </div>
         </div>
@@ -376,6 +450,19 @@
           </div>
         </div>
       </div>
+      <!-- Vista: Estado del sistema -->
+      <div class="view" id="view-status">
+        <div style="padding:16px; box-sizing:border-box; height:100%; display:flex; flex-direction:column; gap:12px;">
+          <h2>Estado del sistema</h2>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button id="btn-refresh-status-view" style="padding:8px 12px; border-radius:6px; border:none; background:#2563eb; color:#fff; cursor:pointer;">Actualizar</button>
+            <div id="status-summary" style="color:#9aa6b2;">Cargando estado...</div>
+          </div>
+          <div style="flex:1; overflow:auto;">
+            <pre id="status-json" style="background:#0b1220; color:#e6eef8; padding:12px; border-radius:6px; white-space:pre-wrap;">Cargando...</pre>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -389,6 +476,7 @@
       datos: document.getElementById("view-datos"),
       tiny: document.getElementById("view-tiny"),
       llm: document.getElementById("view-llm"),
+      status: document.getElementById("view-status"),
     };
 
     function activateView(viewName) {
@@ -402,6 +490,8 @@
       Object.values(views).forEach(v => v.classList.remove("active"));
       // muestra solo la seleccionada
       if (views[viewName]) views[viewName].classList.add("active");
+
+      // no fixed status bar to manage (removed)
     }
 
     buttons.forEach(btn => {
@@ -428,18 +518,21 @@
       // Known controller operations (hardcoded from server routes)
       const controllers = {
         "Scrapy": [
-          { id: "scrape-news", title: "Scrape News", method: "GET", path: "/newsSpider/scrape-news", params: [] },
-          { id: "start-google-alerts", title: "Start Google Alerts", method: "GET", path: "/newsSpider/start-google-alerts", params: [] },
-          { id: "save-feed-google-alerts", title: "Save Feed Google Alerts", method: "POST", path: "/newsSpider/save-feed-google-alerts", params: [{name: "link", type: "text", placeholder: "URL o texto del feed"}] },
-          { id: "scrapy-google-dk-feeds", title: "Scrapy Google DK Feeds", method: "GET", path: "/newsSpider/scrapy/google-dk/feeds", params: [] },
-          { id: "scrapy-google-dk-news", title: "Scrapy Google DK News", method: "GET", path: "/newsSpider/scrapy/google-dk/news", params: [] }
+          { id: "scrape-news", title: "Scrape News", method: "GET", path: "/newsSpider/scrape-news", params: [], desc: "Extrae noticias desde las fuentes configuradas y las normaliza." },
+          { id: "start-google-alerts", title: "Start Google Alerts", method: "GET", path: "/newsSpider/start-google-alerts", params: [], desc: "Inicia la recolección de alertas de Google configuradas." },
+          { id: "save-feed-google-alerts", title: "Save Feed Google Alerts", method: "POST", path: "/newsSpider/save-feed-google-alerts", params: [{name: "link", type: "text", placeholder: "URL o texto del feed"}], desc: "Guarda un feed (o URL) de Google Alerts en la base de datos." },
+          { id: "scrapy-google-dk-feeds", title: "Scrapy Google DK Feeds", method: "GET", path: "/newsSpider/scrapy/google-dk/feeds", params: [], desc: "Rastrea y lista feeds encontrados para Google DK (feeds)." },
+          { id: "scrapy-google-dk-news", title: "Scrapy Google DK News", method: "GET", path: "/newsSpider/scrapy/google-dk/news", params: [], desc: "Rastrea artículos/noticias desde Google DK." }
         ],
         "SpaCy": [
-          { id: "start-spacy", title: "Start SpaCy", method: "GET", path: "/start-spacy", params: [] }
+          { id: "start-spacy", title: "Start SpaCy", method: "GET", path: "/start-spacy", params: [], desc: "Inicia o carga el pipeline de SpaCy para procesamiento de texto." }
         ],
         "Tiny": [
-          { id: "search-and-insert-rss", title: "Search and Insert RSS", method: "GET", path: "/postgre-ttrss/search-and-insert-rss", params: [{name: "q", type: "text", placeholder: "consulta (opcional)"}] },
-          { id: "feeds", title: "List Feeds", method: "GET", path: "/postgre-ttrss/feeds", params: [] }
+          { id: "search-and-insert-rss", title: "Search and Insert RSS", method: "GET", path: "/postgre-ttrss/search-and-insert-rss", params: [{name: "link", type: "text", placeholder: "consulta (opcional)"}], desc: "Busca elementos RSS por consulta e inserta los nuevos en TinyRSS/Postgres." },
+          { id: "feeds", title: "List Feeds", method: "GET", path: "/postgre-ttrss/feeds", params: [], desc: "Lista los feeds almacenados en la base de datos." }
+        ],
+        "Status": [
+          { id: "system-status-op", title: "System Status", method: "GET", path: "/status", params: [], desc: "Muestra el estado de la infraestructura, UI y workers en ejecución." }
         ]
       };
 
@@ -491,7 +584,13 @@
       function selectOperation(controllerName, op, btnEl) {
         opTitle.textContent = controllerName + " — " + op.title + " (" + op.method + ")";
         renderForm(op);
-        opResult.textContent = "Respuesta aquí...";
+        // Hide the generic result area for the status operation (we show a custom panel)
+        const opResultEl = document.getElementById('op-result');
+        if (op.path === '/status') {
+          if (opResultEl) opResultEl.style.display = 'none';
+        } else {
+          if (opResultEl) { opResultEl.style.display = 'block'; opResultEl.textContent = 'Respuesta aquí...'; }
+        }
       }
 
       function renderForm(op) {
@@ -499,7 +598,18 @@
         const info = document.createElement("div");
         info.style.marginBottom = "8px";
         info.style.color = "#cbd5e1";
-        info.innerHTML = `<strong>${op.path}</strong> — ${op.method}`;
+        // Show method and a short description (no public path)
+        const methodEl = document.createElement('strong');
+        methodEl.textContent = op.method;
+        info.appendChild(methodEl);
+        if (op.desc) {
+          const descEl = document.createElement('div');
+          descEl.style.color = '#9aa6b2';
+          descEl.style.fontSize = '13px';
+          descEl.style.marginTop = '6px';
+          descEl.textContent = op.desc;
+          info.appendChild(descEl);
+        }
         opForm.appendChild(info);
 
         const form = document.createElement("form");
@@ -507,6 +617,73 @@
           e.preventDefault();
           await submitOperation(op, new FormData(form));
         };
+
+        // Special-case UI for the /status operation: show a prettier panel inside the
+        // FastAPI operations area (summary + JSON + refresh button).
+        if (op.path === "/status") {
+          const panel = document.createElement('div');
+          panel.style.display = 'flex';
+          panel.style.flexDirection = 'column';
+          panel.style.gap = '8px';
+
+          const row = document.createElement('div');
+          row.style.display = 'flex';
+          row.style.alignItems = 'center';
+          row.style.gap = '8px';
+
+          const refreshBtn = document.createElement('button');
+          refreshBtn.type = 'button';
+          refreshBtn.textContent = 'Actualizar estado';
+          refreshBtn.style.padding = '6px 10px';
+          refreshBtn.style.borderRadius = '6px';
+          refreshBtn.style.border = 'none';
+          refreshBtn.style.background = '#2563eb';
+          refreshBtn.style.color = '#fff';
+          refreshBtn.style.cursor = 'pointer';
+
+          row.appendChild(refreshBtn);
+
+          const box = document.createElement('div');
+          box.id = 'op-status-box';
+          box.style.background = '#0b1220';
+          box.style.color = '#e6eef8';
+          box.style.padding = '12px';
+          box.style.borderRadius = '6px';
+          box.style.boxSizing = 'border-box';
+          box.innerHTML = '<div>Cargando...</div>';
+
+          panel.appendChild(row);
+          panel.appendChild(box);
+          opForm.appendChild(panel);
+
+          async function fetchForOp() {
+            try {
+              const resp = await fetch((window.__CYBERMIND_API_BASE__ || 'http://127.0.0.1:8000') + '/status');
+              if (!resp.ok) throw new Error('HTTP ' + resp.status);
+              const j = await resp.json();
+              const workers = j.workers || {};
+              const running = Object.entries(workers).filter(([k,v])=>v).map(([k])=>k).join(', ') || 'ninguno';
+              // build a treated HTML view
+              const parts = [];
+              parts.push(`<div style="margin-bottom:8px;"><strong>Infra:</strong> ${j.infra_ready ? '<span style="color:#86efac">OK</span>' : '<span style="color:#fca5a5">NO</span>'}${j.infra_error ? ` &nbsp; <em style=\"color:#fca5a5\">${j.infra_error}</em>` : ''}</div>`);
+              parts.push(`<div style="margin-bottom:8px;"><strong>UI initialized:</strong> ${j.ui_initialized ? '<span style="color:#86efac">sí</span>' : '<span style="color:#fca5a5">no</span>'}</div>`);
+              parts.push('<div style="margin-bottom:6px;"><strong>Workers</strong></div>');
+              parts.push('<ul style="margin:0; padding-left:18px;">');
+              for (const [name, val] of Object.entries(workers)) {
+                parts.push(`<li><strong>${name}:</strong> ${val ? '<span style="color:#86efac">running</span>' : '<span style="color:#fca5a5">stopped</span>'}</li>`);
+              }
+              parts.push('</ul>');
+              document.getElementById('op-status-box').innerHTML = parts.join('');
+            } catch (err) {
+              box.innerHTML = `<div style="color:#fca5a5">Error: ${String(err)}</div>`;
+            }
+          }
+
+          refreshBtn.addEventListener('click', fetchForOp);
+          // initial fetch for the panel
+          fetchForOp();
+          return;
+        }
 
         // params
         if (op.params && op.params.length) {
@@ -543,9 +720,94 @@
         opForm.appendChild(form);
       }
 
+      // Utility: escape HTML
+      function escapeHtml(unsafe) {
+        return String(unsafe)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      // Small toast helper
+      function showToast(msg, ms = 1800) {
+        try {
+          const t = document.createElement('div');
+          t.className = 'toast';
+          t.textContent = msg;
+          document.body.appendChild(t);
+          // force reflow to allow transition
+          void t.offsetWidth;
+          t.classList.add('show');
+          setTimeout(() => {
+            t.classList.remove('show');
+            setTimeout(() => t.remove(), 200);
+          }, ms);
+        } catch (e) {
+          console.log('toast', e);
+        }
+      }
+
+      // Render JSON/object values into a compact, readable HTML representation
+      function renderResponse(obj, status) {
+        // Render a friendly, non-JSON-first representation.
+        function renderFriendly(value, depth = 0) {
+          if (value === null) return `<span class="response-value">(nulo)</span>`;
+          const t = typeof value;
+          if (t === 'string' || t === 'number' || t === 'boolean') {
+            return `<span class="response-value">${escapeHtml(String(value))}</span>`;
+          }
+          if (Array.isArray(value)) {
+            if (value.length === 0) return `<span class="response-value">(vacío)</span>`;
+            const items = value.slice(0, 200).map(it => `<li>${renderFriendly(it, depth+1)}</li>`).join('');
+            const more = value.length > 200 ? `<li>... ${value.length - 200} más</li>` : '';
+            return `<ul class="response-list">${items}${more}</ul>`;
+          }
+          if (t === 'object') {
+            // protect from too deep recursion
+            if (depth >= 2) {
+              return `<details><summary>Objeto (mostrar JSON)</summary><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre></details>`;
+            }
+            const lines = Object.keys(value).map(k => {
+              const v = value[k];
+              // concise one-line for primitives
+              if (v === null || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+                return `<div><span class="response-key">${escapeHtml(k)}:</span> ${renderFriendly(v, depth+1)}</div>`;
+              }
+              // arrays and objects will be nested
+              return `<div style="margin-top:6px;"><span class="response-key">${escapeHtml(k)}:</span> ${renderFriendly(v, depth+1)}</div>`;
+            }).join('');
+            return `<div>${lines}</div>`;
+          }
+          return `<span class="response-value">${escapeHtml(String(value))}</span>`;
+        }
+
+        // build a panel with header (status + toggle) and body
+        const panelHeader = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><div class=\"response-meta\">Status: ${status || ''}</div><button class=\"panel-toggle\">▾</button></div>`;
+        // If primitive, show simply
+        if (obj === null || typeof obj !== 'object') {
+          return `<div class="panel"><div class="panel-head">${panelHeader}</div><div class="panel-body">${renderFriendly(obj)}</div></div>`;
+        }
+
+        // Render top-level object as friendly text
+        const friendlyHtml = renderFriendly(obj, 0);
+        return `<div class="panel"><div class="panel-head">${panelHeader}</div><div class="panel-body">${friendlyHtml}</div></div>`;
+      }
+      
+      // Render the raw JSON pane (visible) with copy button
+      function renderRawJson(obj) {
+        const jsonText = escapeHtml(JSON.stringify(obj, null, 2));
+        const header = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><div class=\"response-meta\">JSON crudo</div><div><button class=\"panel-toggle\">▾</button> <button class=\"copy-json-btn\" type=\"button\">Copiar JSON</button></div></div>`;
+        return `<div class="panel"><div class="panel-head">${header}</div><div class="panel-body"><div class="raw-box"><pre>${jsonText}</pre></div></div></div>`;
+      }
+      
+
       async function submitOperation(op, formData) {
         const url = API_BASE + op.path;
-        opResult.textContent = "Cargando...";
+        // show response area and a loading hint
+        opResult.style.display = 'block';
+        opResult.innerHTML = `<div class="response-meta">Cargando...</div>`;
 
         try {
           let resp;
@@ -569,17 +831,100 @@
           // try parse json
           try {
             const j = JSON.parse(text);
-            opResult.textContent = JSON.stringify(j, null, 2);
+                // render two-column view: friendly left, raw right (both panels include collapsible headers)
+                opResult.innerHTML = `<div class="response-two-col"><div class="left-pane">${renderResponse(j, resp.status)}</div><div class="right-pane">${renderRawJson(j)}</div></div>`;
+                // attach copy handler in the raw pane
+                const copyBtn = opResult.querySelector('.right-pane .copy-json-btn');
+                if (copyBtn) {
+                  copyBtn.addEventListener('click', async () => {
+                    try {
+                      const textToCopy = JSON.stringify(j, null, 2);
+                      if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(textToCopy);
+                      } else {
+                        const ta = document.createElement('textarea');
+                        ta.value = textToCopy;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(ta);
+                      }
+                      showToast('JSON copiado');
+                    } catch (e) {
+                      showToast('Error copiando JSON');
+                    }
+                  });
+                }
+
+                // attach collapse/expand handlers for both panels
+                const toggles = opResult.querySelectorAll('.panel-toggle');
+                toggles.forEach(t => {
+                  t.addEventListener('click', () => {
+                    const panel = t.closest('.panel');
+                    if (!panel) return;
+                    const body = panel.querySelector('.panel-body');
+                    const isCollapsed = panel.classList.toggle('collapsed');
+                    if (body) body.style.display = isCollapsed ? 'none' : '';
+                    // update icon
+                    t.textContent = isCollapsed ? '▸' : '▾';
+                  });
+                });
           } catch (e) {
-            opResult.textContent = text;
+            // not JSON: render as markdown if looks like markdown, otherwise as plain pre
+            const t = text || '';
+            const maybeMd = window.marked && (t.trim().startsWith('#') || t.includes('\n\n') || t.includes('```'));
+            if (maybeMd) {
+              try {
+                opResult.innerHTML = `<div class="response-box">${window.marked.parse(t)}</div>`;
+              } catch (me) {
+                opResult.innerHTML = `<pre>${escapeHtml(t)}</pre>`;
+              }
+            } else {
+              opResult.innerHTML = `<pre>${escapeHtml(t)}</pre>`;
+            }
           }
         } catch (err) {
-          opResult.textContent = "Error: " + err;
+          opResult.innerHTML = `<div class="response-error">Error: ${escapeHtml(String(err))}</div>`;
         }
       }
 
       // initial render
       renderControllers();
+      // fetch system status and update UI
+      async function fetchStatus() {
+        try {
+          const resp = await fetch((window.__CYBERMIND_API_BASE__ || 'http://127.0.0.1:8000') + '/status');
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const j = await resp.json();
+          const ready = j.infra_ready ? 'OK' : 'NO';
+          const uiInit = j.ui_initialized ? 'sí' : 'no';
+          const workers = j.workers || {};
+          const running = Object.entries(workers).filter(([k,v])=>v).map(([k])=>k).join(', ') || 'ninguno';
+          const text = `Infra: ${ready} · UI init: ${uiInit} · Workers: ${running}`;
+          // populate Status view if present
+          const statusJson = document.getElementById('status-json');
+          const statusSummary = document.getElementById('status-summary');
+          if (statusJson) {
+            try {
+              statusJson.textContent = JSON.stringify(j, null, 2);
+            } catch (e) {
+              statusJson.textContent = String(j);
+            }
+          }
+          if (statusSummary) {
+            statusSummary.textContent = `Infra: ${j.infra_ready ? 'OK' : 'NO'} · UI init: ${j.ui_initialized ? 'sí' : 'no'} · Workers: ${running}`;
+          }
+        } catch (err) {
+          // ignore header status element — removed
+        }
+      }
+
+      const btnStatusView = document.getElementById('btn-refresh-status-view');
+      if (btnStatusView) btnStatusView.addEventListener('click', fetchStatus);
+      // initial call
+      fetchStatus();
+      // periodic refresh every 10s
+      setInterval(fetchStatus, 10000);
     })();
   </script>
 

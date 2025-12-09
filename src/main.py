@@ -33,6 +33,7 @@ from app.controllers.routes import (
     spacy_controller,
     tiny_postgres_controller,
     llm_controller,
+    status_controller,
 )
 from app.controllers.routes.scrapy_news_controller import (
     recurring_google_alert_scraper,
@@ -68,15 +69,72 @@ async def lifespan(app: FastAPI):
     - Closes the PostgreSQL connection pool
     """
 
-    # We will defer heavy startup work until the UI is first accessed.
-    # Initialize flags used by the UI-triggered initializer.
+    # We will block on heavy startup work so the server only accepts requests
+    # after infrastructure initialization completes.
     app.state.ui_initialized = False
-    app.state.ui_init_lock = None
+    # infra readiness flag (set after ensure_infrastructure completes)
+    app.state.infra_ready = False
+    app.state.infra_error = None
+    # worker status dictionary (keys set when initializing background tasks)
+    app.state.worker_status = {}
+    # create lock bound to current event loop for initialization
+    app.state.ui_init_lock = asyncio.Lock()
+
+    logger.info("Startup: initializing infrastructure and background tasks (blocking until ready)")
+    try:
+        # Ensure infrastructure first (so services like DB/Opensearch are created)
+        # Read the configuration file to obtain parameters used by ensure_infrastructure
+        file_name: str = 'cfg_services.ini'
+        retorno_otros = get_connection_service_parameters(file_name)
+        if retorno_otros[0] != 0:
+            # If config missing, recreate with defaults so ensure_infrastructure has sensible defaults
+            parameters: tuple = (
+                'Ubuntu',
+                'install-updater-1,install-web-nginx-1,install-app-1,install-db-1,opensearch-dashboards,opensearch'
+            )
+        else:
+            parameters = retorno_otros[2]
+
+        try:
+            # create a stop event so background threads can be asked to stop gracefully
+            import threading as _threading
+            app.state.stop_event = _threading.Event()
+
+            try:
+                ensure_infrastructure(parameters)
+                app.state.infra_ready = True
+            except Exception as e:
+                # record infra error but allow server to continue
+                app.state.infra_error = str(e)
+                logger.exception("[Startup] ensure_infrastructure failed")
+        except Exception:
+            logger.exception("[Startup] Exception while ensuring infrastructure")
+
+        logger.info("Infrastructure ensured; continuing startup to serve UI. Background services will start after UI access.")
+    except Exception:
+        logger.exception("[Startup] Exception during initialization")
 
     yield
 
     # Shutdown: close DB pool if it was created by the UI initializer
     logger.info("[Lifespan] Application shutting down.")
+    # Signal background threads to stop
+    stop_event = getattr(app.state, "stop_event", None)
+    if stop_event is not None:
+        try:
+            stop_event.set()
+            logger.info("Signaled background threads to stop.")
+        except Exception:
+            logger.exception("Error signaling stop_event")
+    # mark workers as stopped (best-effort)
+    try:
+        ws = getattr(app.state, "worker_status", None)
+        if isinstance(ws, dict):
+            for k in list(ws.keys()):
+                ws[k] = False
+            app.state.worker_status = ws
+    except Exception:
+        logger.exception("Error updating worker_status during shutdown")
     pool = getattr(app.state, "pool", None)
     if pool:
         try:
@@ -94,40 +152,35 @@ async def initialize_background_tasks(app: FastAPI):
     - Create DB pool and store it in `app.state.pool`
     - Start background threads/tasks
     """
-    # Ensure infrastructure is running
-    parameters: tuple = (
-        'Ubuntu',
-        'install_updater_1,install_web-nginx_1,install_app_1,install_db_1,opensearch-dashboards,opensearch'
-    )
+    # Note: infrastructure should already be ensured by the lifespan startup.
+    # This function now focuses on creating DB pool and starting background services
     file_name: str = 'cfg_services.ini'
     file_content: list[str] = [
         '# Configuration file.\n',
         '# This file contains the parameters for connecting to the opensearch database server.\n',
         '# ONLY one uncommented line is allowed.\n',
         '# The valid line format is:distro_name,dockers_name\n',
-        f'{parameters[0]};{parameters[1]}\n'
     ]
 
-    # Get the connection parameters or assign default ones
+    # Get the connection parameters or assign default ones (for container names later)
     retorno_otros = get_connection_service_parameters(file_name)
     logger.info(retorno_otros[1])
 
     if retorno_otros[0] != 0:
-        logger.info('Recreating configuration file...')
-        retorno_otros = create_config_file(file_name, file_content)
+        logger.info('Recreating configuration file with defaults...')
+        # reuse same defaults as earlier
+        default_parameters: tuple = (
+            'Ubuntu',
+            'install-updater-1,install-web-nginx-1,install-app-1,install-db-1,opensearch-dashboards,opensearch'
+        )
+        retorno_otros = create_config_file(file_name, file_content + [f"{default_parameters[0]};{default_parameters[1]}\n"]) 
         logger.info(retorno_otros[1])
-        # If the file had to be recreated, default values will be used
-
         if retorno_otros[0] != 0:
-            logger.error('Configuration file missing. Initialization aborted.')
+            logger.error('Configuration file missing. Background initialization aborted.')
             return
+        parameters = default_parameters
     else:
-        parameters = retorno_otros[2]  # Get parameters read from the config file
-
-    try:
-        ensure_infrastructure(parameters)
-    except Exception as e:
-        logger.error(f"Error while ensuring infrastructure: {e}")
+        parameters = retorno_otros[2]
 
     loop = asyncio.get_running_loop()
     logger.info("[UI-init] Starting background tasks triggered by UI access...")
@@ -158,16 +211,19 @@ async def initialize_background_tasks(app: FastAPI):
 
     # Google Alerts scraper
     if os.path.exists(google_alerts_path):
+        app.state.worker_status["google_alerts"] = True
         threading.Thread(
             args=(loop,),
             daemon=True,
         ).start()
         logger.info("[UI-init] Google Alerts scheduler started.")
     else:
+        app.state.worker_status["google_alerts"] = False
         logger.warning("[UI-init] google_alert_rss.txt not found.")
 
     # RSS feed extraction
     if os.path.exists(urls_path):
+        app.state.worker_status["rss_extractor"] = True
         threading.Thread(
             target=background_rss_process_loop,
             args=(pool, urls_path, loop),
@@ -175,6 +231,7 @@ async def initialize_background_tasks(app: FastAPI):
         ).start()
         logger.info("[UI-init] RSS extractor scheduled.")
     else:
+        app.state.worker_status["rss_extractor"] = False
         logger.warning("[UI-init] urls_cybersecurity_ot_it.txt not found.")
 
     # Immediate feed & news scraping
@@ -183,15 +240,18 @@ async def initialize_background_tasks(app: FastAPI):
         args=(loop,),
         daemon=True,
     ).start()
+    app.state.worker_status["scraping_feeds"] = True
     threading.Thread(
         target=background_scraping_news,
         args=(loop,),
         daemon=True,
     ).start()
+    app.state.worker_status["scraping_news"] = True
     logger.info("[UI-init] Feed and news scraping launched.")
 
     # NLP processing (spaCy)
     if os.path.exists(input_path):
+        app.state.worker_status["spacy_nlp"] = True
         threading.Thread(
             target=background_process_every_24h,
             args=(input_path, output_path),
@@ -199,20 +259,25 @@ async def initialize_background_tasks(app: FastAPI):
         ).start()
         logger.info("[UI-init] spaCy NLP labeling scheduled every 24h.")
     else:
+        app.state.worker_status["spacy_nlp"] = False
         logger.warning("[UI-init] result.json not found. NLP not launched.")
 
     # LLM CVE + dataset updater (every 7 days)
     threading.Thread(
         target=background_cve_and_finetune_loop,
+        args=(getattr(app.state, "stop_event", None),),
         daemon=True,
     ).start()
+    app.state.worker_status["llm_updater"] = True
     logger.info("[UI-init] LLM CVE & dataset 7-day scheduler started.")
 
     # Dynamic Scrapy spider from DB
     if pool:
         asyncio.create_task(run_dynamic_spider_from_db(pool))
+        app.state.worker_status["dynamic_spider"] = True
         logger.info("[UI-init] Dynamic spider from DB started.")
     else:
+        app.state.worker_status["dynamic_spider"] = False
         logger.warning("[UI-init] DB-based scraper not started (no DB).")
 
     # mark initialized
@@ -232,6 +297,7 @@ app.include_router(scrapy_news_controller.router)
 app.include_router(spacy_controller.router)
 app.include_router(tiny_postgres_controller.router)
 app.include_router(llm_controller.router)
+app.include_router(status_controller.router)
 
 # Serve UI static files (simple single-file UI under app/ui/static)
 STATIC_DIR = Path(__file__).resolve().parent / "app" / "ui" / "static"

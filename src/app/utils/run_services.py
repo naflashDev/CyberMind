@@ -1,9 +1,13 @@
 """
-@file main.py
-@brief Run dependent services.
-@details This script ensures that the required infrastructure services
-(OpenSearch, Dashboards, and Tiny RSS Docker container) are running inside
-a specified WSL distribution before launching the FastAPI application.
+@file run_services.py
+@brief Infrastructure helpers: Docker / compose / Ollama checks.
+@details This module provides utilities used at application startup to
+ensure required infrastructure is available. It contains helpers to detect
+and (when reasonable) start Docker/compose services, run compose files from
+the project's `Install/` folder, and helper helpers for checking WSL-based
+Docker usage. These functions are invoked by the FastAPI startup lifecycle
+to verify and attempt to bring up dependent services before the app listens
+for incoming requests.
 @date Created: 2025-11-27 12:17:59
 @author naflashDev
 @project CyberMind
@@ -11,6 +15,7 @@ a specified WSL distribution before launching the FastAPI application.
 
 import subprocess
 import sys
+import os
 import time
 from loguru import logger
 from pathlib import Path
@@ -180,6 +185,127 @@ def ensure_compose_from_install(project_root: Path) -> None:
         logger.warning(f"No YAML files found in {install_dir}; nothing to compose.")
         return
 
+    # If both ttrss and opensearch compose files exist, prefer running them together
+    tinytinyrss_file = install_dir / "tinytinyrss.yml"
+    opensearch_file = install_dir / "opensearch-compose.yml"
+    project_root_dir = project_root
+    if tinytinyrss_file.exists() and opensearch_file.exists():
+        logger.info("Detected TinyTinyRSS and OpenSearch compose files; checking services to decide compose actions.")
+
+        # Determine compose command (prefer `docker compose` v2)
+        if shutil.which("docker"):
+            base_compose = ["docker", "compose"]
+        elif shutil.which("docker-compose"):
+            base_compose = ["docker-compose"]
+        else:
+            logger.error("Neither `docker` nor `docker-compose` found on PATH; cannot run combined compose.")
+            base_compose = None
+
+        if base_compose:
+            # Determine env file preference: Install/stack.env preferred, fallback to docker/stack.env
+            env_file = install_dir / "stack.env"
+            if not env_file.exists():
+                fallback_env = project_root_dir / "docker" / "stack.env"
+                if fallback_env.exists():
+                    env_file = fallback_env
+                    logger.info(f"Using fallback env-file: {env_file}")
+
+            # Helper to get services for a compose file
+            def _get_services_for(cf_path):
+                try:
+                    cfg_cmd = base_compose + ["-f", str(cf_path), "config", "--services"]
+                    proc = subprocess.run(cfg_cmd, capture_output=True, text=True, check=False)
+                    if proc.returncode == 0 and proc.stdout:
+                        return [s.strip() for s in proc.stdout.splitlines() if s.strip()]
+                except Exception as e:
+                    logger.debug(f"Could not parse services from {cf_path}: {e}")
+                return []
+
+            services_tiny = _get_services_for(tinytinyrss_file)
+            services_opensearch = _get_services_for(opensearch_file)
+
+            # If we couldn't parse services from one or both files, fall back to combined compose
+            if not services_tiny or not services_opensearch:
+                logger.warning("Could not parse services from one or both compose files; falling back to combined compose.")
+                cmd = base_compose + ["-f", str(tinytinyrss_file), "-f", str(opensearch_file)]
+                if env_file.exists():
+                    cmd += ["--env-file", str(env_file)]
+                cmd += ["up", "-d"]
+                if platform.system() == "Linux" and os_get_euid() != 0:
+                    cmd = ["sudo"] + cmd
+                try:
+                    logger.info(f"Executing fallback combined compose: {' '.join(cmd)}")
+                    subprocess.run(cmd, check=False)
+                    logger.success("Fallback combined compose executed successfully.")
+                    return
+                except Exception as e:
+                    logger.error(f"Failed to execute fallback combined compose command: {e}")
+                    # fall through to continue with other logic
+
+            # Helper to check if any service has an existing container (by compose label)
+            def _service_exists(svc_name):
+                try:
+                    check_cmd = ["docker", "ps", "-a", "--filter", f"label=com.docker.compose.service={svc_name}", "--format", "{{.Names}}"]
+                    chk = subprocess.run(check_cmd, capture_output=True, text=True, check=False)
+                    return bool(chk.stdout and chk.stdout.strip())
+                except Exception:
+                    return False
+
+            missing_tiny = [s for s in services_tiny if not _service_exists(s)] if services_tiny else []
+            missing_opensearch = [s for s in services_opensearch if not _service_exists(s)] if services_opensearch else []
+
+            # Decide actions based on missing services
+            if not missing_tiny and not missing_opensearch:
+                logger.info("All TinyTinyRSS and OpenSearch services are present; skipping compose.")
+                return
+
+            # If both missing -> run combined compose with env-file (if present)
+            if missing_tiny and missing_opensearch:
+                cmd = base_compose + ["-f", str(tinytinyrss_file), "-f", str(opensearch_file)]
+                if env_file.exists():
+                    cmd += ["--env-file", str(env_file)]
+                cmd += ["up", "-d"]
+                # sudo on Linux if needed
+                if platform.system() == "Linux" and os_get_euid() != 0:
+                    cmd = ["sudo"] + cmd
+                try:
+                    logger.info(f"Bringing up TinyTinyRSS+OpenSearch (combined): {' '.join(cmd)}")
+                    subprocess.run(cmd, check=False)
+                    logger.success("Combined compose executed successfully.")
+                    return
+                except Exception as e:
+                    logger.error(f"Failed to execute combined compose command: {e}")
+                    # fall through to attempt per-file brings
+
+            # If only TinyTinyRSS missing -> bring up tinytinyrss with env-file
+            if missing_tiny and not missing_opensearch:
+                cmd = base_compose + ["-f", str(tinytinyrss_file)]
+                if env_file.exists():
+                    cmd += ["--env-file", str(env_file)]
+                cmd += ["up", "-d"]
+                if platform.system() == "Linux" and os_get_euid() != 0:
+                    cmd = ["sudo"] + cmd
+                try:
+                    logger.info(f"Bringing up TinyTinyRSS services: {' '.join(cmd)}")
+                    subprocess.run(cmd, check=False)
+                    logger.success("TinyTinyRSS compose executed successfully.")
+                    return
+                except Exception as e:
+                    logger.error(f"Failed to execute TinyTinyRSS compose: {e}")
+
+            # If only OpenSearch missing -> bring up opensearch compose
+            if missing_opensearch and not missing_tiny:
+                cmd = base_compose + ["-f", str(opensearch_file), "up", "-d"]
+                if platform.system() == "Linux" and os_get_euid() != 0:
+                    cmd = ["sudo"] + cmd
+                try:
+                    logger.info(f"Bringing up OpenSearch services: {' '.join(cmd)}")
+                    subprocess.run(cmd, check=False)
+                    logger.success("OpenSearch compose executed successfully.")
+                    return
+                except Exception as e:
+                    logger.error(f"Failed to execute OpenSearch compose: {e}")
+
     # Determine compose command
     compose_cmd = None
     if shutil.which("docker"):
@@ -254,6 +380,95 @@ def ensure_compose_from_install(project_root: Path) -> None:
                 logger.error(f"Failed to execute compose for {cf}: {e}")
 
 
+def is_ollama_available() -> bool:
+    """Return True if the `ollama` CLI is available on PATH."""
+    return shutil.which("ollama") is not None
+
+
+def try_install_ollama(host_platform: str) -> bool:
+    """
+    Attempt to install Ollama depending on platform using common package managers.
+    Returns True if an installation attempt was executed (success not guaranteed).
+    """
+    logger.info(f"Attempting to install Ollama on platform: {host_platform}")
+    try:
+        # Windows: prefer winget, fallback to choco
+        if host_platform == "Windows":
+            if shutil.which("winget"):
+                cmd = ["winget", "install", "-e", "--id", "Ollama.Ollama"]
+                logger.info(f"Running: {' '.join(cmd)}")
+                subprocess.run(cmd, check=False)
+                return True
+            if shutil.which("choco"):
+                cmd = ["choco", "install", "ollama", "-y"]
+                logger.info(f"Running: {' '.join(cmd)}")
+                subprocess.run(cmd, check=False)
+                return True
+            logger.warning("No winget/choco found on PATH; cannot auto-install Ollama on Windows.")
+            return False
+
+        # macOS: try brew
+        if host_platform == "Darwin":
+            if shutil.which("brew"):
+                cmd = ["brew", "install", "ollama"]
+                logger.info(f"Running: {' '.join(cmd)}")
+                subprocess.run(cmd, check=False)
+                return True
+            logger.warning("Homebrew not found on macOS; cannot auto-install Ollama.")
+            return False
+
+        # Linux: try curl installer (if curl present)
+        if host_platform == "Linux":
+            if shutil.which("curl"):
+                # This runs the official Ollama installer script if present.
+                cmd = "bash -c \"curl -sSL https://ollama.ai/install | sh\""
+                logger.info("Attempting to run Ollama installer script via curl")
+                subprocess.run(cmd, shell=True, check=False)
+                return True
+            logger.warning("curl not found on Linux; cannot auto-install Ollama.")
+            return False
+
+    except Exception as e:
+        logger.error(f"Error while attempting to install Ollama: {e}")
+    return False
+
+
+def ensure_ollama_model(project_root: Path, model_name: str = "cybersentinel") -> None:
+    """
+    Ensure the named Ollama model is present. If not, create it using the Modelfile
+    inside the project's `Install/Modelfile` (path: <project_root>/Install/Modelfile).
+    """
+    try:
+        if not is_ollama_available():
+            logger.warning("Cannot ensure Ollama model because `ollama` CLI is not available.")
+            return
+
+        # Check existing models
+        try:
+            proc = subprocess.run(["ollama", "list"], capture_output=True, text=True, check=False)
+            out = proc.stdout or proc.stderr or ""
+        except Exception as e:
+            logger.error(f"Failed to run `ollama list`: {e}")
+            out = ""
+
+        if model_name in out:
+            logger.info(f"Ollama model '{model_name}' already present.")
+            return
+
+        # Model missing: look for Modelfile
+        modelfile = project_root / "Install" / "Modelfile"
+        if not modelfile.exists():
+            logger.error(f"Modelfile not found at {modelfile}; cannot create Ollama model '{model_name}'.")
+            return
+
+        cmd = ["ollama", "create", model_name, "-f", str(modelfile)]
+        logger.info(f"Creating Ollama model '{model_name}' using Modelfile: {' '.join(cmd)}")
+        subprocess.run(cmd, check=False)
+        logger.success(f"Ollama model '{model_name}' create command executed.")
+    except Exception as e:
+        logger.error(f"Error ensuring Ollama model: {e}")
+
+
 def os_get_euid() -> int:
     """Return effective uid on POSIX, or 0 on non-POSIX systems."""
     try:
@@ -303,6 +518,8 @@ def ensure_infrastructure(parameters):
     # Ensure docker daemon is running on host before interacting with containers
     host_os, distro = detect_host_os()
     logger.info(f"Host OS detected: {host_os} (distro: {distro})")
+    # derive project root (repo root) so Install/ can be located
+    project_root = Path(__file__).resolve().parents[3]
     # Decide whether to operate against the host Docker or inside WSL
     if is_docker_available():
         logger.info("Docker CLI available on host: using host Docker (distro_name=None)")
@@ -315,22 +532,41 @@ def ensure_infrastructure(parameters):
                 logger.error("Could not start Docker daemon automatically. Please start it manually.")
     else:
         logger.warning("Docker CLI not found on host PATH. Will attempt to compose Install/ files or use WSL distro if provided.")
-        # Try to compose from Install/ if available
-        try:
-            project_root = Path(__file__).resolve().parents[1]
-            ensure_compose_from_install(project_root)
-        except Exception as e:
-            logger.error(f"Failed to run docker compose from Install/: {e}")
         # If we are on Windows prefer to use provided WSL distro name; otherwise fall back to parameter
         if host_os == 'Windows':
             distro_arg = parameters[0] if parameters and len(parameters) > 0 else None
         else:
             distro_arg = parameters[0] if parameters and len(parameters) > 0 else None
 
+    # Regardless of docker CLI presence, attempt to run compose files from Install/ (if present).
+    try:
+        ensure_compose_from_install(project_root)
+    except Exception as e:
+        logger.error(f"Failed to run docker compose from Install/: {e}")
+
+    # Ensure Ollama and model presence
+    try:
+        # attempt to detect/install ollama if missing
+        if not is_ollama_available():
+            logger.info("Ollama CLI not found on PATH. Attempting automatic installation...")
+            installed_attempt = try_install_ollama(host_os)
+            if installed_attempt and is_ollama_available():
+                logger.success("Ollama installed and available on PATH.")
+            else:
+                logger.warning("Ollama not available after automatic installation attempts. Please install Ollama manually if you require model features.")
+        else:
+            logger.info("Ollama CLI detected on PATH.")
+
+        # ensure the model exists (create from Modelfile if missing)
+        if is_ollama_available():
+            ensure_ollama_model(project_root, model_name="cybersentinel")
+    except Exception as e:
+        logger.error(f"Error while ensuring Ollama/model: {e}")
+
     logger.info("Ensuring infrastructure (OpenSearch, Dashboards, Tiny stack)...")
     # pass distro_arg (None for host Docker) and the container list
     ensure_containers(parameters[1], distro_arg)
-    logger.info("WSL infrastructure check finished.")
+    logger.info("Infrastructure check finished.")
     '''
     logger.info("Starting UI service in a separate console...")
     start_ui_in_separate_terminal()

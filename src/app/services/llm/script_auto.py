@@ -12,6 +12,7 @@
 import os
 import json
 import threading
+from typing import Optional
 import subprocess
 import sys
 from pathlib import Path
@@ -88,7 +89,7 @@ def process_file(file_path: Path, aggregated_data: list, lock: threading.Lock) -
         logger.error(f"Error processing {file_path}: {e}")
 
 
-def consolidate_json(base_dir: str, output_file: str) -> None:
+def consolidate_json(base_dir: str, output_file: str, stop_event: Optional[threading.Event] = None) -> None:
     """
     @brief Consolidate multiple CVE JSON files from the repository into a single JSON file.
     @param base_dir Root directory where the repository JSON files are located.
@@ -99,6 +100,16 @@ def consolidate_json(base_dir: str, output_file: str) -> None:
         - Writes a list of transformed records to the output file.
     """
     try:
+        # If the interpreter is shutting down, avoid creating new threads which will
+        # raise RuntimeError: "can't create new thread at interpreter shutdown".
+        is_finalizing = getattr(sys, "is_finalizing", lambda: False)
+        if is_finalizing():
+            logger.warning("Interpreter is finalizing; skipping consolidation to avoid spawning threads.")
+            return
+        # Also allow an external stop_event to abort consolidation early
+        if stop_event is not None and stop_event.is_set():
+            logger.info("Stop event is set; skipping consolidation.")
+            return
         root_dir = Path(base_dir)
 
         # Find all .json files under the repository root.
@@ -109,19 +120,36 @@ def consolidate_json(base_dir: str, output_file: str) -> None:
         aggregated_data: list = []
         lock = threading.Lock()  # Avoid race conditions.
 
-        # Create and start threads.
+        # Create and start threads. Protect against interpreter shutdown
         threads = []
         for file_path in json_files:
+            # Double-check that interpreter is not finalizing before creating threads
+            if is_finalizing():
+                logger.warning("Interpreter is finalizing during consolidation loop; aborting thread creation.")
+                break
+            if stop_event is not None and stop_event.is_set():
+                logger.info("Stop event set during consolidation; aborting thread creation.")
+                break
+
             t = threading.Thread(
                 target=process_file,
                 args=(file_path, aggregated_data, lock),
             )
             threads.append(t)
-            t.start()
+            try:
+                t.start()
+            except RuntimeError as e:
+                # This can happen if the interpreter is shutting down.
+                logger.error(f"Failed to start worker thread for {file_path}: {e}")
+                break
 
         # Wait for all threads to finish.
         for t in threads:
-            t.join()
+            try:
+                t.join()
+            except RuntimeError:
+                # In rare shutdown races threads may not be joinable; ignore and continue.
+                logger.warning("Thread join failed during interpreter shutdown; continuing.")
 
         # Ensure output directory exists.
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -364,6 +392,7 @@ def update_cve_repo_and_build_list(
     repo_dir: str = "./data/cvelistV5-main",
     output_dir: str = "./data",
     output_file_name: str = "cve_list.json",
+    stop_event: Optional[threading.Event] = None,
 ) -> None:
     """
     @brief High-level helper to update the local CVE repository and rebuild the consolidated JSON file.
@@ -388,4 +417,4 @@ def update_cve_repo_and_build_list(
 
     # Consolidate all JSON files from the repository.
     logger.info("\nConsolidating JSON files from repository...")
-    consolidate_json(repo_dir, full_output_path)
+    consolidate_json(repo_dir, full_output_path, stop_event=stop_event)

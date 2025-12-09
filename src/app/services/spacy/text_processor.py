@@ -10,12 +10,42 @@ from loguru import logger
 from app.utils.utils import get_connection_parameters,create_config_file
 from app.models.opensearh_db import store_in_opensearch,text_exists_in_opensearch,ensure_index_exists
 
-# Load spaCy models by language (Spanish, English, and French)
-models = {
-    'es': spacy.load("es_core_news_sm"),
-    'en': spacy.load("en_core_web_sm"),
-    'fr': spacy.load("fr_core_news_sm"),
-}
+# Lazy-loaded spaCy models container. Models will be loaded on first use to
+# avoid expensive work at import time (which causes slow startup and issues
+# with auto-reload during development).
+_models = {}
+
+def _get_model(lang_code: str):
+    """Return a spaCy model for the requested language, loading it on first use.
+
+    If the requested model is not available, falls back to Spanish (es) model
+    and logs a warning.
+    """
+    if lang_code in _models and _models[lang_code] is not None:
+        return _models[lang_code]
+
+    # Map of language codes to spaCy package names
+    model_names = {
+        'es': "es_core_news_sm",
+        'en': "en_core_web_sm",
+        'fr': "fr_core_news_sm",
+    }
+
+    pkg = model_names.get(lang_code, model_names['es'])
+    try:
+        nlp = spacy.load(pkg)
+        _models[lang_code] = nlp
+        return nlp
+    except Exception as e:
+        logger.warning(f"Could not load spaCy model '{pkg}' for lang '{lang_code}': {e}. Falling back to 'es' model.")
+        # Attempt to load fallback Spanish model
+        try:
+            nlp = spacy.load(model_names['es'])
+            _models['es'] = nlp
+            return nlp
+        except Exception as e2:
+            logger.error(f"Failed loading fallback spaCy model 'es_core_news_sm': {e2}")
+            raise
 
 def detect_language(text):
     '''
@@ -35,7 +65,7 @@ def tag_text(text):
     @return A tuple with the list of found entities [(text, type)] and the detected language.
     '''
     language = detect_language(text)
-    model = models.get(language, models['es'])  # Use Spanish model if language is not supported
+    model = _get_model(language)
     doc = model(text)
     return [(ent.text, ent.label_) for ent in doc.ents], language
 
