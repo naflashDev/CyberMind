@@ -257,7 +257,7 @@ def get_connection_service_parameters(file_name: str)->tuple:
             else:
                 line = lines[0].split(';')
 
-                if len(line) != 3:
+                if len(line) != 2:
                     result = (3, 'Incorrect number of parameters in the file.')
 
                 else:
@@ -265,7 +265,7 @@ def get_connection_service_parameters(file_name: str)->tuple:
                         result = (4, 'Incorrect type of parameters.')
 
                     else:
-                        result = (0, 'Connection parameters successfully retrieved.', (line[0], line[1],line[2]))
+                        result = (0, 'Connection parameters successfully retrieved.', (line[0], line[1]))
     
     else:
         result = (5, 'Invalid input parameters.')

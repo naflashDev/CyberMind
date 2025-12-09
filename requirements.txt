@@ -115,3 +115,7 @@ win32_setctime==1.2.0
 wrapt==1.17.2
 wsproto==1.2.0
 zope.interface==7.2
+# Test / dev extras
+pytest==7.4.0
+pytest-asyncio==0.22.0
+httpx==0.28.1

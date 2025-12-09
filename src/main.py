@@ -71,16 +71,15 @@ async def lifespan(app: FastAPI):
     # Ensure infrastructure is running
     parameters: tuple = (
                     'Ubuntu',
-                    'nacho',
-                    'install_updater_1,install_web-nginx_1,install_app_1,install_db_1'
+                    'install_updater_1,install_web-nginx_1,install_app_1,install_db_1,opensearch-dashboards,opensearch'
                 )
     file_name: str = 'cfg_services.ini'
     file_content: list[str] = [
                     '# Configuration file.\n',
                     '# This file contains the parameters for connecting to the opensearch database server.\n',
                     '# ONLY one uncommented line is allowed.\n',
-                    '# The valid line format is:distro_name,user,dockers_name\n',
-                    f'{parameters[0]};{parameters[1]};{parameters[2]}\n'
+                    '# The valid line format is:distro_name,dockers_name\n',
+                    f'{parameters[0]};{parameters[1]}\n'
                 ]
 
                 # Get the connection parameters or assign default ones

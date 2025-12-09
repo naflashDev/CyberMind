@@ -16,4 +16,5 @@ cfg_services.ini
 cvelistV5-main/
 cve_list.json
 finetune_data.jsonl
-llm_test_fine/
+labels_result.json
+result.json
