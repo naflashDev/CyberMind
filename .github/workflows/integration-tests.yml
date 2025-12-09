@@ -22,10 +22,11 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
-      - name: Install test dependencies (dev-requirements)
+      - name: Install dependencies (requirements + dev-requirements)
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r dev-requirements.txt
+          python -m pip install -r requirements.txt
+          if [ -f dev-requirements.txt ]; then python -m pip install -r dev-requirements.txt; fi
       - name: Run integration tests
         run: |
           python -m unittest discover tests/integration -v

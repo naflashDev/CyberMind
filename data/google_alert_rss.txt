@@ -1,5 +1,0 @@
-http://x/ | FF
-http://x/ | PipelineFeed
-http://x/ | FF
-http://x/ | PipelineFeed
-http://x/ | FF
