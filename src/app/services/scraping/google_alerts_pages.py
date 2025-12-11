@@ -93,7 +93,7 @@ def fetch_and_save_alert_urls():
         logger.warning("No valid URLs were extracted from any feed.")
         return
 
-    with open(URLS_FILE_PATH, "w", encoding="utf-8") as f:
+    with open(URLS_FILE_PATH, "a", encoding="utf-8") as f:
         for url in total_urls:
             f.write(url + "\n")
 
