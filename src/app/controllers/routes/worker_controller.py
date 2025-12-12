@@ -10,6 +10,7 @@ from app.controllers.routes import (
     tiny_postgres_controller,
     llm_controller,
 )
+import asyncpg
 
 router = APIRouter(prefix="/workers", tags=["workers"])
 
@@ -119,8 +120,21 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
         threading.Thread(target=llm_controller.background_cve_and_finetune_loop, args=(evt,), daemon=True).start()
     elif name == "dynamic_spider":
         pool = getattr(request.app.state, "pool", None)
+        # Try to create pool on-demand if not present (UI may trigger init asynchronously)
         if pool is None:
-            raise HTTPException(status_code=400, detail="DB pool not available")
+            try:
+                pool = await asyncpg.create_pool(
+                    user="postgres",
+                    password="password123",
+                    database="postgres",
+                    host="127.0.0.1",
+                    port=5432,
+                    min_size=1,
+                    max_size=5,
+                )
+                request.app.state.pool = pool
+            except Exception:
+                raise HTTPException(status_code=503, detail="DB pool not available and on-demand creation failed")
         import asyncio
         # pass stop_event and register callback so UI can control the process
         asyncio.create_task(scrapy_news_controller.run_dynamic_spider_from_db(pool, stop_event=evt, register_process=_register_timer))
