@@ -29,4 +29,4 @@ jobs:
           if [ -f dev-requirements.txt ]; then python -m pip install -r dev-requirements.txt; fi
       - name: Run integration tests
         run: |
-          python -m unittest discover tests/integration -v
+          python -m pytest tests/integration -q
