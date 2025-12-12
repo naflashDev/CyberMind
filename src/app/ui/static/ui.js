@@ -1,0 +1,295 @@
+document.addEventListener('DOMContentLoaded', function () {
+  // Sidebar / view switching
+  const sidebar = document.getElementById("sidebar");
+  const btnToggle = document.getElementById("btn-toggle");
+
+  const buttons = document.querySelectorAll(".nav-button");
+  const views = {
+    fastapi: document.getElementById("view-fastapi"),
+    datos: document.getElementById("view-datos"),
+    tiny: document.getElementById("view-tiny"),
+    llm: document.getElementById("view-llm"),
+    status: document.getElementById("view-status"),
+  };
+
+  function activateView(viewName) {
+    buttons.forEach(btn => btn.classList.remove("active"));
+    const activeBtn = document.querySelector(`.nav-button[data-view="${viewName}"]`);
+    if (activeBtn) activeBtn.classList.add("active");
+    Object.values(views).forEach(v => v.classList.remove("active"));
+    if (views[viewName]) views[viewName].classList.add("active");
+  }
+
+  buttons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const view = btn.dataset.view;
+      activateView(view);
+    });
+  });
+
+  if (btnToggle) btnToggle.addEventListener("click", () => {
+    const hidden = sidebar.classList.toggle("hidden");
+    btnToggle.innerHTML = hidden ? "☰" : "«";
+  });
+
+  activateView("fastapi");
+
+  // FastAPI operations panel
+  (function () {
+    const API_BASE = window.__CYBERMIND_API_BASE__ || "http://127.0.0.1:8000";
+
+    const controllers = {
+      "Scrapy": [
+        { id: "scrape-news", title: "Scrape News", method: "GET", path: "/newsSpider/scrape-news", params: [], desc: "Extrae noticias desde las fuentes configuradas y las normaliza." },
+        { id: "start-google-alerts", title: "Start Google Alerts", method: "GET", path: "/newsSpider/start-google-alerts", params: [], desc: "Inicia la recolección de alertas de Google configuradas." },
+        { id: "save-feed-google-alerts", title: "Save Feed Google Alerts", method: "POST", path: "/newsSpider/save-feed-google-alerts", params: [{name: "link", type: "text", placeholder: "URL o texto del feed"}], desc: "Guarda un feed (o URL) de Google Alerts en la base de datos." },
+        { id: "scrapy-google-dk-feeds", title: "Scrapy Google DK Feeds", method: "GET", path: "/newsSpider/scrapy/google-dk/feeds", params: [], desc: "Rastrea y lista feeds encontrados para Google DK (feeds)." },
+        { id: "scrapy-google-dk-news", title: "Scrapy Google DK News", method: "GET", path: "/newsSpider/scrapy/google-dk/news", params: [], desc: "Rastrea artículos/noticias desde Google DK." }
+      ],
+      "SpaCy": [
+        { id: "start-spacy", title: "Start SpaCy", method: "GET", path: "/start-spacy", params: [], desc: "Inicia o carga el pipeline de SpaCy para procesamiento de texto." }
+      ],
+      "Tiny": [
+        { id: "search-and-insert-rss", title: "Search and Insert RSS", method: "GET", path: "/postgre-ttrss/search-and-insert-rss", params: [{name: "link", type: "text", placeholder: "consulta (opcional)"}], desc: "Busca elementos RSS por consulta e inserta los nuevos en TinyRSS/Postgres." },
+        { id: "feeds", title: "List Feeds", method: "GET", path: "/postgre-ttrss/feeds", params: [], desc: "Lista los feeds almacenados en la base de datos." }
+      ],
+      "LLM": [
+        { id: "llm-updater", title: "LLM Updater", method: "GET", path: "/llm/updater", params: [], desc: "Inicia el updater/finetune en background (llm_updater)." }
+      ],
+      "Status": [
+        { id: "system-status-op", title: "System Status", method: "GET", path: "/status", params: [], desc: "Muestra el estado de la infraestructura, UI y workers en ejecución." }
+      ]
+    };
+
+    const controllersList = document.getElementById("controllers-list");
+    const opTitle = document.getElementById("op-title");
+    const opForm = document.getElementById("op-form");
+    const opResult = document.getElementById("op-result");
+
+    function renderControllers() {
+      if (!controllersList) return;
+      controllersList.innerHTML = "";
+      Object.keys(controllers).forEach(name => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "controller-section";
+        const headerBtn = document.createElement("button");
+        headerBtn.className = "controller-header";
+        headerBtn.type = "button";
+        headerBtn.innerHTML = `<span>${name}</span><span class="toggle-icon">▾</span>`;
+        headerBtn.addEventListener("click", () => {
+          wrapper.classList.toggle("collapsed");
+          const icon = headerBtn.querySelector('.toggle-icon');
+          if (icon) icon.textContent = wrapper.classList.contains('collapsed') ? '▸' : '▾';
+        });
+        wrapper.appendChild(headerBtn);
+        const opsContainer = document.createElement("div");
+        opsContainer.className = "ops-container";
+        controllers[name].forEach(op => {
+          const opBtn = document.createElement("button");
+          opBtn.className = "op-btn";
+          opBtn.textContent = op.title;
+          opBtn.type = "button";
+          opBtn.addEventListener("click", () => {
+            document.querySelectorAll('.op-btn').forEach(b => b.classList.remove('active'));
+            opBtn.classList.add('active');
+            selectOperation(name, op, opBtn);
+          });
+          opsContainer.appendChild(opBtn);
+        });
+        wrapper.appendChild(opsContainer);
+        controllersList.appendChild(wrapper);
+      });
+    }
+
+    function selectOperation(controllerName, op, btnEl) {
+      if (opTitle) opTitle.textContent = controllerName + " — " + op.title + " (" + op.method + ")";
+      renderForm(op);
+      const opResultEl = document.getElementById('op-result');
+      if (op.path === '/status') {
+        if (opResultEl) opResultEl.style.display = 'none';
+      } else {
+        if (opResultEl) { opResultEl.style.display = 'block'; opResultEl.textContent = 'Respuesta aquí...'; }
+      }
+    }
+
+    function renderForm(op) {
+      if (!opForm) return;
+      opForm.innerHTML = "";
+      const info = document.createElement("div");
+      info.style.marginBottom = "8px";
+      info.style.color = "#cbd5e1";
+      const methodEl = document.createElement('strong');
+      methodEl.textContent = op.method;
+      info.appendChild(methodEl);
+      if (op.desc) {
+        const descEl = document.createElement('div');
+        descEl.style.color = '#9aa6b2';
+        descEl.style.fontSize = '13px';
+        descEl.style.marginTop = '6px';
+        descEl.textContent = op.desc;
+        info.appendChild(descEl);
+      }
+      opForm.appendChild(info);
+      const form = document.createElement("form");
+      form.onsubmit = async (e) => { e.preventDefault(); await submitOperation(op, new FormData(form)); };
+
+      if (op.path === "/status") {
+        const panel = document.createElement('div');
+        panel.style.display = 'flex'; panel.style.flexDirection = 'column'; panel.style.gap = '8px';
+        const row = document.createElement('div'); row.style.display = 'flex'; row.style.alignItems = 'center'; row.style.gap = '8px';
+        const refreshBtn = document.createElement('button'); refreshBtn.type = 'button'; refreshBtn.textContent = 'Actualizar estado'; refreshBtn.style.padding = '6px 10px'; refreshBtn.style.borderRadius = '6px'; refreshBtn.style.border = 'none'; refreshBtn.style.background = '#2563eb'; refreshBtn.style.color = '#fff'; refreshBtn.style.cursor = 'pointer';
+        const startAllBtn = document.createElement('button'); startAllBtn.type = 'button'; startAllBtn.textContent = 'Start All'; startAllBtn.style.padding = '6px 10px'; startAllBtn.style.borderRadius = '6px'; startAllBtn.style.border = 'none'; startAllBtn.style.background = '#10b981'; startAllBtn.style.color = '#fff'; startAllBtn.style.cursor = 'pointer';
+        const stopAllBtn = document.createElement('button'); stopAllBtn.type = 'button'; stopAllBtn.textContent = 'Stop All'; stopAllBtn.style.padding = '6px 10px'; stopAllBtn.style.borderRadius = '6px'; stopAllBtn.style.border = 'none'; stopAllBtn.style.background = '#ef4444'; stopAllBtn.style.color = '#fff'; stopAllBtn.style.cursor = 'pointer';
+        row.appendChild(refreshBtn); row.appendChild(startAllBtn); row.appendChild(stopAllBtn);
+        const box = document.createElement('div'); box.id = 'op-status-box'; box.style.background = '#0b1220'; box.style.color = '#e6eef8'; box.style.padding = '12px'; box.style.borderRadius = '6px'; box.style.boxSizing = 'border-box'; box.innerHTML = '<div>Cargando...</div>';
+        panel.appendChild(row); panel.appendChild(box); opForm.appendChild(panel);
+
+        async function fetchForOp() {
+          try {
+            const resp = await fetch((window.__CYBERMIND_API_BASE__ || API_BASE) + '/status');
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const j = await resp.json();
+            const workers = j.workers || {};
+            const parts = [];
+            parts.push(`<div style="margin-bottom:8px;"><strong>Infra:</strong> ${j.infra_ready ? '<span style="color:#86efac">OK</span>' : '<span style="color:#fca5a5">NO</span>'}${j.infra_error ? ` &nbsp; <em style="color:#fca5a5">${j.infra_error}</em>` : ''}</div>`);
+            parts.push(`<div style="margin-bottom:8px;"><strong>UI initialized:</strong> ${j.ui_initialized ? '<span style="color:#86efac">sí</span>' : '<span style="color:#fca5a5">no</span>'}</div>`);
+            parts.push('<div style="margin-bottom:6px;"><strong>Workers</strong></div>');
+            parts.push('<div id="workers-control-list" style="display:flex;flex-direction:column;gap:8px;">');
+            for (const [name, val] of Object.entries(workers)) {
+              const status = val ? '<span style="color:#86efac">running</span>' : '<span style="color:#fca5a5">stopped</span>';
+              const btnStyle = val ? 'background:#ef4444;color:#fff' : 'background:#10b981;color:#fff';
+              const btnText = val ? 'Stop' : 'Activate';
+              parts.push(`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><div style="display:flex;flex-direction:column;"><div style="font-weight:600">${name}</div><div style="font-size:12px;color:#9aa6b2">Status: ${status}</div></div><div><button data-worker-toggle="${name}" data-enabled="${val}" style="padding:8px 10px;border-radius:6px;border:none;cursor:pointer;${btnStyle}">${btnText}</button></div></div>`);
+            }
+            parts.push('</div>');
+            document.getElementById('op-status-box').innerHTML = parts.join('');
+            const toggleBtns = document.querySelectorAll('#op-status-box button[data-worker-toggle]');
+            toggleBtns.forEach(btn => {
+              btn.addEventListener('click', async () => {
+                const name = btn.dataset.workerToggle;
+                const enabled = btn.dataset.enabled === 'true' || btn.dataset.enabled === 'True';
+                const newEnabled = !enabled;
+                const oldText = btn.textContent; btn.disabled = true;
+                try {
+                  const p = await fetch((window.__CYBERMIND_API_BASE__ || API_BASE) + '/workers/' + encodeURIComponent(name), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: newEnabled }) });
+                  if (!p.ok) throw new Error('HTTP ' + p.status);
+                  showToast((newEnabled ? 'Activated' : 'Stopped') + ' ' + name);
+                  setTimeout(fetchForOp, 300);
+                } catch (err) {
+                  showToast('Error toggling worker: ' + String(err)); btn.disabled = false; btn.textContent = oldText;
+                }
+              });
+            });
+          } catch (err) {
+            box.innerHTML = `<div style="color:#fca5a5">Error: ${String(err)}</div>`;
+          }
+        }
+
+        refreshBtn.addEventListener('click', fetchForOp);
+        async function toggleAll(enable) {
+          try {
+            const s = await fetch((window.__CYBERMIND_API_BASE__ || API_BASE) + '/status'); if (!s.ok) throw new Error('HTTP ' + s.status);
+            const j = await s.json(); const workers = j.workers || {};
+            const promises = Object.keys(workers).map(name => fetch((window.__CYBERMIND_API_BASE__ || API_BASE) + '/workers/' + encodeURIComponent(name), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: enable }) }).then(r => ({ name, ok: r.ok, status: r.status })));
+            const results = await Promise.allSettled(promises);
+            const succeeded = results.filter(r => r.status === 'fulfilled' && r.value && r.value.ok).map(r => r.value.name);
+            showToast((enable ? 'Started' : 'Stopped') + ' ' + succeeded.length + ' workers'); setTimeout(fetchForOp, 400);
+          } catch (err) {
+            showToast('Error toggling workers: ' + String(err));
+          }
+        }
+
+        if (typeof startAllBtn !== 'undefined') startAllBtn.addEventListener('click', () => toggleAll(true));
+        if (typeof stopAllBtn !== 'undefined') stopAllBtn.addEventListener('click', () => toggleAll(false));
+        fetchForOp();
+        try { window.addEventListener('status-updated', fetchForOp); } catch (e) {}
+        let statusInterval = setInterval(() => { const boxEl = document.getElementById('op-status-box'); if (!boxEl) return; fetchForOp(); }, 10000);
+        return;
+      }
+
+      if (op.params && op.params.length) {
+        op.params.forEach(p => {
+          const label = document.createElement("label"); label.style.display = "block"; label.style.marginBottom = "6px"; label.innerHTML = `<div style='font-size:13px;color:#cbd5e1;margin-bottom:4px;'>${p.name}</div>`;
+          const input = document.createElement("input"); input.name = p.name; input.placeholder = p.placeholder || ""; input.style.width = "100%"; input.style.padding = "8px"; input.style.boxSizing = "border-box"; input.style.marginBottom = "6px"; label.appendChild(input); form.appendChild(label);
+        });
+      }
+
+      const submit = document.createElement("button"); submit.textContent = "Ejecutar"; submit.type = "submit"; submit.className = "exec-btn"; submit.style.padding = "8px 12px"; submit.style.background = "#2563eb"; submit.style.color = "#fff"; submit.style.border = "none"; submit.style.borderRadius = "6px"; submit.style.cursor = "pointer";
+      form.appendChild(submit); opForm.appendChild(form);
+    }
+
+    function escapeHtml(unsafe) { return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#039;"); }
+
+    function showToast(msg, ms = 1800) {
+      try { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); void t.offsetWidth; t.classList.add('show'); setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 200); }, ms); } catch (e) { console.log('toast', e); }
+    }
+
+    function renderResponse(obj, status) {
+      function renderFriendly(value, depth = 0) {
+        if (value === null) return `<span class="response-value">(nulo)</span>`;
+        const t = typeof value;
+        if (t === 'string' || t === 'number' || t === 'boolean') return `<span class="response-value">${escapeHtml(String(value))}</span>`;
+        if (Array.isArray(value)) { if (value.length === 0) return `<span class="response-value">(vacío)</span>`; const items = value.slice(0,200).map(it => `<li>${renderFriendly(it, depth+1)}</li>`).join(''); const more = value.length>200?`<li>... ${value.length-200} más</li>`:''; return `<ul class="response-list">${items}${more}</ul>`; }
+        if (t === 'object') { if (depth >= 2) return `<details><summary>Objeto (mostrar JSON)</summary><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre></details>`; const lines = Object.keys(value).map(k => { const v = value[k]; if (v === null || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return `<div><span class="response-key">${escapeHtml(k)}:</span> ${renderFriendly(v, depth+1)}</div>`; return `<div style="margin-top:6px;"><span class="response-key">${escapeHtml(k)}:</span> ${renderFriendly(v, depth+1)}</div>`; }).join(''); return `<div>${lines}</div>`; }
+        return `<span class="response-value">${escapeHtml(String(value))}</span>`;
+      }
+      const panelHeader = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><div class=\"response-meta\">Status: ${status || ''}</div><button class=\"panel-toggle\">▾</button></div>`;
+      if (obj === null || typeof obj !== 'object') return `<div class="panel"><div class="panel-head">${panelHeader}</div><div class="panel-body">${renderFriendly(obj)}</div></div>`;
+      const friendlyHtml = renderFriendly(obj,0); return `<div class="panel"><div class="panel-head">${panelHeader}</div><div class="panel-body">${friendlyHtml}</div></div>`;
+    }
+
+    function renderRawJson(obj) { const jsonText = escapeHtml(JSON.stringify(obj, null, 2)); const header = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><div class=\"response-meta\">JSON crudo</div><div><button class=\"panel-toggle\">▾</button> <button class=\"copy-json-btn\" type=\"button\">Copiar JSON</button></div></div>`; return `<div class="panel"><div class="panel-head">${header}</div><div class="panel-body"><div class="raw-box"><pre>${jsonText}</pre></div></div></div>`; }
+
+    async function submitOperation(op, formData) {
+      const url = API_BASE + op.path; if (opResult) { opResult.style.display = 'block'; opResult.innerHTML = `<div class="response-meta">Cargando...</div>`; }
+      try {
+        let resp;
+        if (op.method === "GET") { const params = new URLSearchParams(); for (const [k, v] of formData.entries()) if (v) params.append(k, v); const final = params.toString() ? url + "?" + params.toString() : url; resp = await fetch(final); }
+        else { const obj = {}; for (const [k, v] of formData.entries()) obj[k] = v; resp = await fetch(url, { method: op.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) }); }
+        const text = await resp.text(); try { const j = JSON.parse(text); if (opResult) opResult.innerHTML = `<div class="response-two-col"><div class="left-pane">${renderResponse(j, resp.status)}</div><div class="right-pane">${renderRawJson(j)}</div></div>`; const copyBtn = opResult && opResult.querySelector('.right-pane .copy-json-btn'); if (copyBtn) { copyBtn.addEventListener('click', async () => { try { const textToCopy = JSON.stringify(j, null, 2); if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(textToCopy); } else { const ta = document.createElement('textarea'); ta.value = textToCopy; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); } showToast('JSON copiado'); } catch (e) { showToast('Error copiando JSON'); } }); }
+          const toggles = opResult && opResult.querySelectorAll('.panel-toggle'); if (toggles) toggles.forEach(t => { t.addEventListener('click', () => { const panel = t.closest('.panel'); if (!panel) return; const body = panel.querySelector('.panel-body'); const isCollapsed = panel.classList.toggle('collapsed'); if (body) body.style.display = isCollapsed ? 'none' : ''; t.textContent = isCollapsed ? '▸' : '▾'; }); });
+          try { const workerStartPaths = new Set(['/newsSpider/scrape-news','/newsSpider/start-google-alerts','/newsSpider/scrapy/google-dk/news','/newsSpider/scrapy/google-dk/feeds','/start-spacy','/postgre-ttrss/search-and-insert-rss','/llm/updater']); if (workerStartPaths.has(op.path) && resp.ok) { showToast(op.title + ' iniciada'); } } catch (e) {}
+        } catch (e) {
+          const t = text || ''; const maybeMd = window.marked && (t.trim().startsWith('#') || t.includes('\n\n') || t.includes('```'));
+          if (maybeMd) { try { if (opResult) opResult.innerHTML = `<div class="response-box">${window.marked.parse(t)}</div>`; } catch (me) { if (opResult) opResult.innerHTML = `<pre>${escapeHtml(t)}</pre>`; } }
+          else { if (opResult) opResult.innerHTML = `<pre>${escapeHtml(t)}</pre>`; }
+        }
+      } catch (err) { if (opResult) opResult.innerHTML = `<div class="response-error">Error: ${escapeHtml(String(err))}</div>`; }
+      finally { try { if (typeof fetchStatus === 'function') fetchStatus(); } catch (e) {} try { window.dispatchEvent(new Event('status-updated')); } catch (e) {} }
+    }
+
+    renderControllers();
+
+    async function fetchStatus() {
+      try { const resp = await fetch((window.__CYBERMIND_API_BASE__ || API_BASE) + '/status'); if (!resp.ok) throw new Error('HTTP ' + resp.status); const j = await resp.json(); const statusJson = document.getElementById('status-json'); const statusSummary = document.getElementById('status-summary'); if (statusJson) { try { statusJson.textContent = JSON.stringify(j, null, 2); } catch (e) { statusJson.textContent = String(j); } } if (statusSummary) { const workers = j.workers || {}; const running = Object.entries(workers).filter(([k,v])=>v).map(([k])=>k).join(', ') || 'ninguno'; statusSummary.textContent = `Infra: ${j.infra_ready ? 'OK' : 'NO'} · UI init: ${j.ui_initialized ? 'sí' : 'no'} · Workers: ${running}`; } }
+      catch (err) { }
+    }
+
+    const btnStatusView = document.getElementById('btn-refresh-status-view'); if (btnStatusView) btnStatusView.addEventListener('click', fetchStatus);
+    fetchStatus(); setInterval(fetchStatus, 10000);
+  })();
+
+  // LLM client
+  (function () {
+    const messagesEl = document.getElementById("llm-messages");
+    const promptEl = document.getElementById("llm-prompt");
+    const sendBtn = document.getElementById("llm-send-btn");
+    const LLM_API_BASE = window.__CYBERMIND_API_BASE__ || "http://127.0.0.1:8000";
+    if (!messagesEl || !promptEl || !sendBtn) return;
+    function appendMessage(text, role) {
+      const wrapper = document.createElement("div"); const span = document.createElement("span");
+      if (role === "user") { wrapper.className = "user-message"; span.textContent = text; }
+      else { wrapper.className = "bot-message"; const html = window.marked ? window.marked.parse(text) : text; span.innerHTML = html; }
+      wrapper.appendChild(span); messagesEl.appendChild(wrapper); messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+    async function sendPrompt() {
+      const prompt = promptEl.value.trim(); if (!prompt) return; appendMessage("Tú: " + prompt, "user"); promptEl.value = ""; sendBtn.disabled = true;
+      try { const response = await fetch(LLM_API_BASE + "/llm/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: prompt }) }); const data = await response.json(); appendMessage(data.response || "[Respuesta vacía]", "bot"); }
+      catch (err) { appendMessage("Error llamando al LLM: " + err, "bot"); }
+      finally { sendBtn.disabled = false; promptEl.focus(); }
+    }
+    sendBtn.addEventListener("click", sendPrompt);
+    promptEl.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendPrompt(); } });
+  })();
+
+});
