@@ -201,7 +201,7 @@ def run_dynamic_spider(urls,parameters) -> None:
     logger.info("Urls scrapeadas")
 
 
-async def run_dynamic_spider_from_db(pool) -> Coroutine[Any, Any, None]:
+async def run_dynamic_spider_from_db(pool, stop_event=None, register_process=None) -> Coroutine[Any, Any, None]:
     """
     Creates and returns an asynchronous function that continuously runs the
     dynamic Scrapy spider.
@@ -261,10 +261,38 @@ async def run_dynamic_spider_from_db(pool) -> Coroutine[Any, Any, None]:
                     await mark_entry_as_viewed(conn, url)
                 urls_def=[]
                 urls_def = urls_def + [url for url in urls if url not in urls_def]
+                # Before launching, check stop_event
+                if stop_event is not None and getattr(stop_event, 'is_set', lambda: False)():
+                    logger.info("Dynamic spider stop_event set; aborting launch.")
+                    break
                 # Run the spider in a separate process (avoids signal issues)
                 p = Process(target=run_dynamic_spider, args=(urls,parameters))
                 p.start()
+                # allow caller to keep reference to process so UI can terminate it
+                if callable(register_process):
+                    try:
+                        register_process(p)
+                    except Exception:
+                        pass
+
+                # If stop_event set while process running, try to terminate process
+                if stop_event is not None and getattr(stop_event, 'is_set', lambda: False)():
+                    try:
+                        p.terminate()
+                        logger.info("Dynamic spider process terminated due to stop_event.")
+                    except Exception:
+                        logger.exception("Error terminating dynamic spider process")
 
         logger.info("Waiting for next run...")
-        await asyncio.sleep(93600)
+        # sleep in small increments so we can respond to stop_event quickly
+        total_sleep = 93600
+        check_interval = 5  # seconds
+        slept = 0
+        while slept < total_sleep:
+            if stop_event is not None and getattr(stop_event, 'is_set', lambda: False)():
+                logger.info("Dynamic spider stop_event detected during sleep; exiting loop.")
+                break
+            to_sleep = min(check_interval, total_sleep - slept)
+            await asyncio.sleep(to_sleep)
+            slept += to_sleep
         number+=1

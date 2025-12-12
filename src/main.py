@@ -325,7 +325,15 @@ async def initialize_background_tasks(app: FastAPI):
     # Dynamic Scrapy spider from DB
     # Dynamic Scrapy spider from DB
     if settings.get("dynamic_spider", True) and pool:
-        asyncio.create_task(run_dynamic_spider_from_db(pool))
+        # create stop event and register spot for process
+        evt = threading.Event()
+        app.state.worker_stop_events["dynamic_spider"] = evt
+
+        def _register_process(p):
+            app.state.worker_timers["dynamic_spider"] = p
+
+        # start dynamic spider loop with stop_event and registration callback
+        asyncio.create_task(run_dynamic_spider_from_db(pool, stop_event=evt, register_process=_register_process))
         app.state.worker_status["dynamic_spider"] = True
         logger.info("[UI-init] Dynamic spider from DB started.")
     else:
@@ -383,6 +391,30 @@ if STATIC_DIR.exists():
                 # schedule initialization in background so UI loads fast
                 asyncio.create_task(_init_if_needed())
 
+            return FileResponse(index_path)
+        else:
+            return {"error": "index.html not found in UI static directory"}
+    
+    # Also serve the UI index at /ui and /ui/ so static hosting access triggers init
+    @app.get("/ui", include_in_schema=False)
+    @app.get("/ui/", include_in_schema=False)
+    async def ui_index():
+        index_path = STATIC_DIR / "index.html"
+        if index_path.exists():
+            if not getattr(app.state, "ui_initialized", False):
+                if getattr(app.state, "ui_init_lock", None) is None:
+                    app.state.ui_init_lock = asyncio.Lock()
+
+                async def _init_if_needed2():
+                    async with app.state.ui_init_lock:
+                        if getattr(app.state, "ui_initialized", False):
+                            return
+                        try:
+                            await initialize_background_tasks(app)
+                        except Exception:
+                            logger.exception("[UI-init] Exception during initialization triggered by UI access")
+
+                asyncio.create_task(_init_if_needed2())
             return FileResponse(index_path)
         else:
             return {"error": "index.html not found in UI static directory"}

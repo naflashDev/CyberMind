@@ -23,6 +23,7 @@
 # This setup is designed to facilitate automated, ongoing collection and organization
 # of cybersecurity-related RSS feed sources.
 import asyncio
+import asyncpg
 import os
 import threading
 import time
@@ -64,7 +65,26 @@ async def search_and_insert_rss(request: Request):
     Raises:
         HTTPException: If the URL file is not found.
     """
-    pool = request.app.state.pool
+    # ensure database pool is available; try to create one on-demand as fallback
+    if not hasattr(request.app.state, 'pool'):
+        logger.warning("[RSS] Database pool not initialized in app.state; attempting on-demand creation...")
+        try:
+            pool = await asyncpg.create_pool(
+                user="postgres",
+                password="password123",
+                database="postgres",
+                host="127.0.0.1",
+                port=5432,
+                min_size=1,
+                max_size=5,
+            )
+            request.app.state.pool = pool
+            logger.info("[RSS] Created PostgreSQL pool on-demand.")
+        except Exception:
+            logger.exception("[RSS] Failed to create PostgreSQL pool on-demand")
+            raise HTTPException(status_code=503, detail="Database pool not initialized and on-demand creation failed")
+    else:
+        pool = request.app.state.pool
     file_path = "./data/urls_cybersecurity_ot_it.txt"
 
     if not os.path.exists(file_path):
@@ -188,6 +208,24 @@ async def list_feeds(
     logger.info("Fetching up to {} feeds from database.", limit)
 
     try:
+        # Ensure pool exists (try on-demand creation as fallback)
+        if not hasattr(request.app.state, 'pool'):
+            logger.warning("[Feeds] Database pool not initialized in app.state; attempting on-demand creation...")
+            try:
+                pool = await asyncpg.create_pool(
+                    user="postgres",
+                    password="password123",
+                    database="postgres",
+                    host="127.0.0.1",
+                    port=5432,
+                    min_size=1,
+                    max_size=5,
+                )
+                request.app.state.pool = pool
+                logger.info("[Feeds] Created PostgreSQL pool on-demand.")
+            except Exception:
+                logger.exception("[Feeds] Failed to create PostgreSQL pool on-demand")
+                raise HTTPException(status_code=503, detail="Database pool not initialized and on-demand creation failed")
         async with request.app.state.pool.acquire() as conn:
             feeds = await get_feeds_from_db(conn, limit)
             logger.success("Successfully fetched {} feeds.", len(feeds))

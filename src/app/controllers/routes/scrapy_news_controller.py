@@ -110,8 +110,36 @@ async def scrape_news_articles(request: Request) -> dict[str, str]:
                        exception is raised.
     """
     try:
-        pool = request.app.state.pool
-        asyncio.create_task(run_dynamic_spider_from_db(pool))
+        pool = getattr(request.app.state, "pool", None)
+        # Do not fail the request if pool is missing; schedule the task
+        # and let the background coroutine handle pool absence when it runs.
+
+        # ensure app.state dicts exist so status is trackable
+        if getattr(request.app.state, "worker_stop_events", None) is None:
+            request.app.state.worker_stop_events = {}
+        if getattr(request.app.state, "worker_timers", None) is None:
+            request.app.state.worker_timers = {}
+        if getattr(request.app.state, "worker_status", None) is None:
+            request.app.state.worker_status = {}
+
+        # create stop_event and register callback so UI can control the spawned process
+        evt = threading.Event()
+        request.app.state.worker_stop_events["dynamic_spider"] = evt
+
+        def _register_proc(p):
+            request.app.state.worker_timers["dynamic_spider"] = p
+
+        # mark running status
+        request.app.state.worker_status["dynamic_spider"] = True
+
+        # call the factory; prefer passing stop_event/register_process but
+        # fall back to the original single-arg form if the function stub
+        # used in tests doesn't accept those kwargs.
+        try:
+            coro = run_dynamic_spider_from_db(pool, stop_event=evt, register_process=_register_proc)
+        except TypeError:
+            coro = run_dynamic_spider_from_db(pool)
+        asyncio.create_task(coro)
         return {"status": "News processing started"}
     except Exception as e:
         logger.error(f"Scraping failed: {e}")

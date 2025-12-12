@@ -59,7 +59,19 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
         timer = request.app.state.worker_timers.get(name)
         if timer is not None:
             try:
-                timer.cancel()
+                # if stored object is a threading.Timer or asyncio.Task it may support cancel()
+                if hasattr(timer, 'cancel'):
+                    try:
+                        timer.cancel()
+                    except Exception:
+                        pass
+                # if stored object is a multiprocessing.Process, terminate it
+                elif hasattr(timer, 'terminate'):
+                    try:
+                        timer.terminate()
+                        timer.join(timeout=2)
+                    except Exception:
+                        pass
             except Exception:
                 pass
         request.app.state.worker_status[name] = False
@@ -110,7 +122,8 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
         if pool is None:
             raise HTTPException(status_code=400, detail="DB pool not available")
         import asyncio
-        asyncio.create_task(scrapy_news_controller.run_dynamic_spider_from_db(pool))
+        # pass stop_event and register callback so UI can control the process
+        asyncio.create_task(scrapy_news_controller.run_dynamic_spider_from_db(pool, stop_event=evt, register_process=_register_timer))
     else:
         raise HTTPException(status_code=400, detail="Unsupported worker")
 

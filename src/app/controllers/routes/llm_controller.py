@@ -5,13 +5,17 @@
 @details Provides HTTP endpoints for programmatic and UI-based queries.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 from loguru import logger
 from app.services.llm.llm_client import query_llm
 from app.services.llm.llm_trainer import run_periodic_training
 from typing import Optional
 import threading
+
+
+class UpdaterToggle(BaseModel):
+    enabled: bool
 
 router = APIRouter(prefix="/llm", tags=["llm"])
 
@@ -62,3 +66,60 @@ def background_cve_and_finetune_loop(stop_event: Optional[threading.Event] = Non
         except Exception:
             # If wait fails for any reason, fallback to sleep a short time then re-check
             time.sleep(5)
+
+
+
+@router.get('/updater')
+async def updater_get(request: Request):
+    """Start the LLM updater background loop via GET (compatible with other GET starters)."""
+    # ensure app.state dicts
+    if getattr(request.app.state, 'worker_stop_events', None) is None:
+        request.app.state.worker_stop_events = {}
+    if getattr(request.app.state, 'worker_timers', None) is None:
+        request.app.state.worker_timers = {}
+    if getattr(request.app.state, 'worker_status', None) is None:
+        request.app.state.worker_status = {}
+
+    name = 'llm_updater'
+    if request.app.state.worker_status.get(name):
+        return {"message": f"Worker {name} already running"}
+
+    evt = threading.Event()
+    request.app.state.worker_stop_events[name] = evt
+    th = threading.Thread(target=background_cve_and_finetune_loop, args=(evt,), daemon=True)
+    th.start()
+    request.app.state.worker_timers[name] = th
+    request.app.state.worker_status[name] = True
+    logger.info(f"[LLM] Updater started via /llm/updater")
+    return {"message": "LLM updater started"}
+
+
+@router.get('/stop-updater')
+async def stop_updater(request: Request):
+    """Stop the LLM updater background loop (GET endpoint)."""
+    name = 'llm_updater'
+    if getattr(request.app.state, 'worker_stop_events', None) is None:
+        request.app.state.worker_stop_events = {}
+    if getattr(request.app.state, 'worker_timers', None) is None:
+        request.app.state.worker_timers = {}
+    if getattr(request.app.state, 'worker_status', None) is None:
+        request.app.state.worker_status = {}
+
+    evt = request.app.state.worker_stop_events.get(name)
+    if evt is not None:
+        try:
+            evt.set()
+        except Exception:
+            pass
+
+    timer = request.app.state.worker_timers.get(name)
+    if timer is not None:
+        try:
+            if hasattr(timer, 'cancel'):
+                timer.cancel()
+        except Exception:
+            pass
+
+    request.app.state.worker_status[name] = False
+    logger.info(f"[LLM] Updater stopped via /llm/stop-updater")
+    return {"message": "LLM updater stopped"}

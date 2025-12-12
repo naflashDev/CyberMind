@@ -531,9 +531,14 @@
           { id: "search-and-insert-rss", title: "Search and Insert RSS", method: "GET", path: "/postgre-ttrss/search-and-insert-rss", params: [{name: "link", type: "text", placeholder: "consulta (opcional)"}], desc: "Busca elementos RSS por consulta e inserta los nuevos en TinyRSS/Postgres." },
           { id: "feeds", title: "List Feeds", method: "GET", path: "/postgre-ttrss/feeds", params: [], desc: "Lista los feeds almacenados en la base de datos." }
         ],
+        "LLM": [
+          { id: "llm-updater", title: "LLM Updater", method: "GET", path: "/llm/updater", params: [], desc: "Inicia el updater/finetune en background (llm_updater)." }
+        ],
         "Status": [
           { id: "system-status-op", title: "System Status", method: "GET", path: "/status", params: [], desc: "Muestra el estado de la infraestructura, UI y workers en ejecución." }
         ]
+        
+        
       };
 
       const controllersList = document.getElementById("controllers-list");
@@ -641,7 +646,29 @@
           refreshBtn.style.color = '#fff';
           refreshBtn.style.cursor = 'pointer';
 
+          const startAllBtn = document.createElement('button');
+          startAllBtn.type = 'button';
+          startAllBtn.textContent = 'Start All';
+          startAllBtn.style.padding = '6px 10px';
+          startAllBtn.style.borderRadius = '6px';
+          startAllBtn.style.border = 'none';
+          startAllBtn.style.background = '#10b981';
+          startAllBtn.style.color = '#fff';
+          startAllBtn.style.cursor = 'pointer';
+
+          const stopAllBtn = document.createElement('button');
+          stopAllBtn.type = 'button';
+          stopAllBtn.textContent = 'Stop All';
+          stopAllBtn.style.padding = '6px 10px';
+          stopAllBtn.style.borderRadius = '6px';
+          stopAllBtn.style.border = 'none';
+          stopAllBtn.style.background = '#ef4444';
+          stopAllBtn.style.color = '#fff';
+          stopAllBtn.style.cursor = 'pointer';
+
           row.appendChild(refreshBtn);
+          row.appendChild(startAllBtn);
+          row.appendChild(stopAllBtn);
 
           const box = document.createElement('div');
           box.id = 'op-status-box';
@@ -689,8 +716,6 @@
               parts.push('</div>');
 
               document.getElementById('op-status-box').innerHTML = parts.join('');
-              // notify user that panel updated
-              try { showToast('Panel de estado actualizado'); } catch (e) {}
               // attach handlers for single toggle buttons
               const toggleBtns = document.querySelectorAll('#op-status-box button[data-worker-toggle]');
               toggleBtns.forEach(btn => {
@@ -725,6 +750,31 @@
           }
 
           refreshBtn.addEventListener('click', fetchForOp);
+          // start/stop all handlers: query /status then toggle each worker
+          async function toggleAll(enable) {
+            try {
+              const s = await fetch((window.__CYBERMIND_API_BASE__ || 'http://127.0.0.1:8000') + '/status');
+              if (!s.ok) throw new Error('HTTP ' + s.status);
+              const j = await s.json();
+              const workers = j.workers || {};
+              const promises = Object.keys(workers).map(name => {
+                return fetch((window.__CYBERMIND_API_BASE__ || 'http://127.0.0.1:8000') + '/workers/' + encodeURIComponent(name), {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ enabled: enable })
+                }).then(r => ({ name, ok: r.ok, status: r.status }));
+              });
+              const results = await Promise.allSettled(promises);
+              const succeeded = results.filter(r => r.status === 'fulfilled' && r.value && r.value.ok).map(r => r.value.name);
+              showToast((enable ? 'Started' : 'Stopped') + ' ' + succeeded.length + ' workers');
+              setTimeout(fetchForOp, 400);
+            } catch (err) {
+              showToast('Error toggling workers: ' + String(err));
+            }
+          }
+
+          startAllBtn.addEventListener('click', () => toggleAll(true));
+          stopAllBtn.addEventListener('click', () => toggleAll(false));
           // initial fetch for the panel
           fetchForOp();
           // listen for manual status updates triggered elsewhere
@@ -923,6 +973,21 @@
                     t.textContent = isCollapsed ? '▸' : '▾';
                   });
                 });
+                // If this operation likely starts a background worker, show a toast.
+                try {
+                  const workerStartPaths = new Set([
+                    '/newsSpider/scrape-news',
+                    '/newsSpider/start-google-alerts',
+                    '/newsSpider/scrapy/google-dk/news',
+                    '/newsSpider/scrapy/google-dk/feeds',
+                    '/start-spacy',
+                    '/postgre-ttrss/search-and-insert-rss',
+                    '/llm/updater'
+                  ]);
+                  if (workerStartPaths.has(op.path) && resp.ok) {
+                    showToast(op.title + ' iniciada');
+                  }
+                } catch (e) { /* ignore toast errors */ }
           } catch (e) {
             // not JSON: render as markdown if looks like markdown, otherwise as plain pre
             const t = text || '';

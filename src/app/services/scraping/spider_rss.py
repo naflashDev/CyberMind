@@ -25,6 +25,7 @@
 
 
 import feedparser
+import asyncio
 from scrapy.crawler import CrawlerProcess
 from scrapy.spiders import Spider
 from app.models.ttrss_postgre_db import insert_feed_to_db, FeedCreateRequest
@@ -155,12 +156,20 @@ async def extract_rss_and_save(pool, file_path) -> None:
         logger.info("No URLs found to process.")
         return
 
-    queue = Queue()
-    p = Process(target=run_rss_spider, args=(urls, queue))
-    p.start()
-    p.join()
+    # Run the blocking multiprocessing spider in a thread to avoid
+    # blocking the asyncio event loop. The helper runs the Process,
+    # waits for it to finish and returns the results from the queue.
+    def _run_process_and_get_results(urls_list):
+        q = Queue()
+        proc = Process(target=run_rss_spider, args=(urls_list, q))
+        proc.start()
+        proc.join()
+        try:
+            return q.get()
+        except Exception:
+            return []
 
-    results = queue.get()
+    results = await asyncio.to_thread(_run_process_and_get_results, urls)
 
     async with pool.acquire() as conn:
         for feed_url in results:
