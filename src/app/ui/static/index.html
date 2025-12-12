@@ -656,24 +656,69 @@
           panel.appendChild(box);
           opForm.appendChild(panel);
 
+          // Enhanced status + worker control
           async function fetchForOp() {
             try {
               const resp = await fetch((window.__CYBERMIND_API_BASE__ || 'http://127.0.0.1:8000') + '/status');
               if (!resp.ok) throw new Error('HTTP ' + resp.status);
               const j = await resp.json();
               const workers = j.workers || {};
-              const running = Object.entries(workers).filter(([k,v])=>v).map(([k])=>k).join(', ') || 'ninguno';
-              // build a treated HTML view
+
+              // build header info
               const parts = [];
               parts.push(`<div style="margin-bottom:8px;"><strong>Infra:</strong> ${j.infra_ready ? '<span style="color:#86efac">OK</span>' : '<span style="color:#fca5a5">NO</span>'}${j.infra_error ? ` &nbsp; <em style=\"color:#fca5a5\">${j.infra_error}</em>` : ''}</div>`);
               parts.push(`<div style="margin-bottom:8px;"><strong>UI initialized:</strong> ${j.ui_initialized ? '<span style="color:#86efac">sí</span>' : '<span style="color:#fca5a5">no</span>'}</div>`);
+
+              // Workers control list
               parts.push('<div style="margin-bottom:6px;"><strong>Workers</strong></div>');
-              parts.push('<ul style="margin:0; padding-left:18px;">');
+              parts.push('<div id="workers-control-list" style="display:flex;flex-direction:column;gap:8px;">');
               for (const [name, val] of Object.entries(workers)) {
-                parts.push(`<li><strong>${name}:</strong> ${val ? '<span style="color:#86efac">running</span>' : '<span style="color:#fca5a5">stopped</span>'}</li>`);
+                const status = val ? '<span style="color:#86efac">running</span>' : '<span style="color:#fca5a5">stopped</span>';
+                const btnStyle = val ? 'background:#ef4444;color:#fff' : 'background:#10b981;color:#fff';
+                const btnText = val ? 'Stop' : 'Activate';
+                parts.push(`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                  <div style="display:flex;flex-direction:column;">
+                    <div style="font-weight:600">${name}</div>
+                    <div style="font-size:12px;color:#9aa6b2">Status: ${status}</div>
+                  </div>
+                  <div>
+                    <button data-worker-toggle="${name}" data-enabled="${val}" style="padding:8px 10px;border-radius:6px;border:none;cursor:pointer;${btnStyle}">${btnText}</button>
+                  </div>
+                </div>`);
               }
-              parts.push('</ul>');
+              parts.push('</div>');
+
               document.getElementById('op-status-box').innerHTML = parts.join('');
+              // notify user that panel updated
+              try { showToast('Panel de estado actualizado'); } catch (e) {}
+              // attach handlers for single toggle buttons
+              const toggleBtns = document.querySelectorAll('#op-status-box button[data-worker-toggle]');
+              toggleBtns.forEach(btn => {
+                btn.addEventListener('click', async () => {
+                  const name = btn.dataset.workerToggle;
+                  const enabled = btn.dataset.enabled === 'true' || btn.dataset.enabled === 'True';
+                  const newEnabled = !enabled;
+                  // Optimistic UI: disable button until response
+                  const oldText = btn.textContent;
+                  btn.disabled = true;
+                  try {
+                    const p = await fetch((window.__CYBERMIND_API_BASE__ || 'http://127.0.0.1:8000') + '/workers/' + encodeURIComponent(name), {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ enabled: newEnabled })
+                    });
+                    if (!p.ok) throw new Error('HTTP ' + p.status);
+                    showToast((newEnabled ? 'Activated' : 'Stopped') + ' ' + name);
+                    // refresh status after change
+                    setTimeout(fetchForOp, 300);
+                  } catch (err) {
+                    showToast('Error toggling worker: ' + String(err));
+                    btn.disabled = false;
+                    btn.textContent = oldText;
+                  }
+                });
+              });
+
             } catch (err) {
               box.innerHTML = `<div style="color:#fca5a5">Error: ${String(err)}</div>`;
             }
@@ -682,6 +727,15 @@
           refreshBtn.addEventListener('click', fetchForOp);
           // initial fetch for the panel
           fetchForOp();
+          // listen for manual status updates triggered elsewhere
+          try { window.addEventListener('status-updated', fetchForOp); } catch (e) {}
+          // periodic refresh every 10s while panel is open
+          let statusInterval = setInterval(() => {
+            const boxEl = document.getElementById('op-status-box');
+            if (!boxEl) return;
+            // only refresh if panel is visible (user is on FastAPI view and status op selected)
+            fetchForOp();
+          }, 10000);
           return;
         }
 
@@ -883,8 +937,12 @@
               opResult.innerHTML = `<pre>${escapeHtml(t)}</pre>`;
             }
           }
-        } catch (err) {
+          } catch (err) {
           opResult.innerHTML = `<div class="response-error">Error: ${escapeHtml(String(err))}</div>`;
+        } finally {
+          // Refresh global status summary and notify status panel (if open)
+          try { if (typeof fetchStatus === 'function') fetchStatus(); } catch (e) {}
+          try { window.dispatchEvent(new Event('status-updated')); } catch (e) {}
         }
       }
 

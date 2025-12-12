@@ -156,11 +156,30 @@ async def start_google_alert_scheduler(request: Request) -> JSONResponse:
 
     loop = asyncio.get_running_loop()
 
+    # ensure app.state dicts and create stop_event/register_timer so status is tracked
+    if getattr(request.app.state, "worker_stop_events", None) is None:
+        request.app.state.worker_stop_events = {}
+    if getattr(request.app.state, "worker_timers", None) is None:
+        request.app.state.worker_timers = {}
+    if getattr(request.app.state, "worker_status", None) is None:
+        request.app.state.worker_status = {}
+
+    evt = request.app.state.worker_stop_events.get("google_alerts")
+    if evt is None:
+        evt = threading.Event()
+        request.app.state.worker_stop_events["google_alerts"] = evt
+
+    def _register_timer(t):
+        request.app.state.worker_timers["google_alerts"] = t
+
     threading.Thread(
         target=recurring_google_alert_scraper,
-        args=(loop,),
+        args=(loop, evt, _register_timer),
         daemon=True
     ).start()
+
+    # mark running status
+    request.app.state.worker_status["google_alerts"] = True
 
     logger.info(
             "[Scheduler] Recurring Google Alerts task started successfully."
@@ -168,14 +187,13 @@ async def start_google_alert_scheduler(request: Request) -> JSONResponse:
 
     return JSONResponse(
         content={
-            "message": "Google Alerts scraping process started. It will run "
-            "every 24 hours."
-            },
+            "message": "Google Alerts scraping process started. It will run every 24 hours."
+        },
         status_code=200
     )
 
 
-def recurring_google_alert_scraper(loop: asyncio.AbstractEventLoop) -> None:
+def recurring_google_alert_scraper(loop: asyncio.AbstractEventLoop, stop_event=None, register_timer=None) -> None:
     """
     @brief Periodically updates Google Alerts feeds from a local file.
 
@@ -196,6 +214,11 @@ def recurring_google_alert_scraper(loop: asyncio.AbstractEventLoop) -> None:
 
     @return None
     """
+    # If a stop_event is provided and set, exit early and do not reschedule
+    if stop_event is not None and getattr(stop_event, "is_set", lambda: False)():
+        logger.info("[Google Alerts] stop_event set; aborting recurring scraper.")
+        return
+
     try:
         logger.info("[Google Alerts] Extracting feeds from file...")
         fetch_and_save_alert_urls()
@@ -204,10 +227,23 @@ def recurring_google_alert_scraper(loop: asyncio.AbstractEventLoop) -> None:
     except Exception as e:
         logger.error(f"[Feeds] Error extracting feeds: {e}")
 
-    timer = threading.Timer(86400, recurring_google_alert_scraper, args=(loop,))
-    timer.daemon = True
-    timer.start()
-    logger.info("[Scheduler] Next feed update in 24h")
+    # Schedule next run only if stop_event not set
+    try:
+        if stop_event is None or not stop_event.is_set():
+            timer = threading.Timer(86400, recurring_google_alert_scraper, args=(loop, stop_event, register_timer))
+            timer.daemon = True
+            # allow caller to keep reference to timer so it can be canceled
+            if callable(register_timer):
+                try:
+                    register_timer(timer)
+                except Exception:
+                    pass
+            timer.start()
+            logger.info("[Scheduler] Next feed update in 24h")
+        else:
+            logger.info("[Google Alerts] stop_event set; not scheduling next run.")
+    except Exception as e:
+        logger.error(f"[Scheduler] Error rescheduling Google Alerts: {e}")
 
 
 @router.get("/scrapy/google-dk/feeds")
@@ -221,18 +257,30 @@ async def start_scraping_feeds(request: Request) -> dict[str, str]:
     started.
     """
     loop = asyncio.get_running_loop()
+    if getattr(request.app.state, "worker_stop_events", None) is None:
+        request.app.state.worker_stop_events = {}
+    if getattr(request.app.state, "worker_timers", None) is None:
+        request.app.state.worker_timers = {}
+    if getattr(request.app.state, "worker_status", None) is None:
+        request.app.state.worker_status = {}
+
+    evt = threading.Event()
+    request.app.state.worker_stop_events["scraping_feeds"] = evt
+    def _reg_feed(t):
+        request.app.state.worker_timers["scraping_feeds"] = t
 
     threading.Thread(
         target=background_scraping_feeds,
-        args=(loop,),
+        args=(loop, evt, _reg_feed),
         daemon=True
     ).start()
+    request.app.state.worker_status["scraping_feeds"] = True
 
     return {
         "message": "Scraping started. It will run and reschedule every 24 hours."
         }
 
-def background_scraping_feeds(loop: asyncio.AbstractEventLoop) -> None:
+def background_scraping_feeds(loop: asyncio.AbstractEventLoop, stop_event=None, register_timer=None) -> None:
     """
     Executes the Google Dorking scraping task asynchronously and reschedules
     itself to run again every 24 hours (86400 seconds).
@@ -247,16 +295,39 @@ def background_scraping_feeds(loop: asyncio.AbstractEventLoop) -> None:
     try:
         logger.info("[Scraper] Starting Google Dorking tasks with run_scraping()...")
         future = asyncio.run_coroutine_threadsafe(run_dork_search_feed(), loop)
-        future.result()
-        logger.success("[Scraper] Google Dorking tasks completed.")
+        # Do not block the worker thread waiting for the coroutine; attach a
+        # callback to log any exceptions when the coroutine completes.
+        def _on_done(fut):
+            try:
+                exc = fut.exception()
+                if exc:
+                    logger.error(f"[Scraper] run_dork_search_feed raised: {exc}")
+                else:
+                    logger.success("[Scraper] Google Dorking tasks completed.")
+            except Exception as _e:
+                logger.error(f"[Scraper] Error inspecting future: {_e}")
+
+        try:
+            future.add_done_callback(_on_done)
+        except Exception:
+            # If add_done_callback isn't supported for some reason, avoid blocking
+            logger.debug("Could not attach callback to future; continuing without blocking.")
     except Exception as e:
         logger.error(f"[Scraper] Error during Google Dorking tasks: {e}")
 
     try:
-        timer = threading.Timer(86400, background_scraping_feeds, args=(loop,))
-        timer.daemon = True
-        timer.start()
-        logger.info("[Scheduler] Next scraping execution scheduled in 24 hours.")
+        if stop_event is None or not stop_event.is_set():
+            timer = threading.Timer(86400, background_scraping_feeds, args=(loop, stop_event, register_timer))
+            timer.daemon = True
+            if callable(register_timer):
+                try:
+                    register_timer(timer)
+                except Exception:
+                    pass
+            timer.start()
+            logger.info("[Scheduler] Next scraping execution scheduled in 24 hours.")
+        else:
+            logger.info("[Scraper] stop_event set; not scheduling next scraping run.")
     except Exception as e:
         logger.error(f"[Scheduler] Error rescheduling scraping: {e}")
 
@@ -271,16 +342,28 @@ async def start_scraping_news(request: Request) -> dict[str, str]:
     @return: A dictionary with a status message indicating that scraping has started.
     """
     loop = asyncio.get_running_loop()
+    if getattr(request.app.state, "worker_stop_events", None) is None:
+        request.app.state.worker_stop_events = {}
+    if getattr(request.app.state, "worker_timers", None) is None:
+        request.app.state.worker_timers = {}
+    if getattr(request.app.state, "worker_status", None) is None:
+        request.app.state.worker_status = {}
+
+    evt2 = threading.Event()
+    request.app.state.worker_stop_events["scraping_news"] = evt2
+    def _reg_news(t):
+        request.app.state.worker_timers["scraping_news"] = t
 
     threading.Thread(
         target=background_scraping_news,
-        args=(loop,),
+        args=(loop, evt2, _reg_news),
         daemon=True
     ).start()
+    request.app.state.worker_status["scraping_news"] = True
 
     return {"message": "Scraping iniciado. Se ejecutará y reprogramará cada 24 horas."}
 
-def background_scraping_news(loop: asyncio.AbstractEventLoop) -> None:
+def background_scraping_news(loop: asyncio.AbstractEventLoop, stop_event=None, register_timer=None) -> None:
     """
     Executes the Google Dorking scraping task asynchronously and reschedules
     itself to run again every 24 hours (86400 seconds).
@@ -295,16 +378,36 @@ def background_scraping_news(loop: asyncio.AbstractEventLoop) -> None:
     try:
         logger.info("[Scraper] Starting Google Dorking tasks with run_scraping()...")
         future = asyncio.run_coroutine_threadsafe(run_news_search(), loop)
-        future.result()
-        logger.success("[Scraper] Google Dorking tasks completed.")
+        def _on_done_news(fut):
+            try:
+                exc = fut.exception()
+                if exc:
+                    logger.error(f"[Scraper] run_news_search raised: {exc}")
+                else:
+                    logger.success("[Scraper] Google Dorking tasks completed.")
+            except Exception as _e:
+                logger.error(f"[Scraper] Error inspecting future: {_e}")
+
+        try:
+            future.add_done_callback(_on_done_news)
+        except Exception:
+            logger.debug("Could not attach callback to future; continuing without blocking.")
     except Exception as e:
         logger.error(f"[Scraper] Error during Google Dorking tasks: {e}")
 
     try:
-        timer = threading.Timer(86400, background_scraping_news, args=(loop,))
-        timer.daemon = True
-        timer.start()
-        logger.info("[Scheduler] Next scraping execution scheduled in 24 hours.")
+        if stop_event is None or not stop_event.is_set():
+            timer = threading.Timer(86400, background_scraping_news, args=(loop, stop_event, register_timer))
+            timer.daemon = True
+            if callable(register_timer):
+                try:
+                    register_timer(timer)
+                except Exception:
+                    pass
+            timer.start()
+            logger.info("[Scheduler] Next scraping execution scheduled in 24 hours.")
+        else:
+            logger.info("[Scraper] stop_event set; not scheduling next news scraping run.")
     except Exception as e:
         logger.error(f"[Scheduler] Error rescheduling scraping: {e}")
 

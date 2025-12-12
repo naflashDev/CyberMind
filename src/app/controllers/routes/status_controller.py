@@ -10,6 +10,7 @@ a specified distribution before launching the FastAPI application.
 """
 
 from fastapi import APIRouter, Request
+from app.utils.worker_control import default_settings
 
 router = APIRouter(
     prefix="",
@@ -25,10 +26,17 @@ async def get_status(request: Request):
     infra_error = getattr(app.state, "infra_error", None)
     ui_initialized = getattr(app.state, "ui_initialized", False)
     workers = getattr(app.state, "worker_status", {}) or {}
-    simple_workers = {k: bool(v) for k, v in workers.items()}
+    # ensure all known workers are present in the returned dict
+    all_keys = list(default_settings().keys())
+    combined = {k: bool(workers.get(k, False)) for k in all_keys}
+    # include any extra dynamic keys as well
+    for k, v in workers.items():
+        if k not in combined:
+            combined[k] = bool(v)
+
     return {
         "infra_ready": bool(infra_ready),
         "infra_error": infra_error,
         "ui_initialized": bool(ui_initialized),
-        "workers": simple_workers,
+        "workers": combined,
     }

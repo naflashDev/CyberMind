@@ -1,0 +1,9 @@
+{
+  "google_alerts": true,
+  "rss_extractor": true,
+  "scraping_feeds": true,
+  "scraping_news": true,
+  "spacy_nlp": true,
+  "llm_updater": true,
+  "dynamic_spider": true
+}

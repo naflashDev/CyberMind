@@ -71,18 +71,38 @@ async def search_and_insert_rss(request: Request):
         logger.warning("[Startup] URL file not found. Aborting scheduler.")
         raise HTTPException(status_code=404, detail="URL file not found")
 
+
     loop = asyncio.get_running_loop()
+
+    # ensure app.state dicts exist and create stop_event/register so status is tracked
+    if getattr(request.app.state, "worker_stop_events", None) is None:
+        request.app.state.worker_stop_events = {}
+    if getattr(request.app.state, "worker_timers", None) is None:
+        request.app.state.worker_timers = {}
+    if getattr(request.app.state, "worker_status", None) is None:
+        request.app.state.worker_status = {}
+
+    evt = request.app.state.worker_stop_events.get("rss_extractor")
+    if evt is None:
+        evt = threading.Event()
+        request.app.state.worker_stop_events["rss_extractor"] = evt
+
+    def _register_timer(t):
+        request.app.state.worker_timers["rss_extractor"] = t
 
     threading.Thread(
         target=background_rss_process_loop,
-        args=(pool, file_path, loop),
+        args=(pool, file_path, loop, evt, _register_timer),
         daemon=True
     ).start()
 
+    request.app.state.worker_status["rss_extractor"] = True
+
     logger.info("[Scheduler] Recurring RSS extraction task initialized.")
+    # return only message; UI should query /status for worker list
     return {"message": "Background process started. It will run every 25 hours."}
 
-def background_rss_process_loop(pool,file_path: str,loop: asyncio.AbstractEventLoop,) -> None:
+def background_rss_process_loop(pool, file_path: str, loop: asyncio.AbstractEventLoop, stop_event=None, register_timer=None) -> None:
     """
     Execute the RSS extraction task and reschedule the next execution
     without blocking the main thread.
@@ -109,17 +129,39 @@ def background_rss_process_loop(pool,file_path: str,loop: asyncio.AbstractEventL
     # Schedule the async task on the given event loop
     try:
         future = asyncio.run_coroutine_threadsafe(run_task(), loop)
-        # If you do NOT want to block at all, comment out the next line
-        future.result()
+        # Do not block the worker thread waiting for completion; attach a
+        # callback to surface errors when the coroutine ends.
+        def _on_done_rss(fut):
+            try:
+                exc = fut.exception()
+                if exc:
+                    logger.error(f"[RSS] extract_rss_and_save raised: {exc}")
+                else:
+                    logger.success("[RSS] RSS feed extraction and saving completed.")
+            except Exception as _e:
+                logger.error(f"[RSS] Error inspecting future: {_e}")
+
+        try:
+            future.add_done_callback(_on_done_rss)
+        except Exception:
+            logger.debug("Could not attach callback to future; continuing without blocking.")
     except Exception as e:
         logger.error(f"[RSS] Error scheduling RSS extraction task: {e}")
 
-    # Reschedule this function to run again in 25 hours using a Timer
+    # Reschedule this function to run again in 25 hours using a Timer if not stopped
     try:
-        timer = threading.Timer(90000, background_rss_process_loop, args=(pool, file_path, loop))
-        timer.daemon = True
-        timer.start()
-        logger.info("[Scheduler] Next RSS extraction scheduled in 25 hours.")
+        if stop_event is None or not stop_event.is_set():
+            timer = threading.Timer(90000, background_rss_process_loop, args=(pool, file_path, loop, stop_event, register_timer))
+            timer.daemon = True
+            if callable(register_timer):
+                try:
+                    register_timer(timer)
+                except Exception:
+                    pass
+            timer.start()
+            logger.info("[Scheduler] Next RSS extraction scheduled in 25 hours.")
+        else:
+            logger.info("[RSS] stop_event set; not scheduling next RSS extraction.")
     except Exception as e:
         logger.error(f"[Scheduler] Error rescheduling RSS extraction: {e}")
 

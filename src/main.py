@@ -34,7 +34,9 @@ from app.controllers.routes import (
     tiny_postgres_controller,
     llm_controller,
     status_controller,
+    worker_controller,
 )
+from app.utils.worker_control import load_worker_settings, save_worker_settings
 from app.controllers.routes.scrapy_news_controller import (
     recurring_google_alert_scraper,
     background_scraping_feeds,
@@ -97,8 +99,10 @@ async def lifespan(app: FastAPI):
 
         try:
             # create a stop event so background threads can be asked to stop gracefully
-            import threading as _threading
-            app.state.stop_event = _threading.Event()
+            app.state.stop_event = threading.Event()
+            # per-worker stop events and timers
+            app.state.worker_stop_events = {}
+            app.state.worker_timers = {}
 
             try:
                 ensure_infrastructure(parameters)
@@ -209,76 +213,127 @@ async def initialize_background_tasks(app: FastAPI):
     input_path = "./outputs/result.json"
     output_path = "./outputs/labels_result.json"
 
+    # Load persisted worker preferences
+    settings = load_worker_settings()
+
     # Google Alerts scraper
-    if os.path.exists(google_alerts_path):
+    if settings.get("google_alerts", True) and os.path.exists(google_alerts_path):
         app.state.worker_status["google_alerts"] = True
+        # create stop event for this worker
+        evt = threading.Event()
+        app.state.worker_stop_events["google_alerts"] = evt
+        # start recurring scraper, pass stop event and register timer
+        def _register_timer(t):
+            app.state.worker_timers["google_alerts"] = t
+
         threading.Thread(
-            args=(loop,),
+            target=scrapy_news_controller.recurring_google_alert_scraper,
+            args=(loop, evt, _register_timer),
             daemon=True,
         ).start()
         logger.info("[UI-init] Google Alerts scheduler started.")
     else:
         app.state.worker_status["google_alerts"] = False
-        logger.warning("[UI-init] google_alert_rss.txt not found.")
+        logger.warning("[UI-init] google_alert_rss.txt not found or worker disabled in settings.")
 
     # RSS feed extraction
-    if os.path.exists(urls_path):
+    if settings.get("rss_extractor", True) and os.path.exists(urls_path):
         app.state.worker_status["rss_extractor"] = True
+        evt = threading.Event()
+        app.state.worker_stop_events["rss_extractor"] = evt
+        def _register_timer_rss(t):
+            app.state.worker_timers["rss_extractor"] = t
+
         threading.Thread(
-            target=background_rss_process_loop,
-            args=(pool, urls_path, loop),
+            target=tiny_postgres_controller.background_rss_process_loop,
+            args=(pool, urls_path, loop, evt, _register_timer_rss),
             daemon=True,
         ).start()
         logger.info("[UI-init] RSS extractor scheduled.")
     else:
         app.state.worker_status["rss_extractor"] = False
-        logger.warning("[UI-init] urls_cybersecurity_ot_it.txt not found.")
+        logger.warning("[UI-init] urls_cybersecurity_ot_it.txt not found or worker disabled in settings.")
 
     # Immediate feed & news scraping
-    threading.Thread(
-        target=background_scraping_feeds,
-        args=(loop,),
-        daemon=True,
-    ).start()
-    app.state.worker_status["scraping_feeds"] = True
-    threading.Thread(
-        target=background_scraping_news,
-        args=(loop,),
-        daemon=True,
-    ).start()
-    app.state.worker_status["scraping_news"] = True
-    logger.info("[UI-init] Feed and news scraping launched.")
+    # Scraping feeds/news
+    if settings.get("scraping_feeds", True):
+        evt = threading.Event()
+        app.state.worker_stop_events["scraping_feeds"] = evt
+        def _reg_feed(t):
+            app.state.worker_timers["scraping_feeds"] = t
+
+        threading.Thread(
+            target=scrapy_news_controller.background_scraping_feeds,
+            args=(loop, evt, _reg_feed),
+            daemon=True,
+        ).start()
+        app.state.worker_status["scraping_feeds"] = True
+    else:
+        app.state.worker_status["scraping_feeds"] = False
+
+    if settings.get("scraping_news", True):
+        evt2 = threading.Event()
+        app.state.worker_stop_events["scraping_news"] = evt2
+        def _reg_news(t):
+            app.state.worker_timers["scraping_news"] = t
+
+        threading.Thread(
+            target=scrapy_news_controller.background_scraping_news,
+            args=(loop, evt2, _reg_news),
+            daemon=True,
+        ).start()
+        app.state.worker_status["scraping_news"] = True
+    else:
+        app.state.worker_status["scraping_news"] = False
+
+    logger.info("[UI-init] Feed and news scraping launched according to settings.")
 
     # NLP processing (spaCy)
-    if os.path.exists(input_path):
+    # spaCy NLP
+    if settings.get("spacy_nlp", True) and os.path.exists(input_path):
         app.state.worker_status["spacy_nlp"] = True
+        evt = threading.Event()
+        app.state.worker_stop_events["spacy_nlp"] = evt
+        def _reg_spacy(t):
+            app.state.worker_timers["spacy_nlp"] = t
+
         threading.Thread(
-            target=background_process_every_24h,
-            args=(input_path, output_path),
+            target=spacy_controller.background_process_every_24h,
+            args=(input_path, output_path, evt, _reg_spacy),
             daemon=True,
         ).start()
         logger.info("[UI-init] spaCy NLP labeling scheduled every 24h.")
     else:
         app.state.worker_status["spacy_nlp"] = False
-        logger.warning("[UI-init] result.json not found. NLP not launched.")
+        logger.warning("[UI-init] result.json not found or worker disabled in settings. NLP not launched.")
 
     # LLM CVE + dataset updater (every 7 days)
-    threading.Thread(
-        target=background_cve_and_finetune_loop,
-        args=(getattr(app.state, "stop_event", None),),
-        daemon=True,
-    ).start()
-    app.state.worker_status["llm_updater"] = True
-    logger.info("[UI-init] LLM CVE & dataset 7-day scheduler started.")
+    # LLM updater (already accepts stop_event)
+    if settings.get("llm_updater", True):
+        evt = threading.Event()
+        app.state.worker_stop_events["llm_updater"] = evt
+        threading.Thread(
+            target=llm_controller.background_cve_and_finetune_loop,
+            args=(evt,),
+            daemon=True,
+        ).start()
+        app.state.worker_status["llm_updater"] = True
+        logger.info("[UI-init] LLM CVE & dataset 7-day scheduler started.")
+    else:
+        app.state.worker_status["llm_updater"] = False
 
     # Dynamic Scrapy spider from DB
-    if pool:
+    # Dynamic Scrapy spider from DB
+    if settings.get("dynamic_spider", True) and pool:
         asyncio.create_task(run_dynamic_spider_from_db(pool))
         app.state.worker_status["dynamic_spider"] = True
         logger.info("[UI-init] Dynamic spider from DB started.")
     else:
         app.state.worker_status["dynamic_spider"] = False
-        logger.warning("[UI-init] DB-based scraper not started (no DB).")
+        logger.warning("[UI-init] DB-based scraper not started (no DB) or worker disabled in settings.")
+
+    # persist current settings (in case defaults were created)
+    save_worker_settings(settings)
 
     # mark initialized
     app.state.ui_initialized = True
@@ -298,6 +353,7 @@ app.include_router(spacy_controller.router)
 app.include_router(tiny_postgres_controller.router)
 app.include_router(llm_controller.router)
 app.include_router(status_controller.router)
+app.include_router(worker_controller.router)
 
 # Serve UI static files (simple single-file UI under app/ui/static)
 STATIC_DIR = Path(__file__).resolve().parent / "app" / "ui" / "static"

@@ -93,8 +93,31 @@ def fetch_and_save_alert_urls():
         logger.warning("No valid URLs were extracted from any feed.")
         return
 
+    # ensure we do not duplicate existing entries
+    existing = set()
+    if os.path.exists(URLS_FILE_PATH):
+        try:
+            with open(URLS_FILE_PATH, "r", encoding="utf-8") as f:
+                existing = {line.strip() for line in f if line.strip()}
+        except Exception:
+            existing = set()
+
+    # filter out urls already present and dedupe within this batch
+    new_urls = []
+    seen = set()
+    for url in total_urls:
+        u = url.strip()
+        if not u or u in existing or u in seen:
+            continue
+        seen.add(u)
+        new_urls.append(u)
+
+    if not new_urls:
+        logger.info("No new unique URLs to add to %s", URLS_FILE_PATH)
+        return
+
     with open(URLS_FILE_PATH, "a", encoding="utf-8") as f:
-        for url in total_urls:
+        for url in new_urls:
             f.write(url + "\n")
 
-    logger.info(f"{len(total_urls)} URLs saved to {URLS_FILE_PATH}")
+    logger.info(f"{len(new_urls)} new URLs saved to {URLS_FILE_PATH}")

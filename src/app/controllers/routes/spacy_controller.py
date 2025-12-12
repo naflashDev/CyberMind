@@ -6,7 +6,7 @@
 
 import os
 import threading
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
 
 from app.services.spacy.text_processor import process_json
@@ -22,7 +22,7 @@ router = APIRouter(
 
 
 @router.get("/start-spacy")
-async def start_background_loop():
+async def start_background_loop(request: Request = None):
     """
     Manually starts the recurring SpaCy processing job every 24 hours in the background.
 
@@ -42,17 +42,40 @@ async def start_background_loop():
             detail="File result.json not found"
         )
 
+    # create a stop_event and register timer in app.state if request provided
+    if request is not None:
+        # ensure app.state dictionaries exist
+        if getattr(request.app.state, "worker_stop_events", None) is None:
+            request.app.state.worker_stop_events = {}
+        if getattr(request.app.state, "worker_timers", None) is None:
+            request.app.state.worker_timers = {}
+        if getattr(request.app.state, "worker_status", None) is None:
+            request.app.state.worker_status = {}
+
+        evt = request.app.state.worker_stop_events.get("spacy_nlp")
+        register = None
+        if evt is None:
+            evt = threading.Event()
+            request.app.state.worker_stop_events["spacy_nlp"] = evt
+        def _register_timer(t):
+            request.app.state.worker_timers["spacy_nlp"] = t
+        register = _register_timer
+
+        # mark worker as running in app state so /status reflects it
+        request.app.state.worker_status["spacy_nlp"] = True
+
     threading.Thread(
         target=background_process_every_24h,
-        args=(input_path, output_path),
+        args=(input_path, output_path, evt, register),
         daemon=True
     ).start()
 
     logger.info("[Scheduler] SpaCy recurring labeling task initialized.")
+    # return only message; UI should query /status for worker list
     return {"message": "Background process started. Will re-run every 24 hours."}
 
 
-def background_process_every_24h(input_path: str, output_path: str):
+def background_process_every_24h(input_path: str, output_path: str, stop_event=None, register_timer=None):
     """
     Executes the JSON NLP processing task and schedules the next execution after 24 hours.
 
@@ -67,8 +90,19 @@ def background_process_every_24h(input_path: str, output_path: str):
     except Exception as e:
         logger.error(f"[SpaCy] Error while labeling entities: {e}")
 
-    # Schedule next execution in 24 hours
-    timer = threading.Timer(86400, background_process_every_24h, args=(input_path, output_path))
-    timer.daemon = True
-    timer.start()
-    logger.info("[Scheduler] Next SpaCy entity labeling scheduled in 24 hours.")
+    # Schedule next execution in 24 hours if not stopped
+    try:
+        if stop_event is None or not stop_event.is_set():
+            timer = threading.Timer(86400, background_process_every_24h, args=(input_path, output_path, stop_event, register_timer))
+            timer.daemon = True
+            if callable(register_timer):
+                try:
+                    register_timer(timer)
+                except Exception:
+                    pass
+            timer.start()
+            logger.info("[Scheduler] Next SpaCy entity labeling scheduled in 24 hours.")
+        else:
+            logger.info("[SpaCy] stop_event set; not scheduling next run.")
+    except Exception as e:
+        logger.error(f"[Scheduler] Error scheduling next SpaCy run: {e}")
