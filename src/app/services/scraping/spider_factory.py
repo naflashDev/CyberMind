@@ -1,20 +1,15 @@
-# @ Author: naflashDev
-# @ Create Time: 2025-05-5 12:17:59
-# @ Project: Cebolla
-# @ Description: This module defines the logic for dynamically scraping web
-# pages using Scrapy.
-# It includes a factory function that builds a custom Spider class on the fly,
-# based on a list of input URLs. The spider extracts key structural content
-# such as titles, headers (h1-h6), and paragraph text.
-#
-# The module also manages the execution of the spider:
-# - Once via `run_dynamic_spider()` with a static list of URLs
-# - Continuously via `run_dynamic_spider_from_db()`, which pulls fresh URLs
-#   from a PostgreSQL database using an asyncpg connection pool.
-#
-# Extracted data is saved locally in JSON format for further processing or a
-# nalysis.
-
+"""
+@file spider_factory.py
+@brief Dynamic Scrapy spider factory and runner.
+@details Creates a dynamic Scrapy `Spider` class from a list of URLs and
+provides helpers to run the spider either once (`run_dynamic_spider`) or
+continuously by polling a PostgreSQL database (`run_dynamic_spider_from_db`).
+The module writes results to a local JSON file and registers spawned
+processes so the application UI can terminate them via a stop event.
+@date Created: 2025-05-05 12:17:59
+@author naflashDev
+@project CyberMind
+"""
 from scrapy.spiders import Spider
 from scrapy.crawler import CrawlerProcess
 from app.models.ttrss_postgre_db import get_entry_links,mark_entry_as_viewed
@@ -218,72 +213,111 @@ async def run_dynamic_spider_from_db(pool, stop_event=None, register_process=Non
     Returns:
         None.
     """
-    number=0
+    number = 0
     while True:
-        logger.info(f"Scraped lap {number}")
-        async with pool.acquire() as conn:
-            urls = await get_entry_links(conn)
-            if not urls:
-                logger.info("No URLs found to process.")
-            else:
-                logger.info(f"{len(urls)} found to scraped")
-                # Obtain the parameters for the OpenSearch database
-                parameters: tuple = (
-                    'localhost',
-                    9200
+        # Respect immediate stop requests
+        if stop_event is not None and getattr(stop_event, 'is_set', lambda: False)():
+            logger.info("Dynamic spider stop_event detected; exiting run loop.")
+            break
+
+        # Ensure we have a valid asyncpg pool; try to create one on-demand
+        if pool is None:
+            try:
+                import asyncpg
+                pool = await asyncpg.create_pool(
+                    user="postgres",
+                    password="password123",
+                    database="postgres",
+                    host="127.0.0.1",
+                    port=5432,
+                    min_size=1,
+                    max_size=5,
                 )
-                file_name: str = 'cfg.ini'
-                file_content: list[str] = [
-                    '# Configuration file.\n',
-                    '# This file contains the parameters for connecting to the opensearch database server.\n',
-                    '# ONLY one uncommented line is allowed.\n',
-                    '# The valid line format is: server_ip,server_port\n',
-                    f'{parameters[0]};{parameters[1]}\n'
-                ]
+                logger.info("Created PostgreSQL pool on-demand in spider_factory.")
+            except Exception as e:
+                logger.warning(f"DB pool not available; will retry later: {e}")
+                # back off briefly but remain responsive to stop_event
+                await asyncio.sleep(5)
+                continue
 
-                # Get the connection parameters or assign default ones
-                retorno_otros = get_connection_parameters(file_name)
-                logger.info(retorno_otros[1])
+        try:
+            async with pool.acquire() as conn:
+                urls = await get_entry_links(conn)
 
-                if retorno_otros[0] != 0:
-                    logger.info('Recreating configuration file...')
-                    retorno_otros = create_config_file(file_name, file_content)
+                # Process retrieved URLs (if any) while connection still held
+                if not urls:
+                    # No work — use debug level to avoid console spam
+                    logger.debug("No URLs found to process.")
+                else:
+                    # Only increment and log when there is actual work
+                    number += 1
+                    logger.info(f"Scraped lap {number}: {len(urls)} URLs to process")
+                    # Obtain the parameters for the OpenSearch database
+                    parameters: tuple = (
+                        'localhost',
+                        9200
+                    )
+                    file_name: str = 'cfg.ini'
+                    file_content: list[str] = [
+                        '# Configuration file.\n',
+                        '# This file contains the parameters for connecting to the opensearch database server.\n',
+                        '# ONLY one uncommented line is allowed.\n',
+                        '# The valid line format is: server_ip,server_port\n',
+                        f'{parameters[0]};{parameters[1]}\n'
+                    ]
+
+                    # Get the connection parameters or assign default ones
+                    retorno_otros = get_connection_parameters(file_name)
                     logger.info(retorno_otros[1])
-                    # If the file had to be recreated, default values will be used
 
                     if retorno_otros[0] != 0:
-                        logger.error('Configuration file missing. Execution cannot continue without a configuration file.')
-                        return
-                else:
-                    parameters = retorno_otros[2]  # Get parameters read from the config file
+                        logger.info('Recreating configuration file...')
+                        retorno_otros = create_config_file(file_name, file_content)
+                        logger.info(retorno_otros[1])
+                        # If the file had to be recreated, default values will be used
 
-                for url in urls:
-                    await mark_entry_as_viewed(conn, url)
-                urls_def=[]
-                urls_def = urls_def + [url for url in urls if url not in urls_def]
-                # Before launching, check stop_event
-                if stop_event is not None and getattr(stop_event, 'is_set', lambda: False)():
-                    logger.info("Dynamic spider stop_event set; aborting launch.")
-                    break
-                # Run the spider in a separate process (avoids signal issues)
-                p = Process(target=run_dynamic_spider, args=(urls,parameters))
-                p.start()
-                # allow caller to keep reference to process so UI can terminate it
-                if callable(register_process):
-                    try:
-                        register_process(p)
-                    except Exception:
-                        pass
+                        if retorno_otros[0] != 0:
+                            logger.error('Configuration file missing. Execution cannot continue without a configuration file.')
+                            return
+                    else:
+                        parameters = retorno_otros[2]  # Get parameters read from the config file
 
-                # If stop_event set while process running, try to terminate process
-                if stop_event is not None and getattr(stop_event, 'is_set', lambda: False)():
-                    try:
-                        p.terminate()
-                        logger.info("Dynamic spider process terminated due to stop_event.")
-                    except Exception:
-                        logger.exception("Error terminating dynamic spider process")
+                    for url in urls:
+                        await mark_entry_as_viewed(conn, url)
+                    urls_def = []
+                    urls_def = urls_def + [url for url in urls if url not in urls_def]
+                    # Before launching, check stop_event
+                    if stop_event is not None and getattr(stop_event, 'is_set', lambda: False)():
+                        logger.info("Dynamic spider stop_event set; aborting launch.")
+                        break
+                    # Run the spider in a separate process (avoids signal issues)
+                    p = Process(target=run_dynamic_spider, args=(urls, parameters))
+                    p.start()
+                    # allow caller to keep reference to process so UI can terminate it
+                    if callable(register_process):
+                        try:
+                            register_process(p)
+                        except Exception:
+                            pass
 
-        logger.info("Waiting for next run...")
+                    # If stop_event set while process running, try to terminate process
+                    if stop_event is not None and getattr(stop_event, 'is_set', lambda: False)():
+                        try:
+                            p.terminate()
+                            logger.info("Dynamic spider process terminated due to stop_event.")
+                        except Exception:
+                            logger.exception("Error terminating dynamic spider process")
+        except Exception as e:
+            logger.exception(f"Error acquiring DB connection from pool or processing URLs: {e}")
+            # drop the pool reference so we attempt to recreate it next loop
+            try:
+                pool = None
+            except Exception:
+                pass
+            await asyncio.sleep(5)
+            continue
+
+        logger.debug("Waiting for next run...")
         # sleep in small increments so we can respond to stop_event quickly
         total_sleep = 93600
         check_interval = 5  # seconds
@@ -295,4 +329,4 @@ async def run_dynamic_spider_from_db(pool, stop_event=None, register_process=Non
             to_sleep = min(check_interval, total_sleep - slept)
             await asyncio.sleep(to_sleep)
             slept += to_sleep
-        number+=1
+        

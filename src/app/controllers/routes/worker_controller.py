@@ -1,3 +1,17 @@
+"""
+@file worker_controller.py
+@brief HTTP endpoints to inspect and toggle background workers.
+@details Exposes `GET /workers` to return persisted settings and runtime
+status, and `POST /workers/{name}` to enable/disable named background
+workers. When enabling a worker the endpoint creates a stop event and
+registers timers/process objects so the UI can control them. When disabling
+it signals the stop event and attempts to cancel or terminate running
+background tasks.
+@date Created: 2025-11-27 12:17:59
+@author naflashDev
+@project CyberMind
+"""
+
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 from loguru import logger
@@ -21,6 +35,13 @@ class WorkerToggle(BaseModel):
 
 @router.get("")
 async def get_workers(request: Request):
+    """
+    @brief Return known worker settings and runtime status.
+    @details Loads persisted worker settings and combines them with the
+    current runtime `app.state.worker_status` mapping so the response
+    always contains the full set of known workers. Useful for the UI
+    to display toggles and their current state.
+    """
     settings = load_worker_settings()
     status = getattr(request.app.state, "worker_status", {}) or {}
     # ensure all known workers are present
@@ -33,6 +54,18 @@ async def get_workers(request: Request):
 
 @router.post("/{name}")
 async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
+    """
+    @brief Enable or disable a named worker.
+    @details Persists the requested state, creates or signals a
+    `threading.Event` used to stop background loops, and starts or stops
+    the corresponding background thread/process according to `name`.
+    Returns a simple message indicating the result.
+
+    Args:
+        name: The worker identifier (must be present in default settings).
+        payload: JSON body containing `enabled: bool`.
+        request: FastAPI Request object (used to access app.state).
+    """
     settings = load_worker_settings()
     if name not in settings:
         raise HTTPException(status_code=404, detail="Unknown worker")

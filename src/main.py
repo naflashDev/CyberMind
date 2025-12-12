@@ -26,7 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from loguru import logger
 from app.utils.utils import get_connection_service_parameters, create_config_file 
-from app.utils.run_services import ensure_infrastructure
+from app.utils.run_services import ensure_infrastructure, shutdown_services
 
 from app.controllers.routes import (
     scrapy_news_controller,
@@ -146,6 +146,28 @@ async def lifespan(app: FastAPI):
             logger.info("[Shutdown] PostgreSQL pool closed.")
         except Exception:
             logger.exception("[Shutdown] Error closing PostgreSQL pool.")
+    # Attempt to gracefully shut down external services (compose stacks, Ollama)
+    try:
+        project_root = Path(__file__).resolve().parents[3]
+        # try to derive distro arg if available from earlier startup
+        try:
+            distro_arg = parameters[0] if parameters and len(parameters) > 0 else None
+        except Exception:
+            distro_arg = None
+        try:
+            containers_arg = parameters[1] if parameters and len(parameters) > 1 else None
+        except Exception:
+            containers_arg = None
+        shutdown_services(
+            project_root=project_root,
+            stop_ollama=True,
+            force_stop_containers=True,
+            distro_name=distro_arg,
+            containers=containers_arg,
+        )
+        logger.info("Requested shutdown of external services.")
+    except Exception:
+        logger.exception("Error invoking shutdown_services during lifespan shutdown")
 
 
 async def initialize_background_tasks(app: FastAPI):

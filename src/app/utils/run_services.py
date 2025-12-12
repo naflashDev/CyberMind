@@ -548,7 +548,7 @@ def ensure_infrastructure(parameters):
     try:
         # attempt to detect/install ollama if missing
         if not is_ollama_available():
-            logger.info("Ollama CLI not found on PATH. Attempting automatic installation...")
+            logger.warning("Ollama CLI not found on PATH. Attempting automatic installation...")
             installed_attempt = try_install_ollama(host_os)
             if installed_attempt and is_ollama_available():
                 logger.success("Ollama installed and available on PATH.")
@@ -573,3 +573,165 @@ def ensure_infrastructure(parameters):
     logger.info("UI service launch command executed.")
     '''
     time.sleep(15)  # give some time for services to start
+
+
+def shutdown_services(project_root: Optional[Path] = None, stop_ollama: bool = True, force_stop_containers: bool = False, distro_name: Optional[str] = None, containers: Optional[str] = None) -> None:
+    """
+    Gracefully shut down infrastructure started by the application.
+
+    - Brings down compose files located in <project_root>/Install (if present).
+    - If `force_stop_containers` is True attempts to stop all running Docker
+      containers on the host (use with caution).
+    - Attempts to stop the Ollama daemon via the CLI (`ollama stop`) when
+      available; falls back to platform-specific process termination.
+
+    Args:
+        project_root: Repository root path. If None it is inferred from this file.
+        stop_ollama: Whether to attempt to stop Ollama processes.
+        force_stop_containers: If True, stop all running containers.
+        distro_name: Optional WSL distro to target on Windows.
+    """
+    try:
+        if project_root is None:
+            project_root = Path(__file__).resolve().parents[3]
+
+        install_dir = project_root / "Install"
+
+        # Helper to run commands either on host or inside WSL distro when requested
+        def _run(cmd, shell=False):
+            """Run a command list or shell string; if running on Windows and
+            `distro_name` is provided, execute inside that WSL distro."""
+            try:
+                if platform.system() == "Windows" and distro_name:
+                    # Always use a shell invocation inside WSL to preserve quoting
+                    if isinstance(cmd, list):
+                        cmdstr = ' '.join(map(str, cmd))
+                    else:
+                        cmdstr = cmd
+                    runner = ["wsl", "-d", distro_name, "bash", "-c", cmdstr]
+                    return subprocess.run(runner, capture_output=False, text=True, check=False)
+                else:
+                    if isinstance(cmd, list):
+                        return subprocess.run(cmd, check=False)
+                    else:
+                        return subprocess.run(cmd, shell=True, check=False)
+            except Exception as e:
+                logger.error(f"Command execution failed ({cmd}): {e}")
+                raise
+
+        # Determine compose command availability (host-side check)
+        compose_cmd = None
+        if shutil.which("docker"):
+            compose_cmd = ["docker", "compose"]
+        elif shutil.which("docker-compose"):
+            compose_cmd = ["docker-compose"]
+
+        # Bring down compose stacks found in Install/
+        if install_dir.exists() and install_dir.is_dir() and compose_cmd:
+            yaml_files = list(install_dir.glob("*.yml")) + list(install_dir.glob("*.yaml"))
+            for cf in yaml_files:
+                # Build host command, but _run will route to WSL if requested
+                cmd = compose_cmd + ["-f", str(cf), "down", "-v"]
+                try:
+                    logger.info(f"Shutting down compose stack defined in {cf}: {' '.join(cmd)}")
+                    _run(cmd)
+                    logger.success(f"Compose stack {cf} brought down.")
+                except Exception as e:
+                    logger.error(f"Failed to bring down compose file {cf}: {e}")
+
+        # Optionally stop containers (dangerous - explicit). If `containers` is provided
+        # it should be a comma-separated string or single name; only those containers
+        # will be targeted. If `containers` is None and force_stop_containers is True,
+        # the previous behavior (stop all containers) is preserved.
+        if force_stop_containers and shutil.which("docker"):
+            try:
+                target_names = None
+                if containers:
+                    # accept comma-separated string or single name
+                    if isinstance(containers, str):
+                        target_names = [c.strip() for c in containers.split(',') if c.strip()]
+                # If no explicit targets, fall back to stopping all containers (existing behavior)
+                if not target_names:
+                    proc = _run(["docker", "ps", "-q"]) if not (platform.system() == "Windows" and distro_name) else _run("docker ps -q", shell=True)
+                    stdout = ''
+                    if hasattr(proc, 'stdout') and proc.stdout:
+                        stdout = proc.stdout
+                    elif hasattr(proc, 'returncode'):
+                        # When _run invoked wsl runner without capture_output, re-run with capture
+                        try:
+                            if platform.system() == "Windows" and distro_name:
+                                proc = subprocess.run(["wsl", "-d", distro_name, "bash", "-c", "docker ps -q"], capture_output=True, text=True, check=False)
+                                stdout = proc.stdout or ''
+                        except Exception:
+                            stdout = ''
+                    ids = [s.strip() for s in (stdout or "").splitlines() if s.strip()]
+                    if ids:
+                        logger.info(f"Stopping {len(ids)} running Docker containers...")
+                        for cid in ids:
+                            try:
+                                _run(["docker", "stop", cid])
+                            except Exception:
+                                logger.exception(f"Failed to stop container {cid}")
+                        logger.success("Requested stop for all running containers.")
+                    else:
+                        logger.info("No running Docker containers to stop.")
+                else:
+                    # Stop only the containers listed in target_names
+                    stopped = 0
+                    for name in target_names:
+                        try:
+                            # Query running container ids that match the provided name
+                            if platform.system() == "Windows" and distro_name:
+                                ps_proc = subprocess.run(["wsl", "-d", distro_name, "bash", "-c", f"docker ps -q --filter \"name={name}\""], capture_output=True, text=True, check=False)
+                                out = ps_proc.stdout or ''
+                            else:
+                                ps_proc = subprocess.run(["docker", "ps", "-q", "--filter", f"name={name}"], capture_output=True, text=True, check=False)
+                                out = ps_proc.stdout or ''
+                            ids = [s.strip() for s in out.splitlines() if s.strip()]
+                            if not ids:
+                                logger.info(f"No running containers found matching '{name}' to stop.")
+                                continue
+                            for cid in ids:
+                                try:
+                                    _run(["docker", "stop", cid])
+                                    stopped += 1
+                                except Exception:
+                                    logger.exception(f"Failed to stop container {cid} (target '{name}')")
+                        except Exception as e:
+                            logger.error(f"Error while attempting to stop target container '{name}': {e}")
+                    if stopped:
+                        logger.success(f"Requested stop for {stopped} target container(s).")
+                    else:
+                        logger.info("No target containers were stopped.")
+            except Exception as e:
+                logger.error(f"Error while attempting to stop containers: {e}")
+
+        # Attempt to stop Ollama
+        if stop_ollama:
+            if is_ollama_available() or (platform.system() == "Windows" and distro_name):
+                try:
+                    # Preferred graceful stop via CLI (host or inside WSL)
+                    logger.info("Attempting to stop Ollama via CLI...")
+                    if platform.system() == "Windows" and distro_name:
+                        _run(["ollama", "stop"])  # routed into WSL by _run
+                    else:
+                        subprocess.run(["ollama", "stop"], check=False)
+                    logger.success("Ollama stop command executed (if supported).")
+                except Exception as e:
+                    logger.warning(f"`ollama stop` failed: {e}; trying process kill fallback")
+                    # Fallback: terminate processes by name
+                    try:
+                        if platform.system() == "Windows" and not distro_name:
+                            subprocess.run(["taskkill", "/F", "/IM", "ollama.exe"], check=False)
+                        else:
+                            # If inside WSL or on POSIX, attempt pkill
+                            _run(["pkill", "-f", "ollama"]) if not (platform.system() == "Windows" and distro_name) else _run("pkill -f ollama", shell=True)
+                        logger.success("Ollama processes signalled for termination.")
+                    except Exception as e2:
+                        logger.error(f"Failed to kill Ollama processes: {e2}")
+            else:
+                logger.info("Ollama CLI not present; skipping Ollama shutdown.")
+
+        logger.info("Shutdown requests issued for infrastructure.")
+    except Exception as e:
+        logger.error(f"Error during shutdown_services: {e}")

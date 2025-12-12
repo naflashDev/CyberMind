@@ -1,9 +1,11 @@
 """
 @file status_controller.py
-@brief Run dependent services.
-@details This script ensures that the required infrastructure services
-(OpenSearch, Dashboards, and Tiny RSS Docker container) are running inside
-a specified distribution before launching the FastAPI application.
+@brief System status endpoints.
+@details Exposes a lightweight `GET /status` endpoint used by the UI to
+determine infra readiness, UI initialization, and the enabled/disabled
+state of background workers. The endpoint combines persisted defaults with
+runtime `app.state` values so the response always contains the full set
+of known workers.
 @date Created: 2025-11-27 12:17:59
 @author naflashDev
 @project CyberMind
@@ -20,7 +22,13 @@ router = APIRouter(
 
 @router.get("/status")
 async def get_status(request: Request):
-    """Return basic system status: infra readiness and worker booleans."""
+    """
+    @brief Return basic system status for the UI.
+    @details Returns a JSON object with `infra_ready`, `infra_error`,
+    `ui_initialized` and `workers` fields. `workers` is a mapping of known
+    worker names to booleans (ensured by merging defaults and runtime
+    status).
+    """
     app = request.app
     infra_ready = getattr(app.state, "infra_ready", False)
     infra_error = getattr(app.state, "infra_error", None)

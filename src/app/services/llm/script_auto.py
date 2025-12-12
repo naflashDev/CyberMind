@@ -40,7 +40,7 @@ def clone_repository(repo_url: str, repo_dir: str) -> None:
         # First try simple check_call (this allows tests to mock it easily).
         try:
             subprocess.check_call(["git", "clone", repo_url, repo_dir])
-            logger.info("Repository cloned successfully (check_call path).")
+            logger.success("Repository cloned successfully (check_call path).")
             return
         except subprocess.CalledProcessError:
             # fall back to Popen loop for long-running control
@@ -64,7 +64,7 @@ def clone_repository(repo_url: str, repo_dir: str) -> None:
                     out, err = p.communicate()
                     logger.error(f"Error while cloning repository: return {ret} stdout={out} stderr={err}")
                     raise subprocess.CalledProcessError(ret, p.args)
-                logger.info("Repository cloned successfully.")
+                logger.success("Repository cloned successfully.")
                 break
             time.sleep(0.2)
     except subprocess.CalledProcessError as e:
@@ -83,14 +83,14 @@ def update_repository(repo_dir: str) -> None:
     """
     try:
         if not os.path.exists(repo_dir):
-            logger.info(f"Repository directory {repo_dir} does not exist. Cannot run git pull.")
+            logger.warning(f"Repository directory {repo_dir} does not exist. Cannot run git pull.")
             return
 
         logger.info(f"Updating repository in {repo_dir} ...")
         # Try check_call first to satisfy tests that mock it
         try:
             subprocess.check_call(["git", "-C", repo_dir, "pull"])
-            logger.info("Repository updated successfully (check_call path).")
+            logger.success("Repository updated successfully (check_call path).")
             return
         except subprocess.CalledProcessError:
             pass
@@ -112,7 +112,7 @@ def update_repository(repo_dir: str) -> None:
                     out, err = p.communicate()
                     logger.error(f"Error while updating repository: return {ret} stdout={out} stderr={err}")
                     raise subprocess.CalledProcessError(ret, p.args)
-                logger.info("Repository updated successfully.")
+                logger.success("Repository updated successfully.")
                 break
             time.sleep(0.2)
     except subprocess.CalledProcessError as e:
@@ -150,7 +150,7 @@ def process_file(file_path: Path, aggregated_data: list, lock: threading.Lock, s
         transformed = transform_json(data)
 
         if not transformed:
-            logger.info(f"{file_path} was not included (CVE not published or error).")
+            logger.warning(f"{file_path} was not included (CVE not published or error).")
         else:
             with lock:
                 if stop_event is not None and stop_event.is_set():
@@ -164,17 +164,16 @@ def process_file(file_path: Path, aggregated_data: list, lock: threading.Lock, s
         logger.error(f"Error processing {file_path}: {e}")
 
 
-def _process_file_worker(input_path: str, out_path: str, stop_event: Optional[threading.Event] = None) -> None:
-    """Worker function executed in a separate process: processes a single file and
-    writes the transformed list to out_path as JSON. This avoids returning large
-    objects between processes."""
+def _process_file_worker(input_path: str, out_path: str) -> None:
+    """Process a single JSON file inside a child process and write the
+    transformed output to a temporary file. Child processes should not receive
+    thread-local synchronization primitives from the parent (they are not
+    picklable). Cancellation is handled by the parent which may terminate the
+    child process if needed.
+    """
     try:
-        if stop_event is not None and stop_event.is_set():
-            return
         with open(input_path, 'r', encoding='utf-8') as f:
             text = f.read()
-            if stop_event is not None and stop_event.is_set():
-                return
             data = json.loads(text)
         transformed = transform_json(data)
         # write results
@@ -236,7 +235,8 @@ def consolidate_json(base_dir: str, output_file: str, stop_event: Optional[threa
                     break
 
                 out_path = os.path.join(tempdir, f"out_{i}.json")
-                p = multiprocessing.Process(target=_process_file_worker, args=(str(file_path), out_path, stop_event))
+                # Do not pass thread-based stop_event into child processes (not picklable on Windows)
+                p = multiprocessing.Process(target=_process_file_worker, args=(str(file_path), out_path))
                 processes.append(p)
                 temp_outputs.append(out_path)
                 p.start()
