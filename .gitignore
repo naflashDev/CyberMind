@@ -9,13 +9,16 @@ __pycache__/
 .venv/
 venv/
 env/
-serviceAccountKey.json
+cvelistV5-main/
+.vscode/
+# Local configuration files
 env
 cfg.ini
 cfg_services.ini
-cvelistV5-main/
+#json files generated during runtime
 cve_list.json
 finetune_data.jsonl
 labels_result.json
 result.json
-.vscode/
+worker_settings.json
+serviceAccountKey.json
