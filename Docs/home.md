@@ -1,9 +1,9 @@
 
-# Proyecto Onion – Plataforma Abierta de Análisis de Información
+# Proyecto CyberMind – Plataforma Abierta de Análisis de Información
 
-**Onion** es una plataforma modular, automatizada y de código abierto para la recolección, análisis y visualización de información relevante sobre Las vulnerabilidades IT y OT (Tecnologías de la Información y Tecnologías de Operación). Su objetivo es facilitar el acceso a datos estructurados y procesados a partir de fuentes públicas, con enfoque en la transparencia, la colaboración abierta y el uso de metodologías de inteligencia.
+**CyberMind** es una plataforma modular, automatizada y de código abierto para la recolección, análisis y visualización de información sobre vulnerabilidades IT y OT (Tecnologías de la Información y Tecnologías de Operación). Su objetivo es facilitar el acceso a datos estructurados y procesados a partir de fuentes públicas, con enfoque en la transparencia, la colaboración abierta y el uso de metodologías de inteligencia.
 
-El proyecto está orientado tanto a investigadores, periodistas de datos y analistas, como a desarrolladores interesados en contribuir con nuevas funcionalidades y dominios de análisis.
+El proyecto está orientado a investigadores, periodistas de datos, analistas y desarrolladores interesados en contribuir con nuevos módulos y fuentes.
 
 ---
 
@@ -26,7 +26,7 @@ Crear una herramienta abierta, extensible y replicable que permita:
 
 ## 🧩 Características principales
 
-- 🔁 **Orquestación con Apache Airflow**: para automatizar flujos de recolección y análisis.
+- 🔁 **Orquestación y orquestador ligero**: la plataforma permite orquestar tareas de recolección y análisis; en despliegues avanzados puede integrarse con Airflow u otros programadores.
 - 🌐 **Multifuente**: integraciones con RSS (TinyRSS), Google Alerts, Google Dorking, bases de datos públicas, APIs de seguridad, etc.
 - 🧠 **Procesamiento semántico**: extracción de keywords, NER, sentimiento, embeddings vectoriales.
 - 🗂️ **Almacenamiento híbrido**: OpenSearch para búsquedas semánticas.

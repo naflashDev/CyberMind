@@ -12,14 +12,58 @@ Documentación principal y enlaces rápidos.
 ## Documentación (Docs)
 - Documentacion del proyecto: [Documentacion](Docs/Indice.md)
 
-## Ejecucion programa
--Iniciar entorno virtual comando [Documentacion](Docs/instalacion_dependencias.md)
+## Ejecución del programa
 
--Tener arrancado tanto el docker de tiny como el opensearch [Documentacion](Docs/task.md)
+- Crear y activar el entorno virtual: sigue la guía en [Docs/instalacion_dependencias.md](Docs/instalacion_dependencias.md).
 
--Ejecutar main.py dentro de Scraping_Web/src/main.py
+- Levantar los servicios de soporte (OpenSearch + Dashboards y TinyRSS) usando Docker Compose. Hay un `docker-compose` preparado en `Install/opensearch-compose.yml` y `Install/tinytinyrss.yml`. Para lanzar OpenSearch y Dashboards:
 
--Podemos aparte de la ejecucion automatica del programa realizar diferentes acciones desde [Fastapi](http://127.0.0.1:8000/docs)
+```powershell
+cd Install
+docker compose -f opensearch-compose.yml up -d
+```
+
+- Para TinyRSS (si lo necesitas) puedes lanzar el otro compose:
+
+```powershell
+docker compose -f tinytinyrss.yml up -d
+```
+
+- Ejecutar la API / UI (desde la raíz del proyecto):
+
+```powershell
+python -m src.main
+```
+
+- Puedes interactuar con la API en `http://127.0.0.1:8000/docs` (Swagger UI).
+
+## Uso centralizado desde la UI
+
+La interfaz web servida en `/ui` actúa como el panel de control principal de la plataforma. Desde esa UI puedes:
+
+- Ejecutar y controlar scrapers (Google Dorking, Google Alerts, TinyRSS import).
+- Iniciar/parar workers y procesos background (Spacy, LLM updater, extractores periódicos).
+- Consultar el estado del sistema y ver logs resumidos (vía `GET /status`).
+- Ejecutar cualquier endpoint de la API sin salir de la interfaz (la UI hace las llamadas a los endpoints documentados en `Docs/api_endpoints.md`).
+
+El endpoint `main.py` arranca la API FastAPI y la UI; por tanto, levantar el servicio principal posibilita gestionar toda la plataforma desde la página `http://127.0.0.1:8000/ui`.
+
+### Chat integrado: CyberSentinel
+
+La UI incluye un chat llamado **CyberSentinel** que permite interaccionar con el LLM especializado en ciberseguridad (CVE, análisis técnico y resúmenes de noticias). El chat está disponible en la vista `CyberSentinel IA` de la interfaz y envía consultas al endpoint `/llm/query`.
+
+### Recomendaciones de despliegue
+
+- Para uso intensivo del LLM (queries frecuentes o finetuning), se recomienda un equipo con GPU para evitar sobrecarga en CPU/RAM y reducir latencias. Si el LLM se ejecuta en hardware local, habilitar GPU acelera la inferencia y entrenamiento.
+
+### Servicios que arranca la aplicación
+
+Al iniciar la aplicación principal (`main.py`), el proceso puede iniciar o comprobar los servicios configurados (por ejemplo, levantar contenedores Docker para OpenSearch o TinyRSS si así está configurado, y arrancar el componente LLM/local runner cuando esté habilitado). Comprueba la configuración en `Install/` y los ajustes en `cfg.ini` antes del despliegue automático.
+
+### Acceso a Dashboards y TinyRSS desde la UI
+
+La UI embedea (via iframes) las interfaces de OpenSearch Dashboards y TinyRSS; desde el panel principal puedes abrir esas UIs sin salir de `http://127.0.0.1:8000/ui`.
+Nota: la instalación manual de OpenSearch todavía está documentada en `Docs/opensearch_install.md` como alternativa, pero el camino recomendado es usar `docker compose`.
 
 ## Visualización de los datos
 
@@ -27,9 +71,9 @@ Documentación principal y enlaces rápidos.
 
 -Para visualizar los datos procesados con spacy podemos observar el archivo [Labels_Result.json] del directorio[Outputs]
 
--Para visualizar los datos almacenados en la BBDD [Opensearch] desde wsl usaremos los siguientes comandos.
-    
-Ver los indices
+-Para visualizar los datos almacenados en la BBDD [OpenSearch] puedes usar curl o acceder al Dashboards.
+
+Ver los índices (curl):
 
 ```bash
 curl -X GET "http://localhost:9200/_cat/indices?v"

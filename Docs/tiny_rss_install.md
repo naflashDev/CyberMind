@@ -1,6 +1,7 @@
-# Instalación y configuración de TinyRSS con Docker Compose en WSL
 
-Este documento describe cómo instalar y configurar **TinyRSS** usando **Docker Compose** dentro de WSL, empleando los archivos `stack.env`, `tinytinyrss.yml` y `nginx-proxy-manager.yml`, que ya se encuentran creados en la carpeta `install`.
+# Instalación y configuración de TinyRSS para CyberMind (Docker Compose)
+
+Este documento describe cómo instalar y configurar **TinyRSS** como servicio auxiliar de **CyberMind** usando **Docker Compose** dentro de WSL. Los archivos `stack.env` y `tinytinyrss.yml` se encuentran en la carpeta `Install/` del repositorio.
 
 ---
 
@@ -28,6 +29,21 @@ HTTP_PORT=127.0.0.1:8280
 
 - `TTRSS_DB_USER`, `TTRSS_DB_NAME`, `TTRSS_DB_PASS`: credenciales de la base de datos PostgreSQL para TinyRSS.
 - `HTTP_PORT`: puerto local donde se expondrá TinyRSS.
+
+> Importante: el fichero `stack.env` debe existir en la misma carpeta que `tinytinyrss.yml` (la carpeta `Install/`). El compose usa estas variables para configurar la base de datos y el puerto. Si falta, la ejecución fallará.
+
+Si prefieres, crea una copia y personalízala:
+
+```bash
+cp Install/stack.env.example Install/stack.env  # si incluyes un template
+# o crear manualmente
+cat > Install/stack.env <<'EOF'
+TTRSS_DB_USER=postgres
+TTRSS_DB_NAME=postgres
+TTRSS_DB_PASS=password123
+HTTP_PORT=127.0.0.1:8280
+EOF
+```
 
 ---
 
@@ -108,12 +124,24 @@ docker volume create backups
 
 ---
 
-## 5. Iniciar TinyRSS con Docker Compose
+- ## 5. Iniciar TinyRSS con Docker Compose
 
-Desde la carpeta `install`, ejecuta la instrucción unificada que levanta **TinyRSS y Nginx Proxy Manager**:
+Antes de levantar los contenedores, asegúrate de que `Install/stack.env` existe y contiene las variables necesarias (ver sección anterior).
+
+Ejemplos de comandos según la versión de Docker Compose que uses:
+
+- Docker Compose v2 (incluido en Docker Desktop / `docker compose`):
 
 ```bash
-sudo docker-compose -f tinytinyrss.yml --env-file stack.env up -d
+cd Install
+docker compose --env-file stack.env -f tinytinyrss.yml up -d
+```
+
+- Docker Compose v1 (binario `docker-compose`):
+
+```bash
+cd Install
+docker-compose --env-file stack.env -f tinytinyrss.yml up -d
 ```
 
 - `-d`: ejecuta los contenedores en segundo plano.
