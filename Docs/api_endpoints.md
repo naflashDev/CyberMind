@@ -74,6 +74,23 @@ curl http://127.0.0.1:8000/status
 curl -X POST http://127.0.0.1:8000/workers/rss_extractor -H "Content-Type: application/json" -d '{"enabled":true}'
 ```
 
+## Network (`/network`)
+Prefijo: `/network`
+
+- `POST /network/scan` — Escanea puertos TCP del host indicado y devuelve una lista de puertos con indicador `open` y una etiqueta heurística de servicio.
+  - Body: `{ "host": "1.2.3.4", "ports": [22,80], "timeout": 0.5 }` (el campo `ports` es opcional; si se omite se usan puertos comunes).
+  - Respuesta: `{ "host": "1.2.3.4", "results": [{"port":22,"open":true,"service":"ssh"}, ...] }`
+
+- `GET /network/ports` — Devuelve una lista de puertos comunes sugeridos para escaneo.
+
+Ejemplo (scan):
+
+```bash
+curl -X POST http://127.0.0.1:8000/network/scan -H "Content-Type: application/json" -d '{"host":"8.8.8.8","ports":[53,80]}'
+```
+
+Nota legal: Realizar escaneos de red contra hosts ajenos puede ser intrusivo y requiere autorización. Usa estas herramientas solo contra sistemas que controlas o tienes permiso explícito para analizar.
+
 ## Notas
 - La UI (`/ui`) ofrece controles que llaman a estos endpoints y muestra el estado en tiempo real.
 - Para ver tipos y modelos, consulta la documentación interactiva en `http://127.0.0.1:8000/docs`.

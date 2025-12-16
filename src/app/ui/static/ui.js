@@ -56,6 +56,10 @@ document.addEventListener('DOMContentLoaded', function () {
       "LLM": [
         { id: "llm-updater", title: "LLM Updater", method: "GET", path: "/llm/updater", params: [], desc: "Inicia el updater/finetune en background (llm_updater)." }
       ],
+      "Network": [
+        { id: "network-scan", title: "Analisis de redes (scan)", method: "POST", path: "/network/scan", params: [{name: "host", type: "text", placeholder: "IP o hostname"}, {name: "ports", type: "text", placeholder: "puertos separados por comas (opcional)"}], desc: "Escanea puertos comunes y devuelve servicios heurísticos. Asegúrate de tener permiso para escanear el host." },
+        { id: "network-ports", title: "List Common Ports", method: "GET", path: "/network/ports", params: [], desc: "Lista puertos comunes sugeridos para escaneo." }
+      ],
       "Status": [
         { id: "system-status-op", title: "System Status", method: "GET", path: "/status", params: [], desc: "Muestra el estado de la infraestructura, UI y workers en ejecución." }
       ]
@@ -214,6 +218,14 @@ document.addEventListener('DOMContentLoaded', function () {
         });
       }
 
+      // If this is the network scan op, add a checkbox to use nmap
+      if (op.path === '/network/scan') {
+        const nmLabel = document.createElement('label'); nmLabel.style.display = 'flex'; nmLabel.style.alignItems = 'center'; nmLabel.style.gap = '8px'; nmLabel.style.marginBottom = '8px';
+        const nmCheckbox = document.createElement('input'); nmCheckbox.type = 'checkbox'; nmCheckbox.name = 'use_nmap'; nmCheckbox.checked = true;
+        nmLabel.appendChild(nmCheckbox); const nmText = document.createElement('span'); nmText.style.color='#9aa6b2'; nmText.textContent = 'Usar nmap (recomendado)'; nmLabel.appendChild(nmText);
+        form.appendChild(nmLabel);
+      }
+
       const submit = document.createElement("button"); submit.textContent = "Ejecutar"; submit.type = "submit"; submit.className = "exec-btn"; submit.style.padding = "8px 12px"; submit.style.background = "#2563eb"; submit.style.color = "#fff"; submit.style.border = "none"; submit.style.borderRadius = "6px"; submit.style.cursor = "pointer";
       form.appendChild(submit); opForm.appendChild(form);
     }
@@ -238,6 +250,34 @@ document.addEventListener('DOMContentLoaded', function () {
       const friendlyHtml = renderFriendly(obj,0); return `<div class="panel"><div class="panel-head">${panelHeader}</div><div class="panel-body">${friendlyHtml}</div></div>`;
     }
 
+    function renderNetworkScanResult(obj) {
+      try {
+        const res = obj.results || [];
+        if (!res.length) return `<div style="color:#9aa6b2">No se encontraron puertos o la respuesta está vacía.</div>`;
+        const cards = res.map(r => {
+          const openBadge = r.open ? '<span style="background:#16a34a;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">OPEN</span>' : '<span style="background:#ef4444;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">CLOSED</span>';
+          const portHeader = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><div style="font-weight:700">${r.port}/${r.protocol}</div><div>${openBadge}</div></div>`;
+          const serviceLine = `<div style="color:#cbd5e1;margin-top:6px">${r.service || ''} ${r.product ? ('— ' + r.product) : ''} ${r.version ? ('v' + r.version) : ''}</div>`;
+          const methods = (r.methods && r.methods.length) ? `<div style="margin-top:8px"><strong>Methods:</strong> ${r.methods.join(', ')}</div>` : '';
+          const vulns = (r.vulnerabilities && r.vulnerabilities.length) ? `<div style="margin-top:8px;color:#fca5a5"><strong>Vulnerabilities:</strong><ul>${r.vulnerabilities.map(v=>`<li>${v}</li>`).join('')}</ul></div>` : `<div style="margin-top:8px;color:#9aa6b2"><em>No vulnerabilities reported</em></div>`;
+          return `<div class="net-card" style="background:#071127;padding:12px;border-radius:8px;border:1px solid #0f1724;margin-bottom:10px">${portHeader}${serviceLine}${methods}${vulns}</div>`;
+        }).join('');
+        return `<div style="display:flex;flex-direction:column;gap:8px">${cards}</div>`;
+      } catch (e) { return renderRawJson(obj); }
+    }
+
+    function renderPortsList(obj) {
+      try {
+        const items = obj.common_ports || [];
+        if (!items.length) return `<div style="color:#9aa6b2">No hay puertos comunes listados.</div>`;
+        const cards = items.map(it => {
+          const methods = (it.methods && it.methods.length) ? `<div style="margin-top:6px;color:#cbd5e1"><strong>Métodos:</strong> ${it.methods.join(', ')}</div>` : '';
+          return `<div class="port-card" style="background:#071127;padding:12px;border-radius:8px;border:1px solid #0f1724;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700;font-size:16px">${it.port}</div><div style="color:#9aa6b2;margin-top:4px">${it.service || ''}</div>${methods}</div><div style="font-size:12px;color:#94a3b8">Puerto</div></div>`;
+        }).join('');
+        return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">${cards}</div>`;
+      } catch (e) { return renderRawJson(obj); }
+    }
+
     function renderRawJson(obj) { const jsonText = escapeHtml(JSON.stringify(obj, null, 2)); const header = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><div class=\"response-meta\">JSON crudo</div><div><button class=\"panel-toggle\">▾</button> <button class=\"copy-json-btn\" type=\"button\">Copiar JSON</button></div></div>`; return `<div class="panel"><div class="panel-head">${header}</div><div class="panel-body"><div class="raw-box"><pre>${jsonText}</pre></div></div></div>`; }
 
     async function submitOperation(op, formData) {
@@ -245,8 +285,50 @@ document.addEventListener('DOMContentLoaded', function () {
       try {
         let resp;
         if (op.method === "GET") { const params = new URLSearchParams(); for (const [k, v] of formData.entries()) if (v) params.append(k, v); const final = params.toString() ? url + "?" + params.toString() : url; resp = await fetch(final); }
-        else { const obj = {}; for (const [k, v] of formData.entries()) obj[k] = v; resp = await fetch(url, { method: op.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) }); }
-        const text = await resp.text(); try { const j = JSON.parse(text); if (opResult) opResult.innerHTML = `<div class="response-two-col"><div class="left-pane">${renderResponse(j, resp.status)}</div><div class="right-pane">${renderRawJson(j)}</div></div>`; const copyBtn = opResult && opResult.querySelector('.right-pane .copy-json-btn'); if (copyBtn) { copyBtn.addEventListener('click', async () => { try { const textToCopy = JSON.stringify(j, null, 2); if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(textToCopy); } else { const ta = document.createElement('textarea'); ta.value = textToCopy; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); } showToast('JSON copiado'); } catch (e) { showToast('Error copiando JSON'); } }); }
+        else {
+          const obj = {};
+          for (const [k, v] of formData.entries()) {
+            let val = v;
+            if (typeof v === 'string') {
+              if (v === 'on' || v.toLowerCase() === 'true') val = true;
+              else if (v.toLowerCase() === 'false') val = false;
+            }
+            obj[k] = val;
+          }
+          // parse ports field if provided as comma-separated string
+          if (obj.ports && typeof obj.ports === 'string') {
+            const raw = obj.ports.trim();
+            if (raw === '') delete obj.ports;
+            else {
+              obj.ports = raw.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !Number.isNaN(n));
+            }
+          }
+          resp = await fetch(url, { method: op.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
+        }
+        const text = await resp.text();
+        try {
+          const j = JSON.parse(text);
+          if (op.path === '/network/scan') {
+            if (opResult) opResult.innerHTML = renderNetworkScanResult(j);
+          } else if (op.path === '/network/ports') {
+            if (opResult) opResult.innerHTML = renderPortsList(j);
+          } else {
+            if (opResult) opResult.innerHTML = `<div class="response-two-col"><div class="left-pane">${renderResponse(j, resp.status)}</div><div class="right-pane">${renderRawJson(j)}</div></div>`;
+            const copyBtn = opResult && opResult.querySelector('.right-pane .copy-json-btn');
+            if (copyBtn) {
+              copyBtn.addEventListener('click', async () => {
+                try {
+                  const textToCopy = JSON.stringify(j, null, 2);
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(textToCopy);
+                  } else {
+                    const ta = document.createElement('textarea'); ta.value = textToCopy; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+                  }
+                  showToast('JSON copiado');
+                } catch (e) { showToast('Error copiando JSON'); }
+              });
+            }
+          }
           const toggles = opResult && opResult.querySelectorAll('.panel-toggle'); if (toggles) toggles.forEach(t => { t.addEventListener('click', () => { const panel = t.closest('.panel'); if (!panel) return; const body = panel.querySelector('.panel-body'); const isCollapsed = panel.classList.toggle('collapsed'); if (body) body.style.display = isCollapsed ? 'none' : ''; t.textContent = isCollapsed ? '▸' : '▾'; }); });
           try { const workerStartPaths = new Set(['/newsSpider/scrape-news','/newsSpider/start-google-alerts','/newsSpider/scrapy/google-dk/news','/newsSpider/scrapy/google-dk/feeds','/start-spacy','/postgre-ttrss/search-and-insert-rss','/llm/updater']); if (workerStartPaths.has(op.path) && resp.ok) { showToast(op.title + ' iniciada'); } } catch (e) {}
         } catch (e) {
