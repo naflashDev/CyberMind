@@ -11,6 +11,7 @@ venv/
 env/
 cvelistV5-main/
 .vscode/
+.pytest_cache
 # Local configuration files
 env
 cfg.ini

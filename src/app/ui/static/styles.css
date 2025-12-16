@@ -187,7 +187,7 @@ h1, h2, h3 { margin-top: 0; margin-bottom: 8px; }
 .op-btn:hover { background:rgba(255,255,255,0.04) }
 .op-btn.active { background:#2563eb; color:#f8fafc; border-color:rgba(37,99,235,0.8) }
 
-#op-result { display:none; background:#0b1220; color:#e6eef8; padding:12px; border-radius:6px; box-sizing:border-box; overflow:auto; white-space:pre; max-height:calc(100vh - 220px); word-break:normal }
+#op-result { display:none; background:#0b1220; color:#e6eef8; padding:12px; border-radius:6px; box-sizing:border-box; overflow:visible; white-space:normal; max-height:none; word-break:normal }
 #op-result .response-box { font-size:13px; line-height:1.45 }
 #op-result .response-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:12px }
 #op-result .response-meta { color:#9aa6b2; font-size:12px }

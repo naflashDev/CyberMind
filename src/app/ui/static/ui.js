@@ -252,17 +252,31 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function renderNetworkScanResult(obj) {
       try {
+        const host = obj.host || '';
         const res = obj.results || [];
         if (!res.length) return `<div style="color:#9aa6b2">No se encontraron puertos o la respuesta está vacía.</div>`;
         const cards = res.map(r => {
-          const openBadge = r.open ? '<span style="background:#16a34a;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">OPEN</span>' : '<span style="background:#ef4444;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">CLOSED</span>';
-          const portHeader = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><div style="font-weight:700">${r.port}/${r.protocol}</div><div>${openBadge}</div></div>`;
-          const serviceLine = `<div style="color:#cbd5e1;margin-top:6px">${r.service || ''} ${r.product ? ('— ' + r.product) : ''} ${r.version ? ('v' + r.version) : ''}</div>`;
-          const methods = (r.methods && r.methods.length) ? `<div style="margin-top:8px"><strong>Methods:</strong> ${r.methods.join(', ')}</div>` : '';
-          const vulns = (r.vulnerabilities && r.vulnerabilities.length) ? `<div style="margin-top:8px;color:#fca5a5"><strong>Vulnerabilities:</strong><ul>${r.vulnerabilities.map(v=>`<li>${v}</li>`).join('')}</ul></div>` : `<div style="margin-top:8px;color:#9aa6b2"><em>No vulnerabilities reported</em></div>`;
-          return `<div class="net-card" style="background:#071127;padding:12px;border-radius:8px;border:1px solid #0f1724;margin-bottom:10px">${portHeader}${serviceLine}${methods}${vulns}</div>`;
+          const port = r.port || '';
+          const protocol = r.protocol || 'tcp';
+          const identity = `${escapeHtml(host)}:${escapeHtml(String(port))}/${escapeHtml(protocol)}`;
+          const methods = (r.methods && r.methods.length) ? `<div style="margin-top:6px;color:#cbd5e1"><strong>Métodos:</strong> ${r.methods.map(m=>escapeHtml(m)).join(', ')}</div>` : '';
+          const product = r.product ? (escapeHtml(r.product) + (r.version ? (' v' + escapeHtml(r.version)) : '')) : '';
+          const openBadge = r.open ? '<span style="background:#16a34a;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">OPEN</span>' : '';
+          return `<div class="port-card" style="background:#071127;padding:12px;border-radius:8px;border:1px solid #0f1724;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-weight:700;font-size:20px">${escapeHtml(String(port))}</div>
+              <div style="color:#9aa6b2;margin-top:4px">${escapeHtml(r.service || '')}</div>
+              <div style="color:#9aa6b2;font-size:12px;margin-top:4px">${identity}</div>
+              ${product ? `<div style="color:#9aa6b2;margin-top:6px;font-size:13px">${product}</div>` : ''}
+              ${methods}
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+              <div style="font-size:12px;color:#94a3b8">Puerto</div>
+              ${openBadge}
+            </div>
+          </div>`;
         }).join('');
-        return `<div style="display:flex;flex-direction:column;gap:8px">${cards}</div>`;
+        return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">${cards}</div>`;
       } catch (e) { return renderRawJson(obj); }
     }
 
@@ -271,8 +285,22 @@ document.addEventListener('DOMContentLoaded', function () {
         const items = obj.common_ports || [];
         if (!items.length) return `<div style="color:#9aa6b2">No hay puertos comunes listados.</div>`;
         const cards = items.map(it => {
-          const methods = (it.methods && it.methods.length) ? `<div style="margin-top:6px;color:#cbd5e1"><strong>Métodos:</strong> ${it.methods.join(', ')}</div>` : '';
-          return `<div class="port-card" style="background:#071127;padding:12px;border-radius:8px;border:1px solid #0f1724;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700;font-size:16px">${it.port}</div><div style="color:#9aa6b2;margin-top:4px">${it.service || ''}</div>${methods}</div><div style="font-size:12px;color:#94a3b8">Puerto</div></div>`;
+          const methods = (it.methods && it.methods.length) ? `<div style="margin-top:6px;color:#cbd5e1"><strong>Métodos:</strong> ${it.methods.map(m=>escapeHtml(m)).join(', ')}</div>` : '';
+          const product = it.product ? `<div style="color:#9aa6b2;margin-top:6px;font-size:13px">${escapeHtml(it.product)}${it.version ? (' v' + escapeHtml(it.version)) : ''}</div>` : '';
+          const statusBadge = it.open ? '<span style="background:#16a34a;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">OPEN</span>' : '<span style="background:#ef4444;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">CLOSED</span>';
+          // Exact HTML structure and sizing to match the original "List Common Ports" view, with status badge
+          return `<div class="port-card" style="background:#071127;padding:12px;border-radius:8px;border:1px solid #0f1724;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-weight:700;font-size:16px">${escapeHtml(String(it.port))}</div>
+              <div style="color:#9aa6b2;margin-top:4px">${escapeHtml(it.service || '')}</div>
+              ${product}
+              ${methods}
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+              <div style="font-size:12px;color:#94a3b8">Puerto</div>
+              ${statusBadge}
+            </div>
+          </div>`;
         }).join('');
         return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">${cards}</div>`;
       } catch (e) { return renderRawJson(obj); }
@@ -309,7 +337,29 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
           const j = JSON.parse(text);
           if (op.path === '/network/scan') {
-            if (opResult) opResult.innerHTML = renderNetworkScanResult(j);
+            // Normalize scan results to the same structure used by renderPortsList
+            try {
+              const results = Array.isArray(j.results) ? j.results : [];
+              const items = results.map(r => ({
+                port: r.port,
+                service: r.service || '',
+                methods: Array.isArray(r.methods) ? r.methods : [],
+                product: r.product || '',
+                version: r.version || '',
+                vulnerabilities: Array.isArray(r.vulnerabilities) ? r.vulnerabilities : [],
+                open: !!r.open,
+                host: j.host || undefined,
+                protocol: r.protocol || 'tcp'
+              }));
+              // Orden: primero abiertos (open=true), luego por número de puerto ascendente
+              items.sort((a, b) => {
+                if (a.open === b.open) return (Number(a.port) || 0) - (Number(b.port) || 0);
+                return a.open ? -1 : 1;
+              });
+              if (opResult) opResult.innerHTML = renderPortsList({ common_ports: items });
+            } catch (e) {
+              if (opResult) opResult.innerHTML = renderRawJson(j);
+            }
           } else if (op.path === '/network/ports') {
             if (opResult) opResult.innerHTML = renderPortsList(j);
           } else {
