@@ -83,6 +83,65 @@ Prefijo: `/network`
 
 - `GET /network/ports` — Devuelve una lista de puertos comunes sugeridos para escaneo.
 
+### Escaneo por rango / CIDR
+
+- `POST /network/scan_range` — Escanea un rango de IPs (por CIDR o por start/end) y devuelve, por cada host, la lista de puertos analizados junto con su `state`.
+  - Body (JSON):
+    - `cidr` (string, opcional): bloque CIDR (ej. `192.168.1.0/28`). Si se proporciona, se escanean las IPs del bloque. Si está vacío (`""`) se trata como omitido.
+    - `start` (string, opcional): IP inicial del rango (ej. `192.168.1.3`). Se usa cuando `cidr` no está presente.
+    - `end` (string, opcional): IP final del rango. Si no se proporciona, se escanea solo `start`.
+    - `ports` (array de ints o string CSV, opcional): lista de puertos a escanear. La UI puede enviar CSV (`"22,80,443"`) o un arreglo JSON.
+    - `timeout` (number, opcional): timeout por host para `nmap` (segundos). El fallback TCP usa un timeout menor (p. ej. 0.5s).
+    - `use_nmap` (bool, opcional): si `true`, intenta ejecutar `nmap -sV`; si `nmap` no está disponible se usa un fallback TCP.
+    - `concurrency` (int, opcional): máximo de tareas concurrentes (por seguridad el servidor aplica un valor por defecto y límites).
+
+  - Restricciones y validaciones:
+    - Límite por petición: máximo 1024 hosts. Si el bloque/rango supera ese límite, la API responde `400` con detalle.
+    - Se valida que `end >= start` cuando ambos son IPs.
+
+  - Respuesta (ejemplo simplificado):
+
+```json
+{
+  "scanned": 2,
+  "hosts": [
+    {
+      "host": "192.168.1.1",
+      "results": [
+        {"port":22,"open":true,"state":"open","service":"ssh"},
+        {"port":80,"open":false,"state":"filtered","service":"http"}
+      ],
+      "duration_seconds": 0.45
+    }
+  ],
+  "duration_seconds": 1.23
+}
+```
+
+  - Notas importantes:
+    - Cada elemento en `results` incluye `state` además de `open`. Valores observados: `open`, `closed`, `filtered`, `unknown`.
+    - La UI interpreta `state === 'filtered'` y muestra un badge naranja; `open` mostrará badge verde; cualquier otro estado se considera `CLOSED` (rojo) en la vista.
+
+  - Uso en la UI: Panel "Controllers" → sección "Network" → Operación "Análisis de redes (rango)". Parámetros: completar `cidr` O `start` (+ opcional `end`), ajustar `ports`, `use_nmap` y `concurrency`.
+
+  - Ejemplo cURL (CIDR, fallback TCP):
+
+```bash
+curl -X POST http://127.0.0.1:8000/network/scan_range \
+  -H "Content-Type: application/json" \
+  -d '{"cidr":"127.0.0.0/30","use_nmap":false,"ports":[22,80,443]}'
+```
+
+  - Ejemplo cURL (start–end, intentar nmap):
+
+```bash
+curl -X POST http://127.0.0.1:8000/network/scan_range \
+  -H "Content-Type: application/json" \
+  -d '{"start":"192.168.1.2","end":"192.168.1.5","use_nmap":true,"concurrency":10}'
+```
+
+  - Nota legal: realizar escaneos de red contra hosts ajenos puede ser intrusivo y requiere autorización. Usa estas herramientas solo contra sistemas que controlas o tienes permiso explícito para analizar.
+
 Ejemplo (scan):
 
 ```bash

@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', function () {
       ],
       "Network": [
         { id: "network-scan", title: "Analisis de redes (scan)", method: "POST", path: "/network/scan", params: [{name: "host", type: "text", placeholder: "IP o hostname"}, {name: "ports", type: "text", placeholder: "puertos separados por comas (opcional)"}], desc: "Escanea puertos comunes y devuelve servicios heurísticos. Asegúrate de tener permiso para escanear el host." },
+        { id: "network-scan-range", title: "Analisis de redes (rango)", method: "POST", path: "/network/scan_range", params: [{name: "cidr", type: "text", placeholder: "CIDR (ej. 192.168.1.0/28)"}, {name: "start", type: "text", placeholder: "IP inicio (ej. 192.168.1.1)"}, {name: "end", type: "text", placeholder: "IP fin (opcional)"}, {name: "ports", type: "text", placeholder: "puertos separados por comas (opcional)"}, {name: "concurrency", type: "text", placeholder: "concurrency (opcional, default 20)"}], desc: "Escanea un rango de IPs y devuelve puertos abiertos/cerrados por IP. Usa con permiso." },
         { id: "network-ports", title: "List Common Ports", method: "GET", path: "/network/ports", params: [], desc: "Lista puertos comunes sugeridos para escaneo." }
       ],
       "Status": [
@@ -93,6 +94,7 @@ document.addEventListener('DOMContentLoaded', function () {
           opBtn.className = "op-btn";
           opBtn.textContent = op.title;
           opBtn.type = "button";
+          opBtn.dataset.opId = op.id || '';
           opBtn.addEventListener("click", () => {
             document.querySelectorAll('.op-btn').forEach(b => b.classList.remove('active'));
             opBtn.classList.add('active');
@@ -103,6 +105,29 @@ document.addEventListener('DOMContentLoaded', function () {
         wrapper.appendChild(opsContainer);
         controllersList.appendChild(wrapper);
       });
+
+      // Expand the Network section by default so new ops are visible
+      try {
+        const sections = controllersList.querySelectorAll('.controller-section');
+        sections.forEach(sec => {
+          const header = sec.querySelector('.controller-header');
+          if (!header) return;
+          if (header.textContent && header.textContent.trim().startsWith('Network')) {
+            sec.classList.remove('collapsed');
+            const icon = header.querySelector('.toggle-icon'); if (icon) icon.textContent = '▾';
+            // highlight the new scan_range op if present
+            const btn = sec.querySelector('.op-btn');
+            const rangeBtn = sec.querySelector('button.op-btn[data-op-id="network-scan-range"]');
+            if (!rangeBtn) {
+              // fallback: find by title text
+              const all = sec.querySelectorAll('button.op-btn');
+              all.forEach(b => { if (b.textContent && b.textContent.toLowerCase().includes('rango')) { b.style.boxShadow = '0 0 0 2px rgba(37,99,235,0.15)'; b.style.border = '1px solid #2563eb'; } });
+            } else {
+              rangeBtn.style.boxShadow = '0 0 0 2px rgba(37,99,235,0.15)'; rangeBtn.style.border = '1px solid #2563eb';
+            }
+          }
+        });
+      } catch (e) { console.log('renderControllers post-process error', e); }
     }
 
     function selectOperation(controllerName, op, btnEl) {
@@ -226,6 +251,14 @@ document.addEventListener('DOMContentLoaded', function () {
         form.appendChild(nmLabel);
       }
 
+      // If this is the network scan range op, add a checkbox to use nmap
+      if (op.path === '/network/scan_range') {
+        const nmLabel = document.createElement('label'); nmLabel.style.display = 'flex'; nmLabel.style.alignItems = 'center'; nmLabel.style.gap = '8px'; nmLabel.style.marginBottom = '8px';
+        const nmCheckbox = document.createElement('input'); nmCheckbox.type = 'checkbox'; nmCheckbox.name = 'use_nmap'; nmCheckbox.checked = true;
+        nmLabel.appendChild(nmCheckbox); const nmText = document.createElement('span'); nmText.style.color='#9aa6b2'; nmText.textContent = 'Usar nmap si está disponible'; nmLabel.appendChild(nmText);
+        form.appendChild(nmLabel);
+      }
+
       const submit = document.createElement("button"); submit.textContent = "Ejecutar"; submit.type = "submit"; submit.className = "exec-btn"; submit.style.padding = "8px 12px"; submit.style.background = "#2563eb"; submit.style.color = "#fff"; submit.style.border = "none"; submit.style.borderRadius = "6px"; submit.style.cursor = "pointer";
       form.appendChild(submit); opForm.appendChild(form);
     }
@@ -261,7 +294,13 @@ document.addEventListener('DOMContentLoaded', function () {
           const identity = `${escapeHtml(host)}:${escapeHtml(String(port))}/${escapeHtml(protocol)}`;
           const methods = (r.methods && r.methods.length) ? `<div style="margin-top:6px;color:#cbd5e1"><strong>Métodos:</strong> ${r.methods.map(m=>escapeHtml(m)).join(', ')}</div>` : '';
           const product = r.product ? (escapeHtml(r.product) + (r.version ? (' v' + escapeHtml(r.version)) : '')) : '';
-          const openBadge = r.open ? '<span style="background:#16a34a;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">OPEN</span>' : '';
+            let openBadge = '';
+            const rstate = (r && r.state) ? String(r.state).toLowerCase().trim() : '';
+            if (rstate === 'filtered') {
+              openBadge = '<span style="background:#f59e0b;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">FILTERED</span>';
+            } else {
+              openBadge = r.open ? '<span style="background:#16a34a;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">OPEN</span>' : '';
+            }
           return `<div class="port-card" style="background:#071127;padding:12px;border-radius:8px;border:1px solid #0f1724;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
             <div>
               <div style="font-weight:700;font-size:20px">${escapeHtml(String(port))}</div>
@@ -280,6 +319,77 @@ document.addEventListener('DOMContentLoaded', function () {
       } catch (e) { return renderRawJson(obj); }
     }
 
+    function renderRangeScanResult(obj) {
+      try {
+        let hosts = obj.hosts || [];
+        if (!hosts.length) return `<div style="color:#9aa6b2">No se obtuvieron resultados.</div>`;
+
+        // normalize and compute open/filtered counts
+        hosts = hosts.map(h => {
+          const results = Array.isArray(h.results) ? h.results.slice() : [];
+          // sort ports: open first, then filtered, then by port number
+          results.sort((a, b) => {
+            const aState = (a && a.state) ? String(a.state).toLowerCase().trim() : '';
+            const bState = (b && b.state) ? String(b.state).toLowerCase().trim() : '';
+            const aOpen = !!a.open;
+            const bOpen = !!b.open;
+            const aFiltered = aState === 'filtered';
+            const bFiltered = bState === 'filtered';
+            if (aOpen !== bOpen) return aOpen ? -1 : 1;
+            if (aFiltered !== bFiltered) return aFiltered ? -1 : 1;
+            return (Number(a.port) || 0) - (Number(b.port) || 0);
+          });
+          const openCount = results.filter(r => !!r.open).length;
+          const filteredCount = results.filter(r => ((r && r.state) ? String(r.state).toLowerCase().trim() === 'filtered' : false)).length;
+          return Object.assign({}, h, { results, openCount, filteredCount });
+        });
+
+        // sort hosts: those with any open ports first, then those with filtered ports, then by host string
+        hosts.sort((a, b) => {
+          if ((a.openCount > 0) !== (b.openCount > 0)) return (a.openCount > 0) ? -1 : 1;
+          if ((a.filteredCount > 0) !== (b.filteredCount > 0)) return (a.filteredCount > 0) ? -1 : 1;
+          return (a.host || '').localeCompare(b.host || '');
+        });
+
+        const cards = hosts.map(h => {
+          if (h.error) {
+            return `<div class="host-card" style="background:#071127;padding:12px;border-radius:8px;border:1px solid #0f1724;margin-bottom:10px;"><div style="font-weight:700">${escapeHtml(h.host || '')}</div><div style="color:#fca5a5;margin-top:6px">Error: ${escapeHtml(h.error)}</div></div>`;
+          }
+          const results = h.results || [];
+          const openCount = h.openCount || 0;
+          const closedCount = results.length - openCount;
+          const portsHtml = results.map(r => {
+            const rstate = (r && r.state) ? String(r.state).toLowerCase().trim() : '';
+            let badge = '';
+            if (rstate === 'filtered') {
+              badge = '<span style="background:#f59e0b;color:#fff;padding:4px 6px;border-radius:6px;font-weight:600">FILTERED</span>';
+            } else if (r.open) {
+              badge = '<span style="background:#16a34a;color:#fff;padding:4px 6px;border-radius:6px;font-weight:600">OPEN</span>';
+            } else {
+              badge = '<span style="background:#ef4444;color:#fff;padding:4px 6px;border-radius:6px;font-weight:600">CLOSED</span>';
+            }
+            return `<div class="port-item" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:6px;background:#071827;margin-bottom:6px"><div><div style="font-weight:700">${escapeHtml(String(r.port))} · ${escapeHtml(r.service||'')}</div><div style="color:#9aa6b2;font-size:12px">${escapeHtml(r.protocol||'tcp')} ${r.product? '· '+escapeHtml(r.product):''}</div></div><div>${badge}</div></div>`;
+          }).join('');
+
+          // Host header: toggle, host name + summary, duration on same line
+          return `<div class="host-card" data-host="${escapeHtml(h.host||'')}" style="background:#071127;padding:12px;border-radius:8px;border:1px solid #0f1724;margin-bottom:10px;">
+            <div class="host-header" style="display:flex;justify-content:space-between;align-items:center">
+              <div style="display:flex;align-items:center;gap:10px">
+                <button class="host-toggle" aria-expanded="true" style="background:transparent;border:none;color:#cbd5e1;font-size:16px;cursor:pointer">▾</button>
+                <div>
+                  <div style="font-weight:700;display:flex;gap:10px;align-items:center">${escapeHtml(h.host||'')}</div>
+                  <div style="color:#9aa6b2;font-size:12px;margin-top:4px">Puertos detectados: ${results.length} · Abiertos: ${openCount} · Cerrados: ${closedCount}</div>
+                </div>
+              </div>
+              <div style="font-size:12px;color:#94a3b8" class="host-duration">${h.duration_seconds ? escapeHtml(String(h.duration_seconds))+'s' : ''}</div>
+            </div>
+            <div class="host-body" style="margin-top:10px">${portsHtml}</div>
+          </div>`;
+        }).join('');
+        return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">${cards}</div>`;
+      } catch (e) { return renderRawJson(obj); }
+    }
+
     function renderPortsList(obj) {
       try {
         const items = obj.common_ports || [];
@@ -287,7 +397,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const cards = items.map(it => {
           const methods = (it.methods && it.methods.length) ? `<div style="margin-top:6px;color:#cbd5e1"><strong>Métodos:</strong> ${it.methods.map(m=>escapeHtml(m)).join(', ')}</div>` : '';
           const product = it.product ? `<div style="color:#9aa6b2;margin-top:6px;font-size:13px">${escapeHtml(it.product)}${it.version ? (' v' + escapeHtml(it.version)) : ''}</div>` : '';
-          const statusBadge = it.open ? '<span style="background:#16a34a;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">OPEN</span>' : '<span style="background:#ef4444;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">CLOSED</span>';
+          let statusBadge = '';
+          if (it.state === 'filtered') {
+            statusBadge = '<span style="background:#f59e0b;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">FILTERED</span>';
+          } else {
+            statusBadge = it.open ? '<span style="background:#16a34a;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">OPEN</span>' : '<span style="background:#ef4444;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">CLOSED</span>';
+          }
           // Exact HTML structure and sizing to match the original "List Common Ports" view, with status badge
           return `<div class="port-card" style="background:#071127;padding:12px;border-radius:8px;border:1px solid #0f1724;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
             <div>
@@ -316,10 +431,13 @@ document.addEventListener('DOMContentLoaded', function () {
         else {
           const obj = {};
           for (const [k, v] of formData.entries()) {
+            // skip empty string fields to avoid validation errors (422)
+            if (typeof v === 'string' && v.trim() === '') continue;
             let val = v;
             if (typeof v === 'string') {
-              if (v === 'on' || v.toLowerCase() === 'true') val = true;
-              else if (v.toLowerCase() === 'false') val = false;
+              const lv = v.toLowerCase();
+              if (v === 'on' || lv === 'true') val = true;
+              else if (lv === 'false') val = false;
             }
             obj[k] = val;
           }
@@ -362,6 +480,27 @@ document.addEventListener('DOMContentLoaded', function () {
             }
           } else if (op.path === '/network/ports') {
             if (opResult) opResult.innerHTML = renderPortsList(j);
+          } else if (op.path === '/network/scan_range') {
+            try {
+              if (opResult) {
+                opResult.innerHTML = renderRangeScanResult(j);
+                // attach collapse/expand handlers for host cards
+                const hostToggles = opResult.querySelectorAll('.host-toggle');
+                hostToggles.forEach(btn => {
+                  btn.addEventListener('click', () => {
+                    const hostCard = btn.closest('.host-card');
+                    if (!hostCard) return;
+                    const body = hostCard.querySelector('.host-body');
+                    const expanded = btn.getAttribute('aria-expanded') === 'true';
+                    btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+                    btn.textContent = expanded ? '▸' : '▾';
+                    if (body) body.style.display = expanded ? 'none' : '';
+                  });
+                });
+              }
+            } catch (e) {
+              if (opResult) opResult.innerHTML = renderRawJson(j);
+            }
           } else {
             if (opResult) opResult.innerHTML = `<div class="response-two-col"><div class="left-pane">${renderResponse(j, resp.status)}</div><div class="right-pane">${renderRawJson(j)}</div></div>`;
             const copyBtn = opResult && opResult.querySelector('.right-pane .copy-json-btn');

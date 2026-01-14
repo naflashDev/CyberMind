@@ -231,3 +231,17 @@ h1, h2, h3 { margin-top: 0; margin-bottom: 8px; }
 
 .op-area::-webkit-scrollbar, .iframe-wrapper::-webkit-scrollbar { height:12px; background:rgba(0,0,0,0.03) }
 .op-area::-webkit-scrollbar-thumb, .iframe-wrapper::-webkit-scrollbar-thumb { background:rgba(100,116,139,0.9); border-radius:8px }
+
+/* Host card body: limit height and allow internal scrolling for long port lists */
+.host-card .host-body {
+  max-height: 180px;
+  overflow: auto;
+  padding-right: 6px; /* space for scrollbar */
+}
+
+.host-card .port-item { margin-bottom:6px }
+
+/* custom scrollbar for port lists */
+.host-card .host-body::-webkit-scrollbar { width:10px }
+.host-card .host-body::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.9); border-radius:8px }
+.host-card .host-body::-webkit-scrollbar-track { background: transparent }
