@@ -40,7 +40,7 @@ class TestRunServices(unittest.TestCase):
 
     def test_ensure_compose_from_install_no_folder(self):
         # Create a temporary non-existing project root
-        tmp = Path('tmp_nonexistent_project_root')
+        tmp = Path(__file__).resolve().parent / 'tmp_nonexistent_project_root'
         if tmp.exists():
             for f in tmp.rglob('*'):
                 f.unlink()
@@ -50,7 +50,7 @@ class TestRunServices(unittest.TestCase):
 
     def test_ensure_compose_from_install_executes_compose(self):
         # Build a temporary project root with Install/ and a dummy yaml
-        tmp_root = Path('tmp_project_root')
+        tmp_root = Path(__file__).resolve().parent / 'tmp_project_root'
         install_dir = tmp_root / 'Install'
         try:
             install_dir.mkdir(parents=True, exist_ok=True)

@@ -17,7 +17,7 @@ class TestRunServicesCombinedCompose(unittest.TestCase):
 
     def setUp(self):
         # create temporary project layout
-        self.tmp_root = Path('tmp_project_combined')
+        self.tmp_root = Path(__file__).resolve().parent / 'tmp_project_combined'
         self.install_dir = self.tmp_root / 'Install'
         self.docker_dir = self.tmp_root / 'docker'
         self.install_dir.mkdir(parents=True, exist_ok=True)

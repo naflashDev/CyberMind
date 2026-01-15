@@ -35,7 +35,7 @@ class DummyPool:
 
 class TestSpiderRSSServices(unittest.TestCase):
     def test_read_urls_from_file(self):
-        tmp = Path('tmp_urls.txt')
+        tmp = Path(__file__).resolve().parent / 'tmp_urls.txt'
         tmp.write_text('https://example.com\n\nhttps://a.com\n')
         try:
             urls = sr.read_urls_from_file(str(tmp))
