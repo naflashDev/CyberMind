@@ -74,6 +74,28 @@ document.addEventListener('DOMContentLoaded', function () {
     function renderControllers() {
       if (!controllersList) return;
       controllersList.innerHTML = "";
+
+      // Controllers to group under OSINT
+      const osintNames = new Set(['Scrapy', 'SpaCy', 'Tiny', 'LLM']);
+
+      // Create OSINT category container
+      const osintCategory = document.createElement('div');
+      osintCategory.className = 'controller-category';
+      const osintHeader = document.createElement('button');
+      osintHeader.className = 'controller-category-header';
+      osintHeader.type = 'button';
+      osintHeader.innerHTML = `<span>OSINT</span><span class="toggle-icon">▾</span>`;
+      const osintInner = document.createElement('div');
+      osintInner.className = 'controller-category-inner';
+      osintHeader.addEventListener('click', () => {
+        osintCategory.classList.toggle('collapsed');
+        const icon = osintHeader.querySelector('.toggle-icon');
+        if (icon) icon.textContent = osintCategory.classList.contains('collapsed') ? '▸' : '▾';
+      });
+      osintCategory.appendChild(osintHeader);
+      osintCategory.appendChild(osintInner);
+
+      // Build sections and place them appropriately
       Object.keys(controllers).forEach(name => {
         const wrapper = document.createElement("div");
         wrapper.className = "controller-section";
@@ -103,8 +125,18 @@ document.addEventListener('DOMContentLoaded', function () {
           opsContainer.appendChild(opBtn);
         });
         wrapper.appendChild(opsContainer);
-        controllersList.appendChild(wrapper);
+
+        if (osintNames.has(name)) {
+          osintInner.appendChild(wrapper);
+        } else {
+          controllersList.appendChild(wrapper);
+        }
       });
+
+      // Insert OSINT category at top if it has children
+      if (osintInner.children.length) {
+        controllersList.insertBefore(osintCategory, controllersList.firstChild);
+      }
 
       // Expand the Network section by default so new ops are visible
       try {

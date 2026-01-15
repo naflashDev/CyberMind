@@ -54,6 +54,19 @@ curl -X POST http://127.0.0.1:8000/llm/query -H "Content-Type: application/json"
 
 La UI proporciona controles para iniciar/detener el `llm_updater` y para enviar consultas al LLM desde el panel interactivo. En la UI, las solicitudes se envían al endpoint `/llm/query` y al endpoint `/llm/updater` para controlar el proceso de actualización.
 
+#### Panel de Operaciones (FastAPI) — categoría `OSINT`
+
+En la vista `Operaciones FastAPI` de la UI se ha añadido una categoría llamada **OSINT** que agrupa accesos rápidos a las secciones relacionadas con la recolección y el procesamiento de información de fuentes abiertas. Al desplegar `OSINT` en el panel de `Controllers` se muestran las subsecciones:
+
+- **Scrapy**: operaciones bajo el prefijo `/newsSpider` (scrapers, Google Alerts, Google Dorking).
+- **SpaCy**: operaciones de procesamiento NLP (`/start-spacy`).
+- **Tiny**: operaciones relacionadas con TinyRSS/Postgres (`/postgre-ttrss/*`).
+- **LLM**: operaciones del módulo de LLM (`/llm/*`).
+
+Cada subsección expande su listado de operaciones (botones) que ejecutan llamadas HTTP a los endpoints descritos en este documento. Por ejemplo, al seleccionar `Scrapy` se muestran los botones para `scrape-news`, `start-google-alerts` o `save-feed-google-alerts`, que invocan los endpoints bajo `/newsSpider`.
+
+Esta agrupación es puramente organizativa en la UI para facilitar el acceso a las herramientas de OSINT y no cambia la ruta o el contrato de los endpoints que siguen documentados en sus secciones correspondientes.
+
 ### Comportamiento y alcance del LLM
 
 - El LLM integrado está especializado en ciberseguridad: responde a consultas relacionadas con CVE, análisis técnico, forense digital, y noticias recogidas por los scrapers del sistema.
