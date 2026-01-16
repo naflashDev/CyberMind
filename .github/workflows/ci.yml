@@ -1,6 +1,66 @@
 name: CI
 
 on:
+  pull_request:
+    branches:
+      - '*'
+
+jobs:
+  security:
+    name: Security checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install dev dependencies
+        run: python -m pip install -r dev-requirements.txt
+
+      - name: Run pip-audit (JSON)
+        run: |
+          python -m pip_audit -f json -o pip_audit.json || true
+
+      - name: Run Bandit (JSON)
+        run: |
+          python -m bandit -r src -lll -f json -o bandit_report.json || true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            pip_audit.json
+            bandit_report.json
+
+  tests:
+    name: Run tests
+    runs-on: ubuntu-latest
+    needs: security
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: python -m pip install -r dev-requirements.txt
+
+      - name: Run tests
+        run: pytest -q
+name: CI
+
+on:
   push:
     branches: [ main, master ]
   pull_request:
