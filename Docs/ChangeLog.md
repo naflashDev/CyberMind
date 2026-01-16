@@ -23,6 +23,14 @@ El formato se basa en "Keep a Changelog" y este proyecto sigue el Versionado Sem
 ### Seguridad
 - Las solicitudes de escaneo están limitadas a un máximo de 1024 hosts por petición para prevenir escaneos masivos accidentales. (2026-01-14)
 
+### 2026-01-16
+
+- Añadido: Auditoría inicial y tests de seguridad mínimos.
+	- Archivo agregado: `tools/audit_fstrings.py` — genera `Docs/fstrings_audit.md`.
+	- Test agregado: `tests/services/test_run_services_minimal.py` — comprobación simple de invocación de subprocess sin shell.
+
+**Seguridad**: Se aplicaron correcciones en local al manejo de ejecución de comandos (sin `shell=True`) y se añadieron herramientas para auditar `f-strings`. Revisar y parchear manualmente las interpolaciones detectadas.
+
 
 ## [0.0.0] - 2026-01-14
 - Entrada inicial de notas de la versión (desarrollo interno)

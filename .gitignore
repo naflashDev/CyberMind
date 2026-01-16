@@ -12,6 +12,7 @@ env/
 cvelistV5-main/
 .vscode/
 .pytest_cache
+tools/
 # Local configuration files
 env
 cfg.ini
@@ -23,3 +24,7 @@ labels_result.json
 result.json
 worker_settings.json
 serviceAccountKey.json
+bandit_output.json
+
+#md files
+SECURITY.md
