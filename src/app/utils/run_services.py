@@ -572,7 +572,7 @@ def ensure_infrastructure(parameters):
     start_ui_in_separate_terminal()
     logger.info("UI service launch command executed.")
     '''
-    time.sleep(15)  # give some time for services to start
+    time.sleep(1)  # give some time for services to start
 
 
 def shutdown_services(project_root: Optional[Path] = None, stop_ollama: bool = True, force_stop_containers: bool = False, distro_name: Optional[str] = None, containers: Optional[str] = None) -> None:
