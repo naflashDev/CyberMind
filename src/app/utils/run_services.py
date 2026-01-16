@@ -21,6 +21,8 @@ from loguru import logger
 from pathlib import Path
 import platform
 import shutil
+import shlex
+import tempfile
 from typing import Tuple, Optional
 
 def wsl_docker_is_running(container_name: str, distro_name: Optional[str] = None) -> bool:
@@ -35,9 +37,8 @@ def wsl_docker_is_running(container_name: str, distro_name: Optional[str] = None
     try:
         plat = platform.system()
         if plat == "Windows" and distro_name:
-            # Run inside WSL distro
-            cmd = ' '.join(cmd_list)
-            runner = ["wsl", "-d", distro_name, "bash", "-c", cmd]
+            # Run inside WSL distro without using a shell; pass args after `--` to wsl
+            runner = ["wsl", "-d", distro_name, "--"] + cmd_list
             result = subprocess.run(runner, capture_output=True, text=True, check=False)
             context = f"WSL distro '{distro_name}'"
         else:
@@ -47,10 +48,10 @@ def wsl_docker_is_running(container_name: str, distro_name: Optional[str] = None
 
         names = result.stdout.strip().splitlines() if result.stdout else []
         is_running = container_name in names
-        logger.info(f"Container '{container_name}' running in {context}: {is_running}")
+        logger.info("Container '{}' running in {}: {}", container_name, context, is_running)
         return is_running
     except Exception as e:
-        logger.error(f"Failed to check Docker container '{container_name}': {e}")
+        logger.error("Failed to check Docker container '{}': {}", container_name, e)
         return False
 
 def wsl_docker_start_container(container_name: str, distro_name: Optional[str] = None) -> None:
@@ -61,15 +62,15 @@ def wsl_docker_start_container(container_name: str, distro_name: Optional[str] =
     """
     try:
         plat = platform.system()
-        if plat == "Windows" and distro_name:
-            logger.info(f"Starting Docker container '{container_name}' in WSL distro '{distro_name}'...")
-            cmd = f"docker start {container_name}"
-            subprocess.run(["wsl", "-d", distro_name, "bash", "-c", cmd], check=False)
+            if plat == "Windows" and distro_name:
+            logger.info("Starting Docker container '{}' in WSL distro '{}'...", container_name, distro_name)
+            runner = ["wsl", "-d", distro_name, "--", "docker", "start", container_name]
+            subprocess.run(runner, check=False)
         else:
-            logger.info(f"Starting Docker container '{container_name}' on host...")
+            logger.info("Starting Docker container '{}' on host...", container_name)
             subprocess.run(["docker", "start", container_name], check=False)
     except Exception as e:
-        logger.error(f"Error while trying to start container '{container_name}': {e}")
+        logger.error("Error while trying to start container '{}': {}", container_name, e)
 
 
 def detect_host_os() -> Tuple[str, Optional[str]]:
@@ -135,8 +136,8 @@ def ensure_docker_daemon_running(host_platform: str) -> bool:
                     r"C:\Program Files (x86)\Docker\Docker\Docker Desktop.exe",
                 ]
                 for p in possible_paths:
-                    if Path(p).exists():
-                        logger.info(f"Starting Docker Desktop from {p}")
+                            if Path(p).exists():
+                                logger.info("Starting Docker Desktop from {}", p)
                         subprocess.Popen([p], shell=False)
                         break
         elif host_platform == "Linux":
@@ -151,9 +152,9 @@ def ensure_docker_daemon_running(host_platform: str) -> bool:
             logger.info("Attempting to open Docker.app on macOS")
             subprocess.run(["open", "-a", "Docker"], check=False)
         else:
-            logger.warning(f"Automatic Docker start not implemented for platform: {host_platform}")
+            logger.warning("Automatic Docker start not implemented for platform: {}", host_platform)
     except Exception as e:
-        logger.error(f"Error attempting to start Docker daemon: {e}")
+    logger.error("Error attempting to start Docker daemon: {}", e)
 
     # Give it a few seconds to settle
     for _ in range(6):
@@ -176,13 +177,13 @@ def ensure_compose_from_install(project_root: Path) -> None:
     """
     install_dir = project_root / "Install"
     if not install_dir.exists() or not install_dir.is_dir():
-        logger.warning(f"Install folder not found at {install_dir}; skipping compose step.")
+        logger.warning("Install folder not found at {}; skipping compose step.", install_dir)
         return
 
     # Find compose files
     compose_files = list(install_dir.glob("*.yml")) + list(install_dir.glob("*.yaml"))
     if not compose_files:
-        logger.warning(f"No YAML files found in {install_dir}; nothing to compose.")
+        logger.warning("No YAML files found in {}; nothing to compose.", install_dir)
         return
 
     # If both ttrss and opensearch compose files exist, prefer running them together
@@ -208,7 +209,7 @@ def ensure_compose_from_install(project_root: Path) -> None:
                 fallback_env = project_root_dir / "docker" / "stack.env"
                 if fallback_env.exists():
                     env_file = fallback_env
-                    logger.info(f"Using fallback env-file: {env_file}")
+                    logger.info("Using fallback env-file: {}", env_file)
 
             # Helper to get services for a compose file
             def _get_services_for(cf_path):
@@ -218,7 +219,7 @@ def ensure_compose_from_install(project_root: Path) -> None:
                     if proc.returncode == 0 and proc.stdout:
                         return [s.strip() for s in proc.stdout.splitlines() if s.strip()]
                 except Exception as e:
-                    logger.debug(f"Could not parse services from {cf_path}: {e}")
+                    logger.debug("Could not parse services from {}: {}", cf_path, e)
                 return []
 
             services_tiny = _get_services_for(tinytinyrss_file)
@@ -234,12 +235,12 @@ def ensure_compose_from_install(project_root: Path) -> None:
                 if platform.system() == "Linux" and os_get_euid() != 0:
                     cmd = ["sudo"] + cmd
                 try:
-                    logger.info(f"Executing fallback combined compose: {' '.join(cmd)}")
+                    logger.info("Executing fallback combined compose: {}", ' '.join(cmd))
                     subprocess.run(cmd, check=False)
                     logger.success("Fallback combined compose executed successfully.")
                     return
                 except Exception as e:
-                    logger.error(f"Failed to execute fallback combined compose command: {e}")
+                    logger.error("Failed to execute fallback combined compose command: {}", e)
                     # fall through to continue with other logic
 
             # Helper to check if any service has an existing container (by compose label)
@@ -269,12 +270,12 @@ def ensure_compose_from_install(project_root: Path) -> None:
                 if platform.system() == "Linux" and os_get_euid() != 0:
                     cmd = ["sudo"] + cmd
                 try:
-                    logger.info(f"Bringing up TinyTinyRSS+OpenSearch (combined): {' '.join(cmd)}")
+                    logger.info("Bringing up TinyTinyRSS+OpenSearch (combined): {}", ' '.join(cmd))
                     subprocess.run(cmd, check=False)
                     logger.success("Combined compose executed successfully.")
                     return
                 except Exception as e:
-                    logger.error(f"Failed to execute combined compose command: {e}")
+                    logger.error("Failed to execute combined compose command: {}", e)
                     # fall through to attempt per-file brings
 
             # If only TinyTinyRSS missing -> bring up tinytinyrss with env-file
@@ -286,12 +287,12 @@ def ensure_compose_from_install(project_root: Path) -> None:
                 if platform.system() == "Linux" and os_get_euid() != 0:
                     cmd = ["sudo"] + cmd
                 try:
-                    logger.info(f"Bringing up TinyTinyRSS services: {' '.join(cmd)}")
+                    logger.info("Bringing up TinyTinyRSS services: {}", ' '.join(cmd))
                     subprocess.run(cmd, check=False)
                     logger.success("TinyTinyRSS compose executed successfully.")
                     return
                 except Exception as e:
-                    logger.error(f"Failed to execute TinyTinyRSS compose: {e}")
+                    logger.error("Failed to execute TinyTinyRSS compose: {}", e)
 
             # If only OpenSearch missing -> bring up opensearch compose
             if missing_opensearch and not missing_tiny:
@@ -299,12 +300,12 @@ def ensure_compose_from_install(project_root: Path) -> None:
                 if platform.system() == "Linux" and os_get_euid() != 0:
                     cmd = ["sudo"] + cmd
                 try:
-                    logger.info(f"Bringing up OpenSearch services: {' '.join(cmd)}")
+                    logger.info("Bringing up OpenSearch services: {}", ' '.join(cmd))
                     subprocess.run(cmd, check=False)
                     logger.success("OpenSearch compose executed successfully.")
                     return
                 except Exception as e:
-                    logger.error(f"Failed to execute OpenSearch compose: {e}")
+                    logger.error("Failed to execute OpenSearch compose: {}", e)
 
     # Determine compose command
     compose_cmd = None
@@ -318,7 +319,7 @@ def ensure_compose_from_install(project_root: Path) -> None:
         return
 
     for cf in compose_files:
-        logger.info(f"Inspecting compose file: {cf}")
+        logger.info("Inspecting compose file: {}", cf)
 
         # Try to obtain the list of services defined in the compose file
         services = []
@@ -327,12 +328,12 @@ def ensure_compose_from_install(project_root: Path) -> None:
             proc = subprocess.run(config_cmd, capture_output=True, text=True, check=False)
             if proc.returncode == 0 and proc.stdout:
                 services = [s.strip() for s in proc.stdout.splitlines() if s.strip()]
-                logger.info(f"Services declared in {cf}: {services}")
+                logger.info("Services declared in {}: {}", cf, services)
             else:
-                logger.warning(f"Could not get services from {cf}; falling back to full compose up.")
+                logger.warning("Could not get services from {}; falling back to full compose up.", cf)
                 services = []
         except Exception as e:
-            logger.error(f"Error reading services from {cf}: {e}")
+            logger.error("Error reading services from {}: {}", cf, e)
             services = []
 
         # If we have a services list, check which ones are missing
@@ -347,11 +348,11 @@ def ensure_compose_from_install(project_root: Path) -> None:
                     if not exists:
                         missing_services.append(svc)
                 except Exception as e:
-                    logger.error(f"Error while checking existing containers for service '{svc}': {e}")
+                    logger.error("Error while checking existing containers for service '{}': {}", svc, e)
                     missing_services.append(svc)
 
             if not missing_services:
-                logger.info(f"All services from {cf} are already present; skipping compose.")
+                logger.info("All services from {} are already present; skipping compose.", cf)
                 continue
 
             # Build up command to bring up only missing services
@@ -364,20 +365,20 @@ def ensure_compose_from_install(project_root: Path) -> None:
                 up_cmd = ["sudo"] + up_cmd
 
             try:
-                logger.info(f"Bringing up missing services for {cf}: {missing_services}")
+                logger.info("Bringing up missing services for {}: {}", cf, missing_services)
                 subprocess.run(up_cmd, check=False)
-                logger.success(f"Compose executed for {cf} (services: {missing_services})")
+                logger.success("Compose executed for {} (services: {})", cf, missing_services)
             except Exception as e:
-                logger.error(f"Failed to execute compose for {cf}: {e}")
+                logger.error("Failed to execute compose for {}: {}", cf, e)
         else:
             # Fallback: no services discovered — run full compose up
-            logger.info(f"No services parsed for {cf}; running full compose up")
+            logger.info("No services parsed for {}; running full compose up", cf)
             cmd = compose_cmd + ["-f", str(cf), "up", "-d"]
             try:
                 subprocess.run(cmd, check=False)
-                logger.success(f"Compose executed for {cf}")
+                logger.success("Compose executed for {}", cf)
             except Exception as e:
-                logger.error(f"Failed to execute compose for {cf}: {e}")
+                logger.error("Failed to execute compose for {}: {}", cf, e)
 
 
 def is_ollama_available() -> bool:
@@ -390,18 +391,18 @@ def try_install_ollama(host_platform: str) -> bool:
     Attempt to install Ollama depending on platform using common package managers.
     Returns True if an installation attempt was executed (success not guaranteed).
     """
-    logger.info(f"Attempting to install Ollama on platform: {host_platform}")
+    logger.info("Attempting to install Ollama on platform: {}", host_platform)
     try:
         # Windows: prefer winget, fallback to choco
         if host_platform == "Windows":
             if shutil.which("winget"):
                 cmd = ["winget", "install", "-e", "--id", "Ollama.Ollama"]
-                logger.info(f"Running: {' '.join(cmd)}")
+                logger.info("Running: {}", ' '.join(cmd))
                 subprocess.run(cmd, check=False)
                 return True
             if shutil.which("choco"):
                 cmd = ["choco", "install", "ollama", "-y"]
-                logger.info(f"Running: {' '.join(cmd)}")
+                logger.info("Running: {}", ' '.join(cmd))
                 subprocess.run(cmd, check=False)
                 return True
             logger.warning("No winget/choco found on PATH; cannot auto-install Ollama on Windows.")
@@ -411,7 +412,7 @@ def try_install_ollama(host_platform: str) -> bool:
         if host_platform == "Darwin":
             if shutil.which("brew"):
                 cmd = ["brew", "install", "ollama"]
-                logger.info(f"Running: {' '.join(cmd)}")
+                logger.info("Running: {}", ' '.join(cmd))
                 subprocess.run(cmd, check=False)
                 return True
             logger.warning("Homebrew not found on macOS; cannot auto-install Ollama.")
@@ -420,16 +421,33 @@ def try_install_ollama(host_platform: str) -> bool:
         # Linux: try curl installer (if curl present)
         if host_platform == "Linux":
             if shutil.which("curl"):
-                # This runs the official Ollama installer script if present.
-                cmd = "bash -c \"curl -sSL https://ollama.ai/install | sh\""
-                logger.info("Attempting to run Ollama installer script via curl")
-                subprocess.run(cmd, shell=True, check=False)
-                return True
+                # Safer approach: download the installer script to a temp file and execute it
+                try:
+                    tf_fd, tf_path = tempfile.mkstemp(suffix=".sh")
+                    os.close(tf_fd)
+                    curl_cmd = ["curl", "-sSL", "https://ollama.ai/install", "-o", tf_path]
+                    logger.info("Attempting to download Ollama installer script via curl to temporary file")
+                    subprocess.run(curl_cmd, check=False)
+                    logger.info("Executing Ollama installer script from {}", tf_path)
+                    subprocess.run(["sh", tf_path], check=False)
+                    try:
+                        os.remove(tf_path)
+                    except Exception:
+                        pass
+                    return True
+                except Exception as e:
+                    logger.error("Failed to run Ollama installer via temp script: {}", e)
+                    try:
+                        if os.path.exists(tf_path):
+                            os.remove(tf_path)
+                    except Exception:
+                        pass
+                    return False
             logger.warning("curl not found on Linux; cannot auto-install Ollama.")
             return False
 
     except Exception as e:
-        logger.error(f"Error while attempting to install Ollama: {e}")
+        logger.error("Error while attempting to install Ollama: {}", e)
     return False
 
 
@@ -448,25 +466,25 @@ def ensure_ollama_model(project_root: Path, model_name: str = "cybersentinel") -
             proc = subprocess.run(["ollama", "list"], capture_output=True, text=True, check=False)
             out = proc.stdout or proc.stderr or ""
         except Exception as e:
-            logger.error(f"Failed to run `ollama list`: {e}")
+            logger.error("Failed to run `ollama list`: {}", e)
             out = ""
 
         if model_name in out:
-            logger.info(f"Ollama model '{model_name}' already present.")
+            logger.info("Ollama model '{}' already present.", model_name)
             return
 
         # Model missing: look for Modelfile
         modelfile = project_root / "Install" / "Modelfile"
         if not modelfile.exists():
-            logger.error(f"Modelfile not found at {modelfile}; cannot create Ollama model '{model_name}'.")
+            logger.error("Modelfile not found at {}; cannot create Ollama model '{}'", modelfile, model_name)
             return
 
         cmd = ["ollama", "create", model_name, "-f", str(modelfile)]
-        logger.info(f"Creating Ollama model '{model_name}' using Modelfile: {' '.join(cmd)}")
+        logger.info("Creating Ollama model '{}' using Modelfile: {}", model_name, ' '.join(cmd))
         subprocess.run(cmd, check=False)
-        logger.success(f"Ollama model '{model_name}' create command executed.")
+        logger.success("Ollama model '{}' create command executed.", model_name)
     except Exception as e:
-        logger.error(f"Error ensuring Ollama model: {e}")
+        logger.error("Error ensuring Ollama model: {}", e)
 
 
 def os_get_euid() -> int:
@@ -517,7 +535,7 @@ def ensure_infrastructure(parameters):
     
     # Ensure docker daemon is running on host before interacting with containers
     host_os, distro = detect_host_os()
-    logger.info(f"Host OS detected: {host_os} (distro: {distro})")
+    logger.info("Host OS detected: {} (distro: {})", host_os, distro)
     # derive project root (repo root) so Install/ can be located
     project_root = Path(__file__).resolve().parents[3]
     # Decide whether to operate against the host Docker or inside WSL
@@ -542,7 +560,7 @@ def ensure_infrastructure(parameters):
     try:
         ensure_compose_from_install(project_root)
     except Exception as e:
-        logger.error(f"Failed to run docker compose from Install/: {e}")
+        logger.error("Failed to run docker compose from Install/: {}", e)
 
     # Ensure Ollama and model presence
     try:
@@ -599,24 +617,28 @@ def shutdown_services(project_root: Optional[Path] = None, stop_ollama: bool = T
 
         # Helper to run commands either on host or inside WSL distro when requested
         def _run(cmd, shell=False):
-            """Run a command list or shell string; if running on Windows and
-            `distro_name` is provided, execute inside that WSL distro."""
+            """Run a command list or string safely; if running on Windows and
+            `distro_name` is provided, execute inside that WSL distro.
+
+            For string commands we use `shlex.split` to avoid shell=True wherever possible.
+            """
             try:
                 if platform.system() == "Windows" and distro_name:
-                    # Always use a shell invocation inside WSL to preserve quoting
+                    # Route execution into WSL without invoking shell=True; pass args after `--`
                     if isinstance(cmd, list):
-                        cmdstr = ' '.join(map(str, cmd))
+                        runner = ["wsl", "-d", distro_name, "--"] + cmd
                     else:
-                        cmdstr = cmd
-                    runner = ["wsl", "-d", distro_name, "bash", "-c", cmdstr]
+                        runner = ["wsl", "-d", distro_name, "--"] + shlex.split(cmd)
                     return subprocess.run(runner, capture_output=False, text=True, check=False)
                 else:
                     if isinstance(cmd, list):
                         return subprocess.run(cmd, check=False)
                     else:
-                        return subprocess.run(cmd, shell=True, check=False)
+                        # split the string into args to avoid shell invocation
+                        cmd_list = shlex.split(cmd)
+                        return subprocess.run(cmd_list, check=False)
             except Exception as e:
-                logger.error(f"Command execution failed ({cmd}): {e}")
+                logger.error("Command execution failed ({}): {}", cmd, e)
                 raise
 
         # Determine compose command availability (host-side check)
@@ -633,11 +655,11 @@ def shutdown_services(project_root: Optional[Path] = None, stop_ollama: bool = T
                 # Build host command, but _run will route to WSL if requested
                 cmd = compose_cmd + ["-f", str(cf), "down", "-v"]
                 try:
-                    logger.info(f"Shutting down compose stack defined in {cf}: {' '.join(cmd)}")
+                    logger.info("Shutting down compose stack defined in {}: {}", cf, ' '.join(cmd))
                     _run(cmd)
-                    logger.success(f"Compose stack {cf} brought down.")
+                    logger.success("Compose stack {} brought down.", cf)
                 except Exception as e:
-                    logger.error(f"Failed to bring down compose file {cf}: {e}")
+                    logger.error("Failed to bring down compose file {}: {}", cf, e)
 
         # Optionally stop containers (dangerous - explicit). If `containers` is provided
         # it should be a comma-separated string or single name; only those containers
@@ -666,12 +688,12 @@ def shutdown_services(project_root: Optional[Path] = None, stop_ollama: bool = T
                             stdout = ''
                     ids = [s.strip() for s in (stdout or "").splitlines() if s.strip()]
                     if ids:
-                        logger.info(f"Stopping {len(ids)} running Docker containers...")
+                        logger.info("Stopping {} running Docker containers...", len(ids))
                         for cid in ids:
                             try:
                                 _run(["docker", "stop", cid])
                             except Exception:
-                                logger.exception(f"Failed to stop container {cid}")
+                                logger.exception("Failed to stop container {}", cid)
                         logger.success("Requested stop for all running containers.")
                     else:
                         logger.info("No running Docker containers to stop.")
@@ -682,7 +704,7 @@ def shutdown_services(project_root: Optional[Path] = None, stop_ollama: bool = T
                         try:
                             # Query running container ids that match the provided name
                             if platform.system() == "Windows" and distro_name:
-                                ps_proc = subprocess.run(["wsl", "-d", distro_name, "bash", "-c", f"docker ps -q --filter \"name={name}\""], capture_output=True, text=True, check=False)
+                                            ps_proc = subprocess.run(["wsl", "-d", distro_name, "--", "docker", "ps", "-q", "--filter", f"name={name}"], capture_output=True, text=True, check=False)
                                 out = ps_proc.stdout or ''
                             else:
                                 ps_proc = subprocess.run(["docker", "ps", "-q", "--filter", f"name={name}"], capture_output=True, text=True, check=False)
@@ -697,7 +719,7 @@ def shutdown_services(project_root: Optional[Path] = None, stop_ollama: bool = T
                                     stopped += 1
                                 except Exception:
                                     logger.exception(f"Failed to stop container {cid} (target '{name}')")
-                        except Exception as e:
+                                                logger.info("Container '{}' already running.", name)
                             logger.error(f"Error while attempting to stop target container '{name}': {e}")
                     if stopped:
                         logger.success(f"Requested stop for {stopped} target container(s).")
@@ -706,16 +728,14 @@ def shutdown_services(project_root: Optional[Path] = None, stop_ollama: bool = T
             except Exception as e:
                 logger.error(f"Error while attempting to stop containers: {e}")
 
-        # Attempt to stop Ollama
+                                                    logger.success("Container '{}' started successfully.", name)
         if stop_ollama:
             if is_ollama_available() or (platform.system() == "Windows" and distro_name):
-                try:
-                    # Preferred graceful stop via CLI (host or inside WSL)
-                    logger.info("Attempting to stop Ollama via CLI...")
+                                                    logger.warning("Container '{}' is not running and could not be started (attempt {}).", name, attempts)
                     if platform.system() == "Windows" and distro_name:
-                        _run(["ollama", "stop"])  # routed into WSL by _run
+                                                logger.error("Container '{}' could not be started after {} attempts.", name, attempts)
                     else:
-                        subprocess.run(["ollama", "stop"], check=False)
+                                            logger.error("Unexpected error ensuring container '{}': {}", name, e)
                     logger.success("Ollama stop command executed (if supported).")
                 except Exception as e:
                     logger.warning(f"`ollama stop` failed: {e}; trying process kill fallback")
