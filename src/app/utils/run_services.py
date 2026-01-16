@@ -17,7 +17,39 @@ import subprocess
 import sys
 import os
 import time
-from loguru import logger
+try:
+    from loguru import logger
+except Exception:
+    import logging
+
+    _std_logger = logging.getLogger("app.utils.run_services")
+    _std_logger.setLevel(logging.DEBUG)
+    if not _std_logger.handlers:
+        handler = logging.StreamHandler()
+        fmt = logging.Formatter("%(asctime)s | %(levelname)s | %(name)s:%(lineno)d - %(message)s")
+        handler.setFormatter(fmt)
+        _std_logger.addHandler(handler)
+
+    class _LoggerShim:
+        def debug(self, *args, **kwargs):
+            _std_logger.debug(*args)
+
+        def info(self, *args, **kwargs):
+            _std_logger.info(*args)
+
+        def warning(self, *args, **kwargs):
+            _std_logger.warning(*args)
+
+        def error(self, *args, **kwargs):
+            _std_logger.error(*args)
+
+        def exception(self, *args, **kwargs):
+            _std_logger.exception(*args)
+
+        def success(self, *args, **kwargs):
+            _std_logger.info(*args)
+
+    logger = _LoggerShim()
 from pathlib import Path
 import platform
 import shutil
