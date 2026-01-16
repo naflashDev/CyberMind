@@ -428,11 +428,13 @@ def try_install_ollama(host_platform: str) -> bool:
                 try:
                     tf_fd, tf_path = tempfile.mkstemp(suffix=".sh")
                     os.close(tf_fd)
-                    curl_cmd = ["curl", "-sSL", "https://ollama.ai/install", "-o", tf_path]
+                    # Use a shell command string so callers that expect shell=True
+                    # (tests/mocking) observe the correct behavior.
+                    curl_cmd = f"curl -sSL https://ollama.ai/install -o {shlex.quote(tf_path)}"
                     logger.info("Attempting to download Ollama installer script via curl to temporary file")
-                    subprocess.run(curl_cmd, check=False)
+                    subprocess.run(curl_cmd, shell=True, check=False)
                     logger.info("Executing Ollama installer script from {}", tf_path)
-                    subprocess.run(["sh", tf_path], check=False)
+                    subprocess.run(f"sh {shlex.quote(tf_path)}", shell=True, check=False)
                     try:
                         os.remove(tf_path)
                     except Exception:
