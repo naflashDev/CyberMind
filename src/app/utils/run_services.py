@@ -62,7 +62,7 @@ def wsl_docker_start_container(container_name: str, distro_name: Optional[str] =
     """
     try:
         plat = platform.system()
-            if plat == "Windows" and distro_name:
+        if plat == "Windows" and distro_name:
             logger.info("Starting Docker container '{}' in WSL distro '{}'...", container_name, distro_name)
             runner = ["wsl", "-d", distro_name, "--", "docker", "start", container_name]
             subprocess.run(runner, check=False)
@@ -136,9 +136,12 @@ def ensure_docker_daemon_running(host_platform: str) -> bool:
                     r"C:\Program Files (x86)\Docker\Docker\Docker Desktop.exe",
                 ]
                 for p in possible_paths:
-                            if Path(p).exists():
-                                logger.info("Starting Docker Desktop from {}", p)
-                        subprocess.Popen([p], shell=False)
+                    if Path(p).exists():
+                        logger.info("Starting Docker Desktop from {}", p)
+                        try:
+                            subprocess.Popen([p], shell=False)
+                        except Exception:
+                            logger.exception("Failed to launch Docker Desktop executable: {}", p)
                         break
         elif host_platform == "Linux":
             # Try systemctl then service
@@ -154,7 +157,7 @@ def ensure_docker_daemon_running(host_platform: str) -> bool:
         else:
             logger.warning("Automatic Docker start not implemented for platform: {}", host_platform)
     except Exception as e:
-    logger.error("Error attempting to start Docker daemon: {}", e)
+        logger.error("Error attempting to start Docker daemon: {}", e)
 
     # Give it a few seconds to settle
     for _ in range(6):
@@ -615,143 +618,111 @@ def shutdown_services(project_root: Optional[Path] = None, stop_ollama: bool = T
 
         install_dir = project_root / "Install"
 
-        # Helper to run commands either on host or inside WSL distro when requested
-        def _run(cmd, shell=False):
-            """Run a command list or string safely; if running on Windows and
-            `distro_name` is provided, execute inside that WSL distro.
+        def _run(cmd, capture_output=False, text=True):
+            """Run command on host or inside WSL distro when `distro_name` is provided.
 
-            For string commands we use `shlex.split` to avoid shell=True wherever possible.
+            Returns subprocess.CompletedProcess. Does not raise on non-zero returncode.
             """
-            try:
-                if platform.system() == "Windows" and distro_name:
-                    # Route execution into WSL without invoking shell=True; pass args after `--`
-                    if isinstance(cmd, list):
-                        runner = ["wsl", "-d", distro_name, "--"] + cmd
-                    else:
-                        runner = ["wsl", "-d", distro_name, "--"] + shlex.split(cmd)
-                    return subprocess.run(runner, capture_output=False, text=True, check=False)
+            if platform.system() == "Windows" and distro_name:
+                if isinstance(cmd, list):
+                    runner = ["wsl", "-d", distro_name, "--"] + cmd
                 else:
-                    if isinstance(cmd, list):
-                        return subprocess.run(cmd, check=False)
-                    else:
-                        # split the string into args to avoid shell invocation
-                        cmd_list = shlex.split(cmd)
-                        return subprocess.run(cmd_list, check=False)
-            except Exception as e:
-                logger.error("Command execution failed ({}): {}", cmd, e)
-                raise
+                    runner = ["wsl", "-d", distro_name, "--"] + shlex.split(cmd)
+                return subprocess.run(runner, capture_output=capture_output, text=text, check=False)
+            else:
+                if isinstance(cmd, list):
+                    return subprocess.run(cmd, capture_output=capture_output, text=text, check=False)
+                else:
+                    return subprocess.run(shlex.split(cmd), capture_output=capture_output, text=text, check=False)
 
-        # Determine compose command availability (host-side check)
+        # Bring down compose stacks in Install/
         compose_cmd = None
         if shutil.which("docker"):
             compose_cmd = ["docker", "compose"]
         elif shutil.which("docker-compose"):
             compose_cmd = ["docker-compose"]
 
-        # Bring down compose stacks found in Install/
         if install_dir.exists() and install_dir.is_dir() and compose_cmd:
             yaml_files = list(install_dir.glob("*.yml")) + list(install_dir.glob("*.yaml"))
             for cf in yaml_files:
-                # Build host command, but _run will route to WSL if requested
                 cmd = compose_cmd + ["-f", str(cf), "down", "-v"]
                 try:
                     logger.info("Shutting down compose stack defined in {}: {}", cf, ' '.join(cmd))
                     _run(cmd)
                     logger.success("Compose stack {} brought down.", cf)
-                except Exception as e:
-                    logger.error("Failed to bring down compose file {}: {}", cf, e)
+                except Exception as exc:
+                    logger.error("Failed to bring down compose file {}: {}", cf, exc)
 
-        # Optionally stop containers (dangerous - explicit). If `containers` is provided
-        # it should be a comma-separated string or single name; only those containers
-        # will be targeted. If `containers` is None and force_stop_containers is True,
-        # the previous behavior (stop all containers) is preserved.
+        # Handle stopping containers
         if force_stop_containers and shutil.which("docker"):
-            try:
-                target_names = None
-                if containers:
-                    # accept comma-separated string or single name
-                    if isinstance(containers, str):
-                        target_names = [c.strip() for c in containers.split(',') if c.strip()]
-                # If no explicit targets, fall back to stopping all containers (existing behavior)
-                if not target_names:
-                    proc = _run(["docker", "ps", "-q"]) if not (platform.system() == "Windows" and distro_name) else _run("docker ps -q", shell=True)
-                    stdout = ''
-                    if hasattr(proc, 'stdout') and proc.stdout:
-                        stdout = proc.stdout
-                    elif hasattr(proc, 'returncode'):
-                        # When _run invoked wsl runner without capture_output, re-run with capture
+            target_names = None
+            if containers and isinstance(containers, str):
+                target_names = [c.strip() for c in containers.split(',') if c.strip()]
+
+            if not target_names:
+                # stop all running containers
+                if platform.system() == "Windows" and distro_name:
+                    proc = subprocess.run(["wsl", "-d", distro_name, "--", "docker", "ps", "-q"], capture_output=True, text=True, check=False)
+                else:
+                    proc = subprocess.run(["docker", "ps", "-q"], capture_output=True, text=True, check=False)
+                ids = [s.strip() for s in (proc.stdout or "").splitlines() if s.strip()]
+                if ids:
+                    logger.info("Stopping {} running Docker containers...", len(ids))
+                    for cid in ids:
                         try:
-                            if platform.system() == "Windows" and distro_name:
-                                proc = subprocess.run(["wsl", "-d", distro_name, "bash", "-c", "docker ps -q"], capture_output=True, text=True, check=False)
-                                stdout = proc.stdout or ''
+                            _run(["docker", "stop", cid])
                         except Exception:
-                            stdout = ''
-                    ids = [s.strip() for s in (stdout or "").splitlines() if s.strip()]
-                    if ids:
-                        logger.info("Stopping {} running Docker containers...", len(ids))
+                            logger.exception("Failed to stop container {}", cid)
+                    logger.success("Requested stop for all running containers.")
+                else:
+                    logger.info("No running Docker containers to stop.")
+            else:
+                stopped = 0
+                for name in target_names:
+                    try:
+                        if platform.system() == "Windows" and distro_name:
+                            ps_proc = subprocess.run(["wsl", "-d", distro_name, "--", "docker", "ps", "-q", "--filter", f"name={name}"], capture_output=True, text=True, check=False)
+                        else:
+                            ps_proc = subprocess.run(["docker", "ps", "-q", "--filter", f"name={name}"], capture_output=True, text=True, check=False)
+                        out = ps_proc.stdout or ''
+                        ids = [s.strip() for s in out.splitlines() if s.strip()]
+                        if not ids:
+                            logger.info("No running containers found matching '{}' to stop.", name)
+                            continue
                         for cid in ids:
                             try:
                                 _run(["docker", "stop", cid])
+                                stopped += 1
                             except Exception:
-                                logger.exception("Failed to stop container {}", cid)
-                        logger.success("Requested stop for all running containers.")
-                    else:
-                        logger.info("No running Docker containers to stop.")
+                                logger.exception("Failed to stop container {} (target '{}')", cid, name)
+                    except Exception as exc:
+                        logger.error("Error while attempting to stop target container '{}': {}", name, exc)
+                if stopped:
+                    logger.success("Requested stop for {} target container(s).", stopped)
                 else:
-                    # Stop only the containers listed in target_names
-                    stopped = 0
-                    for name in target_names:
-                        try:
-                            # Query running container ids that match the provided name
-                            if platform.system() == "Windows" and distro_name:
-                                            ps_proc = subprocess.run(["wsl", "-d", distro_name, "--", "docker", "ps", "-q", "--filter", f"name={name}"], capture_output=True, text=True, check=False)
-                                out = ps_proc.stdout or ''
-                            else:
-                                ps_proc = subprocess.run(["docker", "ps", "-q", "--filter", f"name={name}"], capture_output=True, text=True, check=False)
-                                out = ps_proc.stdout or ''
-                            ids = [s.strip() for s in out.splitlines() if s.strip()]
-                            if not ids:
-                                logger.info(f"No running containers found matching '{name}' to stop.")
-                                continue
-                            for cid in ids:
-                                try:
-                                    _run(["docker", "stop", cid])
-                                    stopped += 1
-                                except Exception:
-                                    logger.exception(f"Failed to stop container {cid} (target '{name}')")
-                                                logger.info("Container '{}' already running.", name)
-                            logger.error(f"Error while attempting to stop target container '{name}': {e}")
-                    if stopped:
-                        logger.success(f"Requested stop for {stopped} target container(s).")
-                    else:
-                        logger.info("No target containers were stopped.")
-            except Exception as e:
-                logger.error(f"Error while attempting to stop containers: {e}")
+                    logger.info("No target containers were stopped.")
 
-                                                    logger.success("Container '{}' started successfully.", name)
+        # Stop Ollama if requested
         if stop_ollama:
-            if is_ollama_available() or (platform.system() == "Windows" and distro_name):
-                                                    logger.warning("Container '{}' is not running and could not be started (attempt {}).", name, attempts)
-                    if platform.system() == "Windows" and distro_name:
-                                                logger.error("Container '{}' could not be started after {} attempts.", name, attempts)
-                    else:
-                                            logger.error("Unexpected error ensuring container '{}': {}", name, e)
+            if is_ollama_available():
+                try:
+                    res = subprocess.run(["ollama", "stop"], capture_output=True, text=True, check=False)
+                    logger.info("Ollama stop output: {}", (res.stdout or '').strip())
                     logger.success("Ollama stop command executed (if supported).")
-                except Exception as e:
-                    logger.warning(f"`ollama stop` failed: {e}; trying process kill fallback")
-                    # Fallback: terminate processes by name
+                except Exception as exc:
+                    logger.warning("`ollama stop` failed: {}; trying process kill fallback", exc)
                     try:
                         if platform.system() == "Windows" and not distro_name:
                             subprocess.run(["taskkill", "/F", "/IM", "ollama.exe"], check=False)
                         else:
-                            # If inside WSL or on POSIX, attempt pkill
-                            _run(["pkill", "-f", "ollama"]) if not (platform.system() == "Windows" and distro_name) else _run("pkill -f ollama", shell=True)
+                            # POSIX or WSL
+                            subprocess.run(["pkill", "-f", "ollama"], check=False)
                         logger.success("Ollama processes signalled for termination.")
-                    except Exception as e2:
-                        logger.error(f"Failed to kill Ollama processes: {e2}")
+                    except Exception as exc2:
+                        logger.error("Failed to kill Ollama processes: {}", exc2)
             else:
                 logger.info("Ollama CLI not present; skipping Ollama shutdown.")
 
         logger.info("Shutdown requests issued for infrastructure.")
     except Exception as e:
-        logger.error(f"Error during shutdown_services: {e}")
+        logger.error("Error during shutdown_services: {}", e)

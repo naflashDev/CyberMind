@@ -28,3 +28,4 @@ bandit_output.json
 
 #md files
 SECURITY.md
+Docs/fstrings_audit.md
