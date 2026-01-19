@@ -1,4 +1,3 @@
-++"""markdown
 # API Endpoints
 
 Este documento resume los endpoints públicos expuestos por la API de CyberMind. Puedes probarlos desde la UI o usando `curl` / `httpie`. La documentación interactiva (Swagger) está disponible en `http://127.0.0.1:8000/docs` cuando la API está en ejecución.
@@ -174,6 +173,4 @@ Nota legal: Realizar escaneos de red contra hosts ajenos puede ser intrusivo y r
 ## Notas
 - La UI (`/ui`) ofrece controles que llaman a estos endpoints y muestra el estado en tiempo real.
 - Para ver tipos y modelos, consulta la documentación interactiva en `http://127.0.0.1:8000/docs`.
-
-Si quieres que genere ejemplos más detallados (cURL con autenticación, respuestas esperadas, o fragmentos de Python), dime cuáles endpoints priorizar.
 """

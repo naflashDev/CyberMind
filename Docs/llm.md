@@ -53,5 +53,4 @@ El objetivo no es sustituir fuentes oficiales ni realizar atribuciones definitiv
 - El `llm_updater` puede ejecutar tareas de actualización periódica (clon de repositorios CVE, construcción de dataset, fine-tuning) — controlar su ejecución desde la UI.  
 - En entornos de pruebas/CI desactiva el updater automático para evitar llamadas largas o dependencias externas.
 
-Si quieres que añada ejemplos de prompts y respuestas, o snippets para integrar con Python/CLI, dime qué formato prefieres.
 """

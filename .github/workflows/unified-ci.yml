@@ -98,13 +98,17 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f dev-requirements.txt ]; then pip install -r dev-requirements.txt; fi
       - name: Run pytest (unit)
-        run: pytest -q tests/unit || true
+        run: |
+          mkdir -p reports
+          pytest -q tests/unit --junitxml=reports/unit-${{ matrix.python-version }}.xml || true
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: unit-test-logs-${{ matrix.python-version }}
-          path: .pytest_cache/**
+          path: |
+            reports/**
+            .pytest_cache/**
           if-no-files-found: warn
 
   integration-tests:
@@ -123,13 +127,17 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f dev-requirements.txt ]; then pip install -r dev-requirements.txt; fi
       - name: Run integration tests
-        run: pytest -q tests/integration || true
+        run: |
+          mkdir -p reports
+          pytest -q tests/integration --junitxml=reports/integration.xml || true
       - name: Upload integration results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: integration-test-logs
-          path: .pytest_cache/**
+          path: |
+            reports/**
+            .pytest_cache/**
           if-no-files-found: warn
 
   cleanup:
