@@ -498,6 +498,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 version: r.version || '',
                 vulnerabilities: Array.isArray(r.vulnerabilities) ? r.vulnerabilities : [],
                 open: !!r.open,
+                state: (r && r.state) ? String(r.state).toLowerCase().trim() : '',
                 host: j.host || undefined,
                 protocol: r.protocol || 'tcp'
               }));

@@ -7,7 +7,12 @@ import asyncio
 import ipaddress
 from loguru import logger
 
-from app.services.network_analysis.network_analysis import scan_ports, run_nmap_scan, COMMON_PORTS_DETAILS
+from app.services.network_analysis.network_analysis import (
+    scan_ports,
+    run_nmap_scan,
+    COMMON_PORTS_DETAILS,
+    scan_range as service_scan_range,
+)
 
 router = APIRouter(prefix="/network", tags=["network"])
 
@@ -152,76 +157,26 @@ async def scan_range(req: RangeScanRequest, request: Request):
             logger.debug("scan_range raw body (bytes): {}", raw_text)
         except Exception:
             logger.debug("scan_range: could not read raw request body")
-    # validate input: require cidr or start
-    if not req.cidr and not req.start:
-        raise HTTPException(status_code=400, detail="Provide `cidr` or `start` (and optional `end`) for range scan")
 
-    # build list of hosts
-    hosts = []
     try:
-        if req.cidr:
-            net = ipaddress.ip_network(req.cidr, strict=False)
-            hosts = [str(h) for h in net.hosts()]
-        else:
-            start_ip = ipaddress.ip_address(req.start)
-            if req.end:
-                end_ip = ipaddress.ip_address(req.end)
-            else:
-                end_ip = start_ip
-            if int(end_ip) < int(start_ip):
-                raise HTTPException(status_code=400, detail="`end` must be >= `start`")
-            # create inclusive range
-            hosts = [str(ipaddress.ip_address(i)) for i in range(int(start_ip), int(end_ip) + 1)]
+        result = await service_scan_range(
+            cidr=req.cidr,
+            start=req.start,
+            end=req.end,
+            ports=req.ports,
+            timeout=req.timeout,
+            use_nmap=req.use_nmap,
+            concurrency=req.concurrency,
+        )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"invalid IP/CIDR: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("scan_range failed: {}", e)
+        raise HTTPException(status_code=500, detail=f"scan failed: {e}")
 
-    max_allowed = 1024
-    if len(hosts) > max_allowed:
-        raise HTTPException(status_code=400, detail=f"range too large ({len(hosts)} hosts). Max allowed is {max_allowed}")
-
-    # prepare timeouts and concurrency
-    try:
-        if req.timeout is None:
-            timeout_sec = 120
-        else:
-            tval = float(req.timeout)
-            timeout_sec = int(tval) if tval >= 1 else 120
-    except Exception:
-        timeout_sec = 120
-
-    concurrency = int(req.concurrency) if req.concurrency and req.concurrency > 0 else 10
-    semaphore = asyncio.Semaphore(concurrency)
-
-    start_all = time.monotonic()
-
-    async def scan_host(host: str):
-        async with semaphore:
-            start = time.monotonic()
-            try:
-                if getattr(req, 'use_nmap', True):
-                    try:
-                        results, raw = await asyncio.to_thread(run_nmap_scan, host, req.ports, timeout_sec)
-                    except FileNotFoundError:
-                        logger.warning("nmap not found; fallback TCP scan for host={}", host)
-                        results = await asyncio.to_thread(scan_ports, host, req.ports, req.timeout or 0.5)
-                        raw = None
-                    except subprocess.TimeoutExpired:
-                        logger.error("nmap timed out for host={}", host)
-                        return {"host": host, "error": f"nmap timeout after {timeout_sec}s"}
-                else:
-                    results = await asyncio.to_thread(scan_ports, host, req.ports, req.timeout or 0.5)
-                    raw = None
-            except Exception as e:
-                logger.exception("scan_host failed for {}: {}", host, e)
-                return {"host": host, "error": str(e)}
-            duration = time.monotonic() - start
-            return {"host": host, "results": results, "raw": raw, "duration_seconds": round(duration, 2)}
-
-    tasks = [asyncio.create_task(scan_host(h)) for h in hosts]
-    gathered = await asyncio.gather(*tasks)
-
-    total_duration = time.monotonic() - start_all
-    return {"scanned": len(hosts), "hosts": gathered, "duration_seconds": round(total_duration, 2)}
+    return result
 
 
 @router.get("/ports")

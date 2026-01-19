@@ -1,4 +1,5 @@
 import socket
+import errno
 import ipaddress
 from typing import List, Dict, Optional
 import shutil
@@ -68,16 +69,30 @@ def scan_ports(host: str, ports: Optional[List[int]] = None, timeout: float = 0.
                 results.append({
                     'port': p,
                     'open': True,
+                    'state': 'open',
                     'service': COMMON_PORTS.get(p, 'unknown')
                 })
                 logger.debug("scan_ports: host={} port={} open=True", host, p)
-        except Exception:
+        except Exception as e:
+            # Distinguish connection refused (closed) vs timeout/no-response (filtered)
+            state = 'filtered'
+            try:
+                if isinstance(e, socket.timeout):
+                    state = 'filtered'
+                elif isinstance(e, ConnectionRefusedError):
+                    state = 'closed'
+                elif isinstance(e, OSError) and getattr(e, 'errno', None) == errno.ECONNREFUSED:
+                    state = 'closed'
+            except Exception:
+                state = 'unknown'
+
             results.append({
                 'port': p,
                 'open': False,
+                'state': state,
                 'service': COMMON_PORTS.get(p, 'unknown')
             })
-            logger.debug("scan_ports: host={} port={} open=False", host, p)
+            logger.debug("scan_ports: host={} port={} open=False state={}", host, p, state)
 
     open_count = sum(1 for r in results if r.get('open'))
     logger.info("scan_ports finished: host={} scanned_ports={} open_ports={}", host, len(results), open_count)
@@ -177,3 +192,90 @@ def run_nmap_scan(host: str, ports: Optional[List[int]] = None, timeout: int = 1
 
     logger.info("run_nmap_scan finished: host={} parsed_ports={}", host, len(results))
     return results, raw
+
+
+async def scan_range(cidr: Optional[str] = None,
+                     start: Optional[str] = None,
+                     end: Optional[str] = None,
+                     ports: Optional[List[int]] = None,
+                     timeout: Optional[float] = 0.5,
+                     use_nmap: bool = True,
+                     concurrency: int = 20,
+                     max_allowed: int = 1024) -> Dict:
+    """Scan a range of hosts defined by CIDR or start/end IPs.
+
+    This function is async and will run blocking scans in threads.
+    Returns a dict with keys: `scanned`, `hosts` (list of per-host dicts), `duration_seconds`.
+    Raises ValueError on invalid inputs (caller should translate to HTTP errors).
+    """
+    import asyncio
+    import time
+    import subprocess
+
+    # build list of hosts
+    hosts = []
+    if not cidr and not start:
+        raise ValueError("Provide `cidr` or `start` (and optional `end`) for range scan")
+
+    try:
+        if cidr:
+            net = ipaddress.ip_network(cidr, strict=False)
+            hosts = [str(h) for h in net.hosts()]
+        else:
+            start_ip = ipaddress.ip_address(start)
+            if end:
+                end_ip = ipaddress.ip_address(end)
+            else:
+                end_ip = start_ip
+            if int(end_ip) < int(start_ip):
+                raise ValueError("`end` must be >= `start`")
+            hosts = [str(ipaddress.ip_address(i)) for i in range(int(start_ip), int(end_ip) + 1)]
+    except ValueError as e:
+        raise ValueError(f"invalid IP/CIDR: {e}")
+
+    if len(hosts) > max_allowed:
+        raise ValueError(f"range too large ({len(hosts)} hosts). Max allowed is {max_allowed}")
+
+    # prepare timeouts and concurrency
+    try:
+        if timeout is None:
+            timeout_sec = 120
+        else:
+            tval = float(timeout)
+            timeout_sec = int(tval) if tval >= 1 else 120
+    except Exception:
+        timeout_sec = 120
+
+    conc = int(concurrency) if concurrency and int(concurrency) > 0 else 10
+    semaphore = asyncio.Semaphore(conc)
+
+    start_all = time.monotonic()
+
+    async def _scan_host(host: str):
+        async with semaphore:
+            start = time.monotonic()
+            try:
+                if use_nmap:
+                    try:
+                        results, raw = await asyncio.to_thread(run_nmap_scan, host, ports, timeout_sec)
+                    except FileNotFoundError:
+                        logger.warning("nmap not found; fallback TCP scan for host={}", host)
+                        results = await asyncio.to_thread(scan_ports, host, ports, timeout or 0.5)
+                        raw = None
+                    except subprocess.TimeoutExpired:
+                        logger.error("nmap timed out for host={}", host)
+                        return {"host": host, "error": f"nmap timeout after {timeout_sec}s"}
+                else:
+                    results = await asyncio.to_thread(scan_ports, host, ports, timeout or 0.5)
+                    raw = None
+            except Exception as e:
+                logger.exception("scan_host failed for {}: {}", host, e)
+                return {"host": host, "error": str(e)}
+            duration = time.monotonic() - start
+            return {"host": host, "results": results, "raw": raw, "duration_seconds": round(duration, 2)}
+
+    tasks = [asyncio.create_task(_scan_host(h)) for h in hosts]
+    gathered = await asyncio.gather(*tasks)
+
+    total_duration = time.monotonic() - start_all
+    return {"scanned": len(hosts), "hosts": gathered, "duration_seconds": round(total_duration, 2)}

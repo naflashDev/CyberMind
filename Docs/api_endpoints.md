@@ -155,6 +155,14 @@ curl -X POST http://127.0.0.1:8000/network/scan_range \
 
   - Nota legal: realizar escaneos de red contra hosts ajenos puede ser intrusivo y requiere autorización. Usa estas herramientas solo contra sistemas que controlas o tienes permiso explícito para analizar.
 
+### Cambios recientes (2026-01-19)
+
+- **Refactor:** La lógica que realizaba el escaneo de un rango de IPs fue movida desde la ruta hacia el servicio interno para mejorar separación de responsabilidades. La ruta `POST /network/scan_range` ahora delega toda la lógica de generación de hosts, concurrencia, timeouts y fallback a la función `scan_range` en el servicio `src/app/services/network_analysis/network_analysis.py`.
+- **Archivos modificados:** `src/app/controllers/routes/network_analysis_controller.py` (ahora sólo orquesta la petición y respuesta) y `src/app/services/network_analysis/network_analysis.py` (nueva función `scan_range`).
+- **Comportamiento:** No se cambió la interfaz del endpoint; las validaciones y límites (p. ej. máximo 1024 hosts) se mantienen, pero la implementación está centralizada en el servicio para facilitar testeo y reutilización.
+
+- **Corregido (2026-01-19):** Se solucionó un error interno que producía "TypeError: scan_range() got an unexpected keyword argument 'cidr'" al invocar `POST /network/scan_range`. La ruta ahora delega correctamente en la función de servicio (`scan_range`) importada como `service_scan_range`, evitando el sombreado del nombre y los fallos en tiempo de ejecución.
+
 Ejemplo (scan):
 
 ```bash
