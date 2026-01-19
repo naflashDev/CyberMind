@@ -12,6 +12,9 @@ El formato se basa en "Keep a Changelog" y este proyecto sigue el Versionado Sem
 - Tests: `tests/controllers/test_network_api_scan_range.py` que cubre el fallback de CIDR y el rechazo de rangos grandes. (2026-01-14)
 - Docs: `Docs/Network_Scan_Range.md` que describe la API, el uso de la UI y ejemplos. (2026-01-14)
  - UI: nueva categoría `OSINT` en el panel de `Operaciones FastAPI` que agrupa las subsecciones `Scrapy`, `SpaCy`, `Tiny` y `LLM` para facilitar el acceso a operaciones relacionadas con inteligencia de fuentes abiertas. (2026-01-15)
+ - Tests: `tests/integration/test_e2e_basic_pipeline.py` — test E2E básico que verifica que la ruta `/` sirve el `index.html` y que la inicialización del UI puede dispararse (con mocks en entorno de test). (2026-01-19)
+ - Tests: `tests/integration/test_e2e_basic_pipeline.py` — test E2E básico que verifica que la ruta `/` sirve el `index.html` y que la inicialización del UI puede dispararse (con mocks en entorno de test). (2026-01-19)
+ - Tests: `tests/integration/test_e2e_pipelines.py` — suite E2E que cubre múltiples pipelines: estado (`/status`), escaneo de red (`/network/*`), control de workers (`/workers`), consulta LLM (`/llm/query`) y endpoint de feeds Postgre (`/postgre-ttrss/feeds`). (2026-01-19)
 
 ### Cambiado
 - El servicio de escaneo de red (`app.services.network_analysis.network_analysis`) ahora incluye un campo explícito `state` para los resultados analizados por nmap (p. ej., `open`, `closed`, `filtered`) para permitir el renderizado correcto en la UI de puertos filtrados. (2026-01-14)

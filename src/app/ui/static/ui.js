@@ -18,6 +18,33 @@ document.addEventListener('DOMContentLoaded', function () {
     if (activeBtn) activeBtn.classList.add("active");
     Object.values(views).forEach(v => v.classList.remove("active"));
     if (views[viewName]) views[viewName].classList.add("active");
+    // lazy-load any iframe placeholder inside the activated view
+    try { ensureFrameLoaded(viewName); } catch (e) { /* ignore */ }
+  }
+
+  // Create iframe element from placeholder data-src when requested
+  function ensureFrameLoaded(viewName) {
+    const view = views[viewName];
+    if (!view) return;
+    const placeholder = view.querySelector('.iframe-placeholder');
+    if (!placeholder) return;
+    if (placeholder.dataset.loaded === '1') return;
+    // if there's a button, user can click; also load automatically on first activation
+    const src = placeholder.dataset.src;
+    if (!src) return;
+    const iframe = document.createElement('iframe');
+    iframe.className = 'embed-frame';
+    iframe.src = src;
+    iframe.loading = 'eager';
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    iframe.style.border = '0';
+    // sandbox to limit exposure but allow typical UI scripts (adjust if breaks functionality)
+    iframe.sandbox = 'allow-scripts allow-forms allow-same-origin';
+    // replace placeholder contents
+    placeholder.innerHTML = '';
+    placeholder.appendChild(iframe);
+    placeholder.dataset.loaded = '1';
   }
 
   buttons.forEach(btn => {
@@ -25,6 +52,15 @@ document.addEventListener('DOMContentLoaded', function () {
       const view = btn.dataset.view;
       activateView(view);
     });
+  });
+
+  // Delegate clicks on load buttons for explicit on-demand loading
+  document.addEventListener('click', function (e) {
+    const btn = e.target && e.target.closest && e.target.closest('.load-iframe-btn');
+    if (!btn) return;
+    const placeholder = btn.closest('.iframe-placeholder');
+    if (!placeholder) return;
+    try { ensureFrameLoaded(placeholder.closest('.view') && placeholder.closest('.view').id.replace('view-','')); } catch (err) {}
   });
 
   if (btnToggle) btnToggle.addEventListener("click", () => {
@@ -297,6 +333,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function escapeHtml(unsafe) { return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#039;"); }
 
+    async function ensureMarked() {
+      if (window.marked) return window.marked;
+      return new Promise((resolve, reject) => {
+        try {
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
+          s.async = true;
+          s.onload = () => resolve(window.marked);
+          s.onerror = () => reject(new Error('Failed loading marked'));
+          document.head.appendChild(s);
+        } catch (e) { reject(e); }
+      });
+    }
+
     function showToast(msg, ms = 1800) {
       try { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); void t.offsetWidth; t.classList.add('show'); setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 200); }, ms); } catch (e) { console.log('toast', e); }
     }
@@ -554,9 +604,18 @@ document.addEventListener('DOMContentLoaded', function () {
           const toggles = opResult && opResult.querySelectorAll('.panel-toggle'); if (toggles) toggles.forEach(t => { t.addEventListener('click', () => { const panel = t.closest('.panel'); if (!panel) return; const body = panel.querySelector('.panel-body'); const isCollapsed = panel.classList.toggle('collapsed'); if (body) body.style.display = isCollapsed ? 'none' : ''; t.textContent = isCollapsed ? '▸' : '▾'; }); });
           try { const workerStartPaths = new Set(['/newsSpider/scrape-news','/newsSpider/start-google-alerts','/newsSpider/scrapy/google-dk/news','/newsSpider/scrapy/google-dk/feeds','/start-spacy','/postgre-ttrss/search-and-insert-rss','/llm/updater']); if (workerStartPaths.has(op.path) && resp.ok) { showToast(op.title + ' iniciada'); } } catch (e) {}
         } catch (e) {
-          const t = text || ''; const maybeMd = window.marked && (t.trim().startsWith('#') || t.includes('\n\n') || t.includes('```'));
-          if (maybeMd) { try { if (opResult) opResult.innerHTML = `<div class="response-box">${window.marked.parse(t)}</div>`; } catch (me) { if (opResult) opResult.innerHTML = `<pre>${escapeHtml(t)}</pre>`; } }
-          else { if (opResult) opResult.innerHTML = `<pre>${escapeHtml(t)}</pre>`; }
+          const t = text || '';
+          const maybeMd = t && (t.trim().startsWith('#') || t.includes('\n\n') || t.includes('```'));
+          if (maybeMd) {
+            try {
+              await ensureMarked();
+              if (opResult) opResult.innerHTML = `<div class="response-box">${window.marked.parse(t)}</div>`;
+            } catch (me) {
+              if (opResult) opResult.innerHTML = `<pre>${escapeHtml(t)}</pre>`;
+            }
+          } else {
+            if (opResult) opResult.innerHTML = `<pre>${escapeHtml(t)}</pre>`;
+          }
         }
       } catch (err) { if (opResult) opResult.innerHTML = `<div class="response-error">Error: ${escapeHtml(String(err))}</div>`; }
       finally { try { if (typeof fetchStatus === 'function') fetchStatus(); } catch (e) {} try { window.dispatchEvent(new Event('status-updated')); } catch (e) {} }
@@ -582,10 +641,19 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!messagesEl || !promptEl || !sendBtn) return;
     function appendMessage(text, role) {
       const wrapper = document.createElement("div"); const span = document.createElement("span");
-      if (role === "user") { wrapper.className = "user-message"; span.textContent = text; }
-      else { wrapper.className = "bot-message"; const html = window.marked ? window.marked.parse(text) : text; span.innerHTML = html; }
+      if (role === "user") {
+        wrapper.className = "user-message"; span.textContent = text;
+      } else {
+        wrapper.className = "bot-message";
+        const html = window.marked ? window.marked.parse(text) : escapeHtml(text);
+        span.innerHTML = html;
+        if (!window.marked && text && (text.trim().startsWith('#') || text.includes('\n\n') || text.includes('```'))) {
+          ensureMarked().then(() => { try { span.innerHTML = window.marked.parse(text); messagesEl.scrollTop = messagesEl.scrollHeight; } catch (e) {} });
+        }
+      }
       wrapper.appendChild(span); messagesEl.appendChild(wrapper); messagesEl.scrollTop = messagesEl.scrollHeight;
     }
+    
     async function sendPrompt() {
       const prompt = promptEl.value.trim(); if (!prompt) return; appendMessage("Tú: " + prompt, "user"); promptEl.value = ""; sendBtn.disabled = true;
       try { const response = await fetch(LLM_API_BASE + "/llm/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: prompt }) }); const data = await response.json(); appendMessage(data.response || "[Respuesta vacía]", "bot"); }

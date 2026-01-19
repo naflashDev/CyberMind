@@ -129,7 +129,11 @@ jobs:
       - name: Run integration tests
         run: |
           mkdir -p reports
-          pytest -q tests/integration --junitxml=reports/integration.xml || true
+          # Ejecutar específicamente los nuevos tests E2E añadidos y generar reportes
+          pytest -q tests/integration/test_e2e_basic_pipeline.py --junitxml=reports/integration-basic.xml
+          pytest -q tests/integration/test_e2e_pipelines.py --junitxml=reports/integration-pipelines.xml
+          # Ejecutar el conjunto completo de integración (falla si hay errores)
+          pytest -q tests/integration --junitxml=reports/integration.xml
       - name: Upload integration results
         if: always()
         uses: actions/upload-artifact@v4

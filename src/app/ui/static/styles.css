@@ -118,6 +118,26 @@ h1, h2, h3 { margin-top: 0; margin-bottom: 8px; }
   height: 100%;
 }
 
+/* Placeholder used for lazy-loading iframes: occupy available space */
+.iframe-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  flex: 1 1 0%;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 8px;
+}
+.iframe-placeholder .load-iframe-btn {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+}
+
 .embed-frame {
   width: 100%;
   height: 100%;
