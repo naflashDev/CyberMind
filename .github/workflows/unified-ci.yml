@@ -104,7 +104,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unit-test-logs-${{ matrix.python-version }}
-          path: .pytest_cache || true
+          path: .pytest_cache/**
+          if-no-files-found: warn
 
   integration-tests:
     name: Integration tests
@@ -128,7 +129,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: integration-test-logs
-          path: .pytest_cache || true
+          path: .pytest_cache/**
+          if-no-files-found: warn
 
   cleanup:
     name: Cleanup (always runs)

@@ -218,10 +218,10 @@ async def scan_range(cidr: Optional[str] = None,
         raise ValueError("Provide `cidr` or `start` (and optional `end`) for range scan")
 
     try:
-        if cidr:
-            net = ipaddress.ip_network(cidr, strict=False)
-            hosts = [str(h) for h in net.hosts()]
-        else:
+        # Prefer explicit start/end when provided by the caller. If `start` is
+        # present we build the range from `start` to `end` (inclusive). Only
+        # when `start` is not provided do we fall back to interpreting `cidr`.
+        if start:
             start_ip = ipaddress.ip_address(start)
             if end:
                 end_ip = ipaddress.ip_address(end)
@@ -230,6 +230,9 @@ async def scan_range(cidr: Optional[str] = None,
             if int(end_ip) < int(start_ip):
                 raise ValueError("`end` must be >= `start`")
             hosts = [str(ipaddress.ip_address(i)) for i in range(int(start_ip), int(end_ip) + 1)]
+        elif cidr:
+            net = ipaddress.ip_network(cidr, strict=False)
+            hosts = [str(h) for h in net.hosts()]
     except ValueError as e:
         raise ValueError(f"invalid IP/CIDR: {e}")
 
