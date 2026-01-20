@@ -25,6 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from loguru import logger
+import multiprocessing
 from app.utils.utils import get_connection_service_parameters, create_config_file 
 from app.utils.run_services import ensure_infrastructure, shutdown_services
 
@@ -390,7 +391,13 @@ app.include_router(network_analysis_controller.router)
 # Serve UI static files (simple single-file UI under app/ui/static)
 STATIC_DIR = Path(__file__).resolve().parent / "app" / "ui" / "static"
 if STATIC_DIR.exists():
-    logger.info(f"Mounting UI static files from {STATIC_DIR}")
+    try:
+        # Only log mounting once from the main process to avoid duplicate messages
+        if multiprocessing.current_process().name == "MainProcess":
+            logger.info(f"Mounting UI static files from {STATIC_DIR}")
+    except Exception:
+        # Fallback to logging if multiprocessing check fails for any reason
+        logger.info(f"Mounting UI static files from {STATIC_DIR}")
     app.mount("/ui", StaticFiles(directory=str(STATIC_DIR)), name="ui")
 
     @app.get("/", include_in_schema=False)
