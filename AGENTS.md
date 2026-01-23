@@ -8,6 +8,18 @@ El incumplimiento de cualquiera de estas normas invalida el cambio realizado.
 
 ---
 
+## 📝 Normas de codificación y comentarios
+
+- **Funciones nuevas:**
+  - Toda función nueva **DEBE** incluir un comentario descriptivo en la cabecera (docstring o comentario) explicando su propósito y funcionamiento.
+  - El nombre de las funciones **DEBE** seguir el formato *snake_case*.
+  - Todo fragmento relevante de código dentro de la función **DEBE** estar comentado con comentarios *inline* que expliquen qué hace cada parte.
+  - **Todos los comentarios de código deben estar redactados en inglés** (tanto cabecera como inline).
+
+---
+
+---
+
 ## 🤖 Agente de Inteligencia Artificial
 
 - **Agente:** GitHub Copilot

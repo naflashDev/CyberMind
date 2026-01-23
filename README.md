@@ -6,7 +6,7 @@
 
 ---
 
-[![Python](https://img.shields.io/badge/Python-3.10+-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.12+-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://postgresql.org)
 [![OpenSearch](https://img.shields.io/badge/OpenSearch-0057B8?style=for-the-badge&logo=opensearch&logoColor=white)](https://opensearch.org)
@@ -48,7 +48,7 @@ python main.py
 
 | Componente      | Descripción / Uso principal                  |
 |-----------------|---------------------------------------------|
-| 🐍 Python 3.10+ | Backend principal, scripts y automatización |
+| 🐍 Python 3.12+ | Backend principal, scripts y automatización |
 | ⚡ FastAPI      | API REST y servidor web                      |
 | 🧠 SpaCy       | Procesamiento NLP, extracción de entidades   |
 | 📰 Scrapy       | Scraping de noticias, feeds y alertas        |
@@ -166,10 +166,39 @@ CyberMind/
 - 🛠️ Instalación dependencias: [Docs/instalacion_dependencias.md](Docs/instalacion_dependencias.md)
 - ⚙️ Workflows CI/CD: [Docs/Workflows.md](Docs/Workflows.md)
 - 📝 Registro de cambios: [Docs/ChangeLog.md](Docs/ChangeLog.md)
-- 🛡️ Seguridad: [SECURITY.md](SECURITY.md)
 
 ---
+## 👨‍💻 Sobre el Creador
 
+### Ignacio Fernández
+*Software Developer | Lifelong Learner & Tech Enthusiast*
+
+- 🐙 **GitHub**: [@naflashDev](https://github.com/naflashDev)
+- 📧 **Email**: [Contactar via GitHub Issues](https://github.com/naflashDev/CyberMind/issues)
+
+
+## 🤝 Contribuciones y Soporte
+
+### 🐛 Reportar Issues
+¿Encontraste un bug o tienes una sugerencia? 
+
+👉 **[Crear una Issue en GitHub](https://github.com/naflashDev/CyberMind/issues/new)**
+
+Por favor incluye:
+- 📝 Descripción detallada del problema
+- 🔄 Pasos para reproducir
+- 💻 Información del entorno (OS, Python version, Docker version)
+- 📸 Screenshots si es relevante
+
+### 💡 Contribuir al Proyecto
+
+1. **Fork** el repositorio
+2. **Crea** una rama para tu feature (`git checkout -b feature/amazing-feature`)
+3. **Commit** tus cambios (`git commit -m 'Add amazing feature'`)
+4. **Push** a la rama (`git push origin feature/amazing-feature`)
+5. **Abre** un Pull Request
+
+---
 <div align="center">
 <b>CyberMind &copy; 2026</b>
 </div>
