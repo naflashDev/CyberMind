@@ -1,12 +1,10 @@
-# @ Author: RootAnto
-# @ Project: Cebolla
-# @ Create Time: 2025-05-05 10:30:50
-# @ Description:
-# This module defines Pydantic data models used throughout the application
-# for validating, processing, and representing RSS feed data.
-# It includes models for creating and retrieving feed metadata from the database,
-# handling lists of feed URLs, and processing Google Alert RSS feed entries and feeds.
-# These models ensure data integrity and provide clear structure for API requests and responses.
+"""
+@file pydantic.py
+@author naflashDev
+@brief Pydantic data models for RSS feed validation and processing.
+@details Defines Pydantic models for validating, processing, and representing RSS feed data, ensuring data integrity for API requests and responses.
+"""
+
 
 
 from typing import List, Optional

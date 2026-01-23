@@ -1,3 +1,9 @@
+"""
+@file test_workers_ui.py
+@author naflashDev
+@brief Unit tests for UI worker status endpoints.
+@details Tests FastAPI endpoints and worker status logic for UI integration, ensuring correct state reporting and background job handling.
+"""
 from fastapi.testclient import TestClient
 from app.utils.worker_control import default_settings
 

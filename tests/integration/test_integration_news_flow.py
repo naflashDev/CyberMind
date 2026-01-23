@@ -1,3 +1,9 @@
+"""
+@file test_integration_news_flow.py
+@author naflashDev
+@brief Integration tests for news scraping endpoints.
+@details Tests FastAPI endpoints for news scraping and RSS feed ingestion, ensuring correct background job scheduling and data persistence.
+"""
 import sys
 from pathlib import Path
 import unittest

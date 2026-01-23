@@ -1,3 +1,9 @@
+"""
+@file test_network_service_unit.py
+@author naflashDev
+@brief Unit tests for network service helpers.
+@details Tests helper functions and logic in the network service layer, including port scanning and service detection.
+"""
 import types
 import subprocess
 from types import SimpleNamespace

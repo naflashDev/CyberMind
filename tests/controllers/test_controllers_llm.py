@@ -1,3 +1,9 @@
+"""
+@file test_controllers_llm.py
+@author naflashDev
+@brief Unit tests for llm_controller endpoints.
+@details Tests FastAPI endpoints for LLM query and updater, including client patching and response validation.
+"""
 import sys
 from pathlib import Path
 import unittest

@@ -1,15 +1,10 @@
 """
 @file status_controller.py
-@brief System status endpoints.
-@details Exposes a lightweight `GET /status` endpoint used by the UI to
-determine infra readiness, UI initialization, and the enabled/disabled
-state of background workers. The endpoint combines persisted defaults with
-runtime `app.state` values so the response always contains the full set
-of known workers.
-@date Created: 2025-11-27 12:17:59
 @author naflashDev
-@project CyberMind
+@brief System status endpoints.
+@details Exposes a lightweight `GET /status` endpoint used by the UI to determine infra readiness, UI initialization, and the enabled/disabled state of background workers. Combines persisted defaults with runtime values for a complete status response.
 """
+
 
 from fastapi import APIRouter, Request
 from app.utils.worker_control import default_settings

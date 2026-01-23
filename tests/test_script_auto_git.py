@@ -1,3 +1,9 @@
+"""
+@file test_script_auto_git.py
+@author naflashDev
+@brief Unit tests for script_auto Git operations.
+@details Tests cloning and updating of repositories in script_auto.py, ensuring correct subprocess calls and error handling.
+"""
 import unittest
 import subprocess
 import os

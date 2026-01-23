@@ -1,27 +1,10 @@
-# @ Author: naflashDev
-# @ Create Time: 2025-05-05 12:17:59
-# @ Project: Cebolla
-# @ Description:
-# This module implements a dynamic Scrapy spider designed to extract RSS and
-# Atom feed
-# URLs from a given list of websites. It leverages the feedparser library to
-# parse feed metadata such as titles and site URLs, and stores valid feeds
-# asynchronously into a PostgreSQL database using asyncpg.
-#
-# Key functionalities include:
-# - Reading URLs from a local file to scan for RSS feeds.
-# - Dynamically creating and running a Scrapy spider that detects RSS/Atom/XML
-# feeds via <link> tags.
-# - Running the spider asynchronously with multiprocessing to handle multiple
-# URLs concurrently.
-# - Parsing each discovered feed to extract essential metadata.
-# - Inserting extracted feed data into the PostgreSQL database with proper
-# error handling.
-# - Configurable crawling settings with retry mechanisms and polite crawling
-# delays.
-#
-# This module supports scalable and efficient feed discovery and ingestion for
-# the Cebolla project.
+"""
+@file spider_rss.py
+@author naflashDev
+@brief Dynamic Scrapy spider for extracting RSS/Atom feeds.
+@details Implements a dynamic Scrapy spider to extract RSS and Atom feed URLs from websites, parse metadata, and store results asynchronously in PostgreSQL. Supports concurrent crawling and error handling.
+"""
+
 
 
 import feedparser
@@ -35,21 +18,14 @@ from typing import List, Type
 from loguru import logger
 
 def read_urls_from_file(file_path) -> List[str] | List:
-    """
-    Reads a list of URLs from a text file.
+    '''
+    @brief Reads a list of URLs from a text file.
 
-    This function attempts to open the specified file and read each line,
-    stripping whitespace and ignoring empty lines. It returns a list of
-    cleaned URL strings.
+    Attempts to open the specified file and read each line, stripping whitespace and ignoring empty lines. Returns a list of cleaned URL strings.
 
-    Args:
-        file_path (str): The path to the text file containing URLs, one per
-        line.
-
-    Returns:
-        List[str]: A list of non-empty, stripped URL strings. If an error
-        occurs, an empty list is returned and the error is logger.infoed.
-    """
+    @param file_path The path to the text file containing URLs, one per line (str).
+    @return A list of non-empty, stripped URL strings. If an error occurs, an empty list is returned and the error is logged (List[str] | List).
+    '''
     try:
         with open(file_path, "r") as file:
             return [line.strip() for line in file if line.strip()]
@@ -58,24 +34,15 @@ def read_urls_from_file(file_path) -> List[str] | List:
         return []
 
 def create_rss_spider(urls, results)-> Type[Spider]:
-    """
-    Dynamically creates a Scrapy spider class to extract RSS/Atom/XML feed
-    links from a list of URLs.
+    '''
+    @brief Dynamically creates a Scrapy spider class to extract RSS/Atom/XML feed links from a list of URLs.
 
-    This function defines and returns a custom Scrapy Spider class that will:
-    - Visit each URL in the provided `urls` list.
-    - Inspect <link> tags in the HTML response.
-    - Identify links with RSS, Atom, or XML MIME types.
-    - Normalize and collect unique feed URLs into the shared `results` list.
+    Defines and returns a custom Scrapy Spider class that will visit each URL in the provided `urls` list, inspect <link> tags in the HTML response, identify links with RSS, Atom, or XML MIME types, and collect unique feed URLs into the shared `results` list.
 
-    Args:
-        urls (List[str]): A list of web page URLs to scan for RSS feeds.
-        results (List[str]): A mutable list to which discovered feed URLs will
-        be appended.
-
-    Returns:
-        Type[Spider]: A Scrapy spider class configured to extract feed URLs.
-    """
+    @param urls List of web page URLs to scan for RSS feeds (List[str]).
+    @param results Mutable list to which discovered feed URLs will be appended (List[str]).
+    @return A Scrapy spider class configured to extract feed URLs (Type[Spider]).
+    '''
     class RSSSpider(Spider):
         name = "rss_spider"
         start_urls = urls
@@ -92,20 +59,15 @@ def create_rss_spider(urls, results)-> Type[Spider]:
     return RSSSpider
 
 def run_rss_spider(urls, queue) -> None:
-    """
-    Runs a Scrapy spider to discover RSS or Atom feed URLs from a list of
-    websites.
+    '''
+    @brief Runs a Scrapy spider to discover RSS or Atom feed URLs from a list of websites.
 
-    This function configures logging, creates a spider using
-    `create_rss_spider`, and runs it in a Scrapy `CrawlerProces`.
-    Once crawling is complete, the discovered RSS feed URLs are pushed into a
-    multiprocessing queue for further use.
+    Configures logging, creates a spider using `create_rss_spider`, and runs it in a Scrapy `CrawlerProcess`. Once crawling is complete, the discovered RSS feed URLs are pushed into a multiprocessing queue for further use.
 
-    Args:
-        urls (List[str]): A list of web page URLs to scan for RSS/Atom feed
-        links. queue (Queue): A multiprocessing queue where the discovered
-        feed URLs will be stored.
-    """
+    @param urls List of web page URLs to scan for RSS/Atom feed links (List[str]).
+    @param queue Multiprocessing queue where the discovered feed URLs will be stored (Queue).
+    @return None.
+    '''
 
     configure_logging({'LOG_LEVEL': 'ERROR'})
     results = []
@@ -130,27 +92,15 @@ def run_rss_spider(urls, queue) -> None:
     queue.put(results)
 
 async def extract_rss_and_save(pool, file_path) -> None:
-    """
-    Extracts RSS/Atom feed URLs from a list of websites and stores valid feeds
-    in a PostgreSQL database.
+    '''
+    @brief Extracts RSS/Atom feed URLs from a list of websites and stores valid feeds in a PostgreSQL database.
 
-    This function:
-    - Reads website URLs from a local file.
-    - Uses a multiprocessing Scrapy spider to discover RSS/Atom feeds from
-      those websites.
-    - Parses each discovered feed using `feedparser`.
-    - Extracts metadata such as the title and site URL.
-    - Constructs a `FeedCreateRequest` and inserts the feed into the database
-    via `insert_feed_to_db`.
+    Reads website URLs from a local file, uses a multiprocessing Scrapy spider to discover RSS/Atom feeds, parses each discovered feed using `feedparser`, extracts metadata, constructs a `FeedCreateRequest` and inserts the feed into the database via `insert_feed_to_db`.
 
-    Args:
-        pool: An `asyncpg.pool.Pool` object used to acquire database connections.
-        file_path (str): The file path containing a list of website URLs to process.
-
-    Returns:
-        Coroutine[Any, Any, None]: An asynchronous coroutine that performs the
-        feed extraction and saving process.
-    """
+    @param pool asyncpg.pool.Pool object used to acquire database connections.
+    @param file_path File path containing a list of website URLs to process (str).
+    @return None. Performs the feed extraction and saving process asynchronously.
+    '''
     urls = read_urls_from_file(file_path)
     if not urls:
         logger.info("No URLs found to process.")

@@ -1,3 +1,9 @@
+"""
+@file test_spider_rss_nonblocking.py
+@author naflashDev
+@brief Unit tests for non-blocking spider_rss helpers.
+@details Tests non-blocking execution and async job handling in the spider_rss service layer.
+"""
 import asyncio
 import time
 

@@ -1,9 +1,9 @@
-# @ Author: naflashDev
-# @ Project: Cebolla
-# @ Create Time: 2025-05-05 10:30:50
-# @ Description: Module for handling operations on RSS feed entries in Tiny
-# Tiny RSS using PostgreSQL. Provides data models for input/output and database
-#functions to retrieve and insert feeds.
+"""
+@file ttrss_postgre_db.py
+@author naflashDev
+@brief Operations for RSS feed entries in Tiny Tiny RSS using PostgreSQL.
+@details Provides data models and database functions to retrieve and insert RSS feeds, ensuring data integrity and supporting API endpoints.
+"""
 
 from typing import List
 from asyncpg import Connection
@@ -16,16 +16,15 @@ async def get_feeds_from_db(
     conn: Connection,
     limit: int
 ) -> List[FeedResponse]:
-    """
-    Retrieve a limited number of feed records from the ttrss_feeds table.
+    '''
+    @brief Retrieve a limited number of feed records from the ttrss_feeds table.
 
-    Args:
-        conn (Connection): Active database connection.
-        limit (int): Maximum number of feeds to retrieve.
+    Fetches up to the specified limit of feed records from the database and returns them as FeedResponse objects.
 
-    Returns:
-        List[FeedResponse]: List of feeds as FeedResponse objects.
-    """
+    @param conn Active database connection (asyncpg.Connection).
+    @param limit Maximum number of feeds to retrieve (int).
+    @return List of feeds as FeedResponse objects (List[FeedResponse]).
+    '''
     rows = await conn.fetch("SELECT * FROM ttrss_feeds LIMIT $1", limit)
     feeds = []
     for row in rows:
@@ -46,17 +45,15 @@ async def insert_feed_to_db(
     conn: Connection,
     feed: FeedCreateRequest
 ) -> None:
-    """
-    Insert a new feed into the ttrss_feeds table. Ensures the feed category
-    'Sin clasificar' exists before insertion.
+    '''
+    @brief Insert a new feed into the ttrss_feeds table. Ensures the feed category 'Sin clasificar' exists before insertion.
 
-    Args:
-        conn (Connection): Active database connection.
-        feed (FeedCreateRequest): Data of the feed to insert.
+    Inserts a new feed record into the database, creating the default category if needed.
 
-    Raises:
-        HTTPException: If insertion fails or constraints are violated.
-    """
+    @param conn Active database connection (asyncpg.Connection).
+    @param feed Data of the feed to insert (FeedCreateRequest).
+    @return None. Raises HTTPException if insertion fails or constraints are violated.
+    '''
     try:
         category = await conn.fetchrow("""
             SELECT id FROM ttrss_feed_categories
@@ -91,15 +88,14 @@ async def insert_feed_to_db(
 
 
 async def get_entry_links(conn: Connection) -> List[str]:
-    """
-    Retrieve entry links that are unread (unread = true) for a specific user.
+    '''
+    @brief Retrieve entry links that are unread (unread = true) for a specific user.
 
-    Args:
-        conn (Connection): Active database connection.
+    Fetches all entry URLs that have not yet been viewed by the user 'admin'.
 
-    Returns:
-        List[str]: List of URLs not yet viewed by the user.
-    """
+    @param conn Active database connection (asyncpg.Connection).
+    @return List of URLs not yet viewed by the user (List[str]).
+    '''
     login = "admin"
 
     row = await conn.fetchrow(
@@ -124,16 +120,15 @@ async def get_entry_links(conn: Connection) -> List[str]:
 
 
 async def mark_entry_as_viewed(conn: Connection, url: str) -> None:
-    """
-    Mark an entry as viewed (unread = false) for the user with login "postgres".
+    '''
+    @brief Mark an entry as viewed (unread = false) for the user with login "admin".
 
-    Args:
-        conn (Connection): Active database connection.
-        url (str): URL to mark as viewed.
+    Updates the database to mark the entry with the given URL as viewed for the user 'admin'.
 
-    Returns:
-        None
-    """
+    @param conn Active database connection (asyncpg.Connection).
+    @param url URL to mark as viewed (str).
+    @return None.
+    '''
     login = "admin"
 
     row = await conn.fetchrow(

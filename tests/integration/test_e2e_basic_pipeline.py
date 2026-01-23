@@ -1,4 +1,10 @@
 """
+@file test_e2e_basic_pipeline.py
+@author naflashDev
+@brief Basic end-to-end test for main UI endpoint.
+@details Verifies that the main UI endpoint serves index.html and patches startup functions to avoid external side effects.
+"""
+"""
 Test E2E básico: verifica que la UI principal (`/`) sirve `index.html`.
 
 Notas:

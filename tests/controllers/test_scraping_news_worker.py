@@ -1,3 +1,9 @@
+"""
+@file test_scraping_news_worker.py
+@author naflashDev
+@brief Unit tests for news scraping worker endpoints.
+@details Tests FastAPI endpoints and background job logic for news scraping, ensuring correct status updates and error handling.
+"""
 from fastapi.testclient import TestClient
 import app.controllers.routes.scrapy_news_controller as scrapy_mod
 

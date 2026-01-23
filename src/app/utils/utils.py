@@ -1,3 +1,22 @@
+"""
+@file utils.py
+@author naflashDev
+@brief File interaction utilities (read/write helpers).
+@details Provides functions to read and write files, including line filtering and content manipulation for the CyberMind project.
+"""
+
+from io import TextIOWrapper
+
+def read_file(filename: str, lines_to_escape: list[str] = []) -> tuple:
+    '''
+    @brief Read a file, skipping lines with specific prefixes.
+
+    Reads the file located at the given path, skipping lines that start with any string in lines_to_escape. Returns a tuple with the filtered lines and the number of skipped lines.
+
+    @param filename Name of the file to read (str).
+    @param lines_to_escape List of string prefixes to skip (list[str]).
+    @return Tuple (filtered_lines, skipped_count) (tuple).
+    '''
 # @ Author: naflashDev
 # @ Create Time: 2025-04-08 15:17:59
 # @ Project: Cebolla
@@ -9,29 +28,13 @@ from io import TextIOWrapper
 
 def read_file(filename: str, lines_to_escape: list[str] = [])->tuple:
     '''
-    Reads the file located at the path formed by filename, escaping lines 
-    that start with any content from lines_to_escape.
-    
-    It tries to open the file in read mode, then reads it line by line, 
-    skipping lines that match the escape condition and storing the rest.
+    @brief Reads the file located at the path formed by filename, escaping lines that start with any content from lines_to_escape.
 
-    Args:
-        filename (str): Name of the file to read.
-        lines_to_escape (list[str], optional): List of strings that, if a 
-                                                line starts with any of them, 
-                                                it will be skipped.
+    Tries to open the file in read mode, then reads it line by line, skipping lines that match the escape condition and storing the rest.
 
-    Returns:
-        tuple: 
-            - Execution code (int):
-                0 - Successful read.
-                1 - File not found.
-                2 - Insufficient permissions.
-                3 - OS error.
-                4 - Unknown error.
-                5 - Incorrect parameters.
-            - Informational message (str): A message about the result of the execution.
-            - Content (list[str]): Relevant lines read from the file that weren't skipped.
+    @param filename Name of the file to read (str).
+    @param lines_to_escape List of strings that, if a line starts with any of them, it will be skipped (list[str]).
+    @return Tuple: (execution code, informational message, content) (tuple).
     '''
     # Local variables
     file: TextIOWrapper = None  # File descriptor for reading
@@ -91,27 +94,14 @@ def read_file(filename: str, lines_to_escape: list[str] = [])->tuple:
 # ######################################################################### #
 def write_file(filename: str, content: list[str] = [], mode: str = 'w')->tuple:
     '''
-    Writes the content of the 'content' parameter to the file located at 
-    the specified filename.
-    
-    It tries to open the file in write mode, overwriting any existing content, 
-    and then writes the content from the 'content' parameter.
+    @brief Writes the content of the 'content' parameter to the file located at the specified filename.
 
-    Args:
-        filename (str): Name of the file to write to.
-        content (list[str], optional): List of strings to write to the file.
-        mode (str, optional): Mode for file opening ('w' for write, etc.).
+    Tries to open the file in write mode, overwriting any existing content, and then writes the content from the 'content' parameter.
 
-    Returns:
-        tuple:
-            - Execution code (int):
-                0 - Successful write.
-                1 - File not found.
-                2 - Insufficient permissions.
-                3 - OS error.
-                4 - Unknown error.
-                5 - Incorrect parameters.
-            - Informational message (str): A message about the result of the execution.
+    @param filename Name of the file to write to (str).
+    @param content List of strings to write to the file (list[str]).
+    @param mode Mode for file opening ('w' for write, etc.) (str).
+    @return Tuple: (execution code, informational message) (tuple).
     '''
     # Local variables
     file: TextIOWrapper = None  # File descriptor for writing
@@ -154,28 +144,12 @@ def write_file(filename: str, content: list[str] = [], mode: str = 'w')->tuple:
 
 def get_connection_parameters(file_name: str)->tuple:
     '''
-    Retrieves the database connection parameters from the configuration file.
+    @brief Retrieves the database connection parameters from the configuration file.
 
-    Args:
-        file_name (str):
-            Name of the configuration file containing the connection
-            parameters to the database server.
+    Reads the configuration file and extracts the connection parameters for the database server.
 
-    Returns:
-        tuple:
-            Two or three elements:
-            + Execution code (int):
-                0 - Parameters successfully retrieved.
-                1 - Error while reading the file.
-                2 - Incorrect number of potentially valid lines.
-                3 - Incorrect number of connection parameters.
-                4 - Incorrect type of connection parameters.
-                5 - Invalid input parameters.
-            + Informative message (str): String describing the result of the method execution.
-            + Connection parameters (tuple, optional): A tuple containing the connection
-              parameters. It has four elements: Database name, username, user password, and 
-              the port where the database server is running. This is optional; if execution fails, 
-              it will not be returned.
+    @param file_name Name of the configuration file (str).
+    @return Tuple: (execution code, informative message, connection parameters) (tuple).
     '''
     # Local variables
     other_return: tuple       # Tuple containing the return values from other methods.
@@ -214,28 +188,12 @@ def get_connection_parameters(file_name: str)->tuple:
 
 def get_connection_service_parameters(file_name: str)->tuple:
     '''
-    Retrieves the database connection parameters from the configuration file.
+    @brief Retrieves the database connection parameters from the configuration file.
 
-    Args:
-        file_name (str):
-            Name of the configuration file containing the connection
-            parameters to the database server.
+    Reads the configuration file and extracts the connection parameters for the database server.
 
-    Returns:
-        tuple:
-            Two or three elements:
-            + Execution code (int):
-                0 - Parameters successfully retrieved.
-                1 - Error while reading the file.
-                2 - Incorrect number of potentially valid lines.
-                3 - Incorrect number of connection parameters.
-                4 - Incorrect type of connection parameters.
-                5 - Invalid input parameters.
-            + Informative message (str): String describing the result of the method execution.
-            + Connection parameters (tuple, optional): A tuple containing the connection
-              parameters. It has four elements: Database name, username, user password, and 
-              the port where the database server is running. This is optional; if execution fails, 
-              it will not be returned.
+    @param file_name Name of the configuration file (str).
+    @return Tuple: (execution code, informative message, connection parameters) (tuple).
     '''
     # Local variables
     other_return: tuple       # Tuple containing the return values from other methods.
@@ -274,24 +232,13 @@ def get_connection_service_parameters(file_name: str)->tuple:
 
 def create_config_file( file_name: str, content: list[str])-> tuple:
     '''
-    Requests the recreation of the configuration file.
+    @brief Requests the recreation of the configuration file.
 
-    Args:
-        file_name (str):
-            Name of the configuration file.
+    Writes the provided content into the configuration file, recreating it if necessary.
 
-        content (list[str]):
-            Content to be written into the configuration file.
-
-    Returns:
-        tuple:
-            Two elements:
-              + Execution code (int): 
-                0 - Successfully recreated.
-                1 - Error recreating the file.
-                2 - Invalid input parameters.
-              + Informative message (str): String describing the result 
-                of the method execution.
+    @param file_name Name of the configuration file (str).
+    @param content Content to be written into the configuration file (list[str]).
+    @return Tuple: (execution code, informative message) (tuple).
     '''
     # Local variables
     other_return: tuple  # Tuple containing the return values from other methods.

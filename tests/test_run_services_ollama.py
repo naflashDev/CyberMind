@@ -1,3 +1,9 @@
+"""
+@file test_run_services_ollama.py
+@author naflashDev
+@brief Unit tests for Ollama-related helpers in run_services.
+@details Tests helper functions for detecting and interacting with Ollama in run_services.py, including process mocks and error handling.
+"""
 import sys
 from pathlib import Path
 import json

@@ -1,3 +1,56 @@
+
+.doc-btn {
+  width: 100%;
+  background: #232b3a;
+  color: #e5e7eb;
+  border: none;
+  border-radius: 5px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 15px;
+  transition: background 0.15s, color 0.15s;
+}
+.doc-btn.active, .doc-btn:focus {
+  background: #2563eb;
+  color: #fff;
+  outline: none;
+}
+.doc-btn:hover {
+  background: #1e293b;
+  color: #fff;
+}
+.docs-list-pane {
+  border-right: 1px solid #232b3a;
+  min-width: 180px;
+  max-width: 260px;
+}
+
+.docs-content-pane {
+  background: #0b0f13;
+  min-width: 0;
+  max-width: 100vw;
+  overflow-x: auto;
+}
+.docs-content-pane h1, .docs-content-pane h2, .docs-content-pane h3, .docs-content-pane h4 {
+  color: #f9fafb;
+}
+.docs-content-pane pre, .docs-content-pane code {
+  background: #181f2a;
+  color: #e5e7eb;
+  border-radius: 4px;
+  padding: 2px 6px;
+  word-break: break-word;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+.docs-content-pane table {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  display: block;
+}
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;

@@ -2,8 +2,9 @@
 @file llm_controller.py
 @author naflashDev
 @brief FastAPI routes to interact with the remote LLM.
-@details Provides HTTP endpoints for programmatic and UI-based queries.
+@details Provides HTTP endpoints for programmatic and UI-based queries to the LLM service, including prompt submission and periodic training triggers.
 """
+
 
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel

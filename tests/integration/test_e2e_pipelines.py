@@ -1,4 +1,10 @@
 """
+@file test_e2e_pipelines.py
+@author naflashDev
+@brief End-to-end tests for multiple API pipelines.
+@details E2E tests for various API pipelines, patching external services and using test doubles for DB and network utilities to avoid side effects.
+"""
+"""
 Suite de tests E2E para varias pipelines de la API.
 
 Los tests evitan efectos secundarios parcheando funciones que arrancan

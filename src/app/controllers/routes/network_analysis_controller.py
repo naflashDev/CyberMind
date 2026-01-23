@@ -1,3 +1,9 @@
+"""
+@file network_analysis_controller.py
+@author naflashDev
+@brief FastAPI router for network analysis endpoints.
+@details Provides endpoints for network scanning, port analysis, and integration with the network_analysis service. Handles requests for scanning ranges, running nmap, and returning port/service metadata.
+"""
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, root_validator
 from typing import List, Optional, Any, Dict

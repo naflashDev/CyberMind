@@ -1,3 +1,9 @@
+"""
+@file test_services_spider_rss.py
+@author naflashDev
+@brief Unit tests for spider_rss service helpers.
+@details Tests helper functions and logic in the spider_rss service layer, including feed extraction and error handling.
+"""
 import sys
 from pathlib import Path
 import unittest

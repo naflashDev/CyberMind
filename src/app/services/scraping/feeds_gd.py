@@ -1,3 +1,9 @@
+"""
+@file feeds_gd.py
+@author naflashDev
+@brief Google Dork search utilities for cybersecurity feeds.
+@details Provides asynchronous functions to perform Google Dork searches and store results for cybersecurity-related RSS/Atom feeds.
+"""
 import asyncio
 import random
 from pathlib import Path
@@ -36,12 +42,11 @@ async def search_async(query: str, num_results: int = 15) -> list[str]:
     '''
     @brief Perform a Google search asynchronously.
 
-    Executes a search query using Google's search engine via the `googlesearch` module.
-    The function runs within a thread executor to remain non-blocking in async context.
+    Executes a search query using Google's search engine via the `googlesearch` module. The function runs within a thread executor to remain non-blocking in async context.
 
-    @param query Search query to be executed.
-    @param num_results Number of results to retrieve.
-    @return List of result URLs.
+    @param query Search query to be executed (str).
+    @param num_results Number of results to retrieve (int).
+    @return List of result URLs (list[str]).
     '''
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
@@ -53,11 +58,9 @@ async def run_dork_search_feed():
     '''
     @brief Perform Google Dork queries and write results incrementally to a file.
 
-    Executes a list of predefined search queries related to cybersecurity topics.
-    Each valid, non-duplicate result is written immediately to a local file.
-    Includes randomized delays to reduce risk of throttling by Google.
+    Executes a list of predefined search queries related to cybersecurity topics. Each valid, non-duplicate result is written immediately to a local file. Includes randomized delays to reduce risk of throttling by Google.
 
-    @note Helps in continuously collecting potentially relevant URLs.
+    @return None. The function writes output to a file and logs progress.
     '''
     logger.info("Starting search for cybersecurity-related URLs...")
 

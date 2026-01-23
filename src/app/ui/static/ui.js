@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
-  // Sidebar / view switching
+  // --- Sidebar / view switching ---
+  // Handles sidebar toggle and view switching logic
   const sidebar = document.getElementById("sidebar");
   const btnToggle = document.getElementById("btn-toggle");
 
@@ -10,8 +11,167 @@ document.addEventListener('DOMContentLoaded', function () {
     tiny: document.getElementById("view-tiny"),
     llm: document.getElementById("view-llm"),
     status: document.getElementById("view-status"),
+    docs: document.getElementById("view-docs"),
+  };
+  // --- Documentation view logic ---
+  // Handles documentation sidebar and markdown rendering
+  const docsListEl = document.getElementById('docs-list');
+  const docsContentEl = document.getElementById('docs-content');
+
+  // --- Documentation: sidebar and rendering ---
+
+  let docsListCache = null;
+  let currentDoc = 'README.md';
+
+  // Mapping of friendly names for main documentation files
+  const DOCS_FRIENDLY_NAMES = {
+    'README.md': 'Introducción (README)',
+    'Indice.md': 'Índice general',
+    'home.md': 'Resumen y objetivo',
+    'api_endpoints.md': 'API Endpoints',
+    'llm.md': 'LLM (IA integrada)',
+    'instalacion_dependencias.md': 'Instalación dependencias',
+    'opensearch_install.md': 'Instalación OpenSearch',
+    'tiny_rss_install.md': 'Instalación Tiny RSS',
+    'task.md': 'Tareas y operaciones',
+    'ChangeLog.md': 'Registro de cambios',
+    // Añadir más si es necesario
   };
 
+  /**
+   * @brief Get a friendly display name for a documentation file.
+   * @param filename The filename to convert.
+   * @return Friendly name string.
+   */
+  function getFriendlyName(filename) {
+    return DOCS_FRIENDLY_NAMES[filename] || filename.replace('.md', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  /**
+   * @brief Load the documentation file list and render the sidebar.
+   * @param selected The currently selected document filename.
+   * @return void
+   */
+  async function loadDocsListAndRender(selected) {
+    if (!docsListEl) return;
+    docsListEl.innerHTML = '';
+    // README primero
+    const readmeLi = document.createElement('li');
+    const readmeBtn = document.createElement('button');
+    readmeBtn.textContent = getFriendlyName('README.md');
+    readmeBtn.className = 'doc-btn' + (selected === 'README.md' ? ' active' : '');
+    readmeBtn.onclick = () => selectDoc('README.md');
+    readmeLi.appendChild(readmeBtn);
+    docsListEl.appendChild(readmeLi);
+    // Indice.md segundo si existe
+    try {
+      let files = docsListCache;
+      if (!files) {
+        const resp = await fetch('/docs/list');
+        if (!resp.ok) throw new Error('No se pudo obtener la lista de documentos');
+        files = await resp.json();
+        docsListCache = files;
+      }
+      // Mostrar Indice.md si está
+      if (files.includes('Indice.md')) {
+        const indiceLi = document.createElement('li');
+        const indiceBtn = document.createElement('button');
+        indiceBtn.textContent = getFriendlyName('Indice.md');
+        indiceBtn.className = 'doc-btn' + (selected === 'Indice.md' ? ' active' : '');
+        indiceBtn.onclick = () => selectDoc('Indice.md');
+        indiceLi.appendChild(indiceBtn);
+        docsListEl.appendChild(indiceLi);
+      }
+      // El resto de archivos, excluyendo README.md e Indice.md
+      files.filter(f => f !== 'README.md' && f !== 'Indice.md').forEach(f => {
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.textContent = getFriendlyName(f);
+        btn.className = 'doc-btn' + (selected === f ? ' active' : '');
+        btn.onclick = () => selectDoc(f);
+        li.appendChild(btn);
+        docsListEl.appendChild(li);
+      });
+    } catch (e) {
+      const li = document.createElement('li');
+      li.textContent = 'Error cargando lista de documentos';
+      docsListEl.appendChild(li);
+    }
+  }
+
+  /**
+   * @brief Select a documentation file and render its content.
+   * @param filename The filename to select.
+   * @return void
+   */
+  async function selectDoc(filename) {
+    currentDoc = filename;
+    await loadDocsListAndRender(filename);
+    await loadDocContent(filename);
+  }
+
+  /**
+   * @brief Load and render the content of a documentation file.
+   * @param filename The filename to load.
+   * @return void
+   */
+  async function loadDocContent(filename) {
+    if (!docsContentEl) return;
+    docsContentEl.innerHTML = '<div style="color:#9aa6b2">Cargando...</div>';
+    let url = '';
+    if (filename === 'README.md') url = '/docs/readme';
+    else url = '/docs/file/' + encodeURIComponent(filename);
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('No se pudo cargar el documento');
+      const text = await resp.text();
+      // Renderizar markdown y ajustar enlaces internos
+      docsContentEl.innerHTML = marked.parse(text);
+      fixInternalLinks();
+      // Evitar desbordes horizontales
+      docsContentEl.style.overflowX = 'auto';
+      docsContentEl.style.wordBreak = 'break-word';
+    } catch (e) {
+      docsContentEl.innerHTML = '<div style="color:#fca5a5">Error cargando documento</div>';
+    }
+  }
+
+  /**
+   * @brief Intercept internal markdown links for SPA navigation.
+   * @return void
+   */
+  function fixInternalLinks() {
+    if (!docsContentEl) return;
+    const links = docsContentEl.querySelectorAll('a[href$=".md"], a[href^="./"], a[href^="../"]');
+    links.forEach(link => {
+      const href = link.getAttribute('href');
+      if (!href) return;
+      // Normalizar nombre de archivo
+      let file = href.split('/').pop().replace(/^\.?\/?/, '');
+      if (file.endsWith('.md')) {
+        link.onclick = (e) => {
+          e.preventDefault();
+          selectDoc(file);
+        };
+        link.style.textDecoration = 'underline';
+        link.style.cursor = 'pointer';
+      }
+    });
+  }
+
+  // Al pulsar Documentación, mostrar README y barra lateral
+  const btnDocs = document.getElementById('btn-docs');
+  if (btnDocs) {
+    btnDocs.addEventListener('click', () => {
+      selectDoc('README.md');
+    });
+  }
+
+  /**
+   * @brief Activate a main view by name (show/hide sections).
+   * @param viewName The view to activate.
+   * @return void
+   */
   function activateView(viewName) {
     buttons.forEach(btn => btn.classList.remove("active"));
     const activeBtn = document.querySelector(`.nav-button[data-view="${viewName}"]`);
@@ -22,7 +182,11 @@ document.addEventListener('DOMContentLoaded', function () {
     try { ensureFrameLoaded(viewName); } catch (e) { /* ignore */ }
   }
 
-  // Create iframe element from placeholder data-src when requested
+  /**
+   * @brief Create iframe element from placeholder data-src when requested.
+   * @param viewName The view to check for iframe placeholder.
+   * @return void
+   */
   function ensureFrameLoaded(viewName) {
     const view = views[viewName];
     if (!view) return;
@@ -70,7 +234,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   activateView("fastapi");
 
-  // FastAPI operations panel
+  // --- FastAPI operations panel ---
+  // Handles rendering and interaction for API operation controls
   (function () {
     const API_BASE = window.__CYBERMIND_API_BASE__ || "http://127.0.0.1:8000";
 
@@ -107,6 +272,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const opForm = document.getElementById("op-form");
     const opResult = document.getElementById("op-result");
 
+    /**
+     * @brief Render the list of API controllers and their operations.
+     * @return void
+     */
     function renderControllers() {
       if (!controllersList) return;
       controllersList.innerHTML = "";
@@ -198,6 +367,13 @@ document.addEventListener('DOMContentLoaded', function () {
       } catch (e) { console.log('renderControllers post-process error', e); }
     }
 
+    /**
+     * @brief Select an API operation and render its form.
+     * @param controllerName The controller group name.
+     * @param op The operation object.
+     * @param btnEl The button element clicked.
+     * @return void
+     */
     function selectOperation(controllerName, op, btnEl) {
       if (opTitle) opTitle.textContent = controllerName + " — " + op.title + " (" + op.method + ")";
       renderForm(op);
@@ -209,6 +385,11 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     }
 
+    /**
+     * @brief Render the form for an API operation.
+     * @param op The operation object.
+     * @return void
+     */
     function renderForm(op) {
       if (!opForm) return;
       opForm.innerHTML = "";
@@ -331,8 +512,17 @@ document.addEventListener('DOMContentLoaded', function () {
       form.appendChild(submit); opForm.appendChild(form);
     }
 
+    /**
+     * @brief Escape HTML special characters in a string.
+     * @param unsafe The string to escape.
+     * @return Escaped string.
+     */
     function escapeHtml(unsafe) { return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#039;"); }
 
+    /**
+     * @brief Ensure the 'marked' markdown parser is loaded.
+     * @return Promise resolving to window.marked
+     */
     async function ensureMarked() {
       if (window.marked) return window.marked;
       return new Promise((resolve, reject) => {
@@ -347,10 +537,22 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     }
 
+    /**
+     * @brief Show a toast notification message.
+     * @param msg The message to display.
+     * @param ms Duration in milliseconds.
+     * @return void
+     */
     function showToast(msg, ms = 1800) {
       try { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); void t.offsetWidth; t.classList.add('show'); setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 200); }, ms); } catch (e) { console.log('toast', e); }
     }
 
+    /**
+     * @brief Render a friendly response panel for API results.
+     * @param obj The response object.
+     * @param status HTTP status code.
+     * @return HTML string.
+     */
     function renderResponse(obj, status) {
       function renderFriendly(value, depth = 0) {
         if (value === null) return `<span class="response-value">(nulo)</span>`;
@@ -365,6 +567,11 @@ document.addEventListener('DOMContentLoaded', function () {
       const friendlyHtml = renderFriendly(obj,0); return `<div class="panel"><div class="panel-head">${panelHeader}</div><div class="panel-body">${friendlyHtml}</div></div>`;
     }
 
+    /**
+     * @brief Render the result of a network scan operation.
+     * @param obj The scan result object.
+     * @return HTML string.
+     */
     function renderNetworkScanResult(obj) {
       try {
         const host = obj.host || '';
@@ -401,6 +608,11 @@ document.addEventListener('DOMContentLoaded', function () {
       } catch (e) { return renderRawJson(obj); }
     }
 
+    /**
+     * @brief Render the result of a network range scan operation.
+     * @param obj The scan result object.
+     * @return HTML string.
+     */
     function renderRangeScanResult(obj) {
       try {
         let hosts = obj.hosts || [];
@@ -472,6 +684,11 @@ document.addEventListener('DOMContentLoaded', function () {
       } catch (e) { return renderRawJson(obj); }
     }
 
+    /**
+     * @brief Render a list of common network ports.
+     * @param obj The ports list object.
+     * @return HTML string.
+     */
     function renderPortsList(obj) {
       try {
         const items = obj.common_ports || [];
@@ -503,8 +720,19 @@ document.addEventListener('DOMContentLoaded', function () {
       } catch (e) { return renderRawJson(obj); }
     }
 
+    /**
+     * @brief Render raw JSON as a formatted panel.
+     * @param obj The object to render.
+     * @return HTML string.
+     */
     function renderRawJson(obj) { const jsonText = escapeHtml(JSON.stringify(obj, null, 2)); const header = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><div class=\"response-meta\">JSON crudo</div><div><button class=\"panel-toggle\">▾</button> <button class=\"copy-json-btn\" type=\"button\">Copiar JSON</button></div></div>`; return `<div class="panel"><div class="panel-head">${header}</div><div class="panel-body"><div class="raw-box"><pre>${jsonText}</pre></div></div></div>`; }
 
+    /**
+     * @brief Submit an API operation form and render the result.
+     * @param op The operation object.
+     * @param formData The form data to submit.
+     * @return void
+     */
     async function submitOperation(op, formData) {
       const url = API_BASE + op.path; if (opResult) { opResult.style.display = 'block'; opResult.innerHTML = `<div class="response-meta">Cargando...</div>`; }
       try {
@@ -632,13 +860,20 @@ document.addEventListener('DOMContentLoaded', function () {
     fetchStatus(); setInterval(fetchStatus, 10000);
   })();
 
-  // LLM client
+  // --- LLM client ---
+  // Handles chat UI for LLM queries
   (function () {
     const messagesEl = document.getElementById("llm-messages");
     const promptEl = document.getElementById("llm-prompt");
     const sendBtn = document.getElementById("llm-send-btn");
     const LLM_API_BASE = window.__CYBERMIND_API_BASE__ || "http://127.0.0.1:8000";
     if (!messagesEl || !promptEl || !sendBtn) return;
+    /**
+     * @brief Append a message to the LLM chat window.
+     * @param text The message text.
+     * @param role 'user' or 'bot'.
+     * @return void
+     */
     function appendMessage(text, role) {
       const wrapper = document.createElement("div"); const span = document.createElement("span");
       if (role === "user") {
@@ -654,6 +889,10 @@ document.addEventListener('DOMContentLoaded', function () {
       wrapper.appendChild(span); messagesEl.appendChild(wrapper); messagesEl.scrollTop = messagesEl.scrollHeight;
     }
     
+    /**
+     * @brief Send the user prompt to the LLM API and display the response.
+     * @return void
+     */
     async function sendPrompt() {
       const prompt = promptEl.value.trim(); if (!prompt) return; appendMessage("Tú: " + prompt, "user"); promptEl.value = ""; sendBtn.disabled = true;
       try { const response = await fetch(LLM_API_BASE + "/llm/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: prompt }) }); const data = await response.json(); appendMessage(data.response || "[Respuesta vacía]", "bot"); }

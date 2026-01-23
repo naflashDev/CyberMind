@@ -1,3 +1,9 @@
+"""
+@file test_integration_full_pipeline.py
+@author naflashDev
+@brief Integration tests for the full API pipeline.
+@details Tests the complete pipeline including news scraping, spaCy entity extraction, and LLM endpoints, ensuring correct orchestration and data flow.
+"""
 import sys
 from pathlib import Path
 import unittest

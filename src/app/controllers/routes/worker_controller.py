@@ -7,9 +7,7 @@ workers. When enabling a worker the endpoint creates a stop event and
 registers timers/process objects so the UI can control them. When disabling
 it signals the stop event and attempts to cancel or terminate running
 background tasks.
-@date Created: 2025-11-27 12:17:59
 @author naflashDev
-@project CyberMind
 """
 
 from fastapi import APIRouter, Request, HTTPException

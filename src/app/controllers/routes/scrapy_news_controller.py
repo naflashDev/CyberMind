@@ -1,20 +1,10 @@
-# @ Author: RootAnto
-# @ Project: Cebolla
-# @ Create Time: 2025-05-05 10:30:50
-# @ Description:
-# This FastAPI router provides endpoints for managing and executing a dynamic
-# news scraping system. It includes functionality to:
-#
-# - Submit and validate RSS feed URLs (e.g., from Google Alerts),
-# - Trigger asynchronous scraping tasks using dynamic spiders,
-# - Schedule periodic scraping jobs to extract cybersecurity-related news,
-# - Automatically collect and process links from RSS feeds into structured data,
-# - Store or retrieve data using a PostgreSQL backend,
-# - Initiate recurring background jobs that execute every 24 hours.
-#
-# The system is built for asynchronous execution and integrates file I/O,
-# background scheduling with threads, structured error handling, and persistent
-# feed metadata storage for reliable news data collection.
+
+"""
+@file scrapy_news_controller.py
+@author naflashDev
+@brief FastAPI router for dynamic news scraping endpoints.
+@details Provides endpoints to manage, schedule, and execute dynamic news scraping jobs, including RSS feed ingestion, background scheduling, and persistent storage of news metadata in PostgreSQL. Integrates asynchronous execution, file I/O, and error handling for robust news data collection.
+"""
 
 import os
 import feedparser

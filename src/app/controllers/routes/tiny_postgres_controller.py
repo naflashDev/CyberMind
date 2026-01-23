@@ -1,27 +1,10 @@
-# @ Author: RootAnto
-# @ Project: Cebolla
-# @ Create Time: 2025-05-05 10:30:50
-# @ Description:
-# This FastAPI router provides endpoints for managing and retrieving RSS feed
-# metadata stored in a PostgreSQL database. It supports:
-#
-# 1. `GET /search-and-insert-rss`: Initiates a background thread that periodically
-#    (every 25 hours) reads a list of URLs from a local file, extracts valid RSS feeds
-#    by scraping those URLs asynchronously, and stores the extracted feed metadata
-#    (such as feed title, site URL, and other relevant information) in the database.
-#    This process runs independently from the main event loop, preventing blocking
-#    of the FastAPI server.
-#
-# 2. `GET /feeds`: Retrieves a list of stored RSS feeds from the PostgreSQL database,
-#    supporting a `limit` query parameter to control the number of results returned
-#    (default is 10, with limits between 1 and 100).
-#
-# The module leverages asynchronous database interactions for efficient queries,
-# combined with a safe threading approach to perform periodic background scraping
-# without affecting the responsiveness of the API server.
-#
-# This setup is designed to facilitate automated, ongoing collection and organization
-# of cybersecurity-related RSS feed sources.
+"""
+@file tiny_postgres_controller.py
+@author naflashDev
+@brief FastAPI router for managing RSS feed metadata in PostgreSQL.
+@details Provides endpoints to insert, retrieve, and periodically update RSS feed metadata in a PostgreSQL database. Supports background scraping and efficient async queries.
+"""
+
 import asyncio
 import asyncpg
 import os

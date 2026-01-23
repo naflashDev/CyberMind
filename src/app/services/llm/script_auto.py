@@ -165,12 +165,15 @@ def process_file(file_path: Path, aggregated_data: list, lock: threading.Lock, s
 
 
 def _process_file_worker(input_path: str, out_path: str) -> None:
-    """Process a single JSON file inside a child process and write the
-    transformed output to a temporary file. Child processes should not receive
-    thread-local synchronization primitives from the parent (they are not
-    picklable). Cancellation is handled by the parent which may terminate the
-    child process if needed.
-    """
+    '''
+    @brief Process a single JSON file inside a child process and write the transformed output to a temporary file.
+
+    Child processes should not receive thread-local synchronization primitives from the parent (they are not picklable). Cancellation is handled by the parent which may terminate the child process if needed.
+
+    @param input_path Path to the input JSON file (str).
+    @param out_path Path to the output temporary file (str).
+    @return None.
+    '''
     try:
         with open(input_path, 'r', encoding='utf-8') as f:
             text = f.read()

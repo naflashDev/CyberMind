@@ -37,6 +37,7 @@ from app.controllers.routes import (
     status_controller,
     worker_controller,
     network_analysis_controller,
+    docs_controller,
 )
 from app.utils.worker_control import load_worker_settings, save_worker_settings
 from app.controllers.routes.scrapy_news_controller import (
@@ -387,6 +388,7 @@ app.include_router(llm_controller.router)
 app.include_router(status_controller.router)
 app.include_router(worker_controller.router)
 app.include_router(network_analysis_controller.router)
+app.include_router(docs_controller.router)
 
 # Serve UI static files (simple single-file UI under app/ui/static)
 STATIC_DIR = Path(__file__).resolve().parent / "app" / "ui" / "static"

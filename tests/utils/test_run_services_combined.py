@@ -1,3 +1,9 @@
+"""
+@file test_run_services_combined.py
+@author naflashDev
+@brief Unit tests for combined Docker Compose scenarios in run_services.
+@details Tests combined compose file logic and project layout handling in run_services.py, ensuring correct detection and startup of services.
+"""
 import sys
 import os
 import unittest

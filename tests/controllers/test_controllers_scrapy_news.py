@@ -1,3 +1,9 @@
+"""
+@file test_controllers_scrapy_news.py
+@author naflashDev
+@brief Unit tests for scrapy_news_controller endpoints.
+@details Tests FastAPI endpoints for news scraping, feed ingestion, and Google Alerts integration, including file patching and response validation.
+"""
 import sys
 from pathlib import Path
 import unittest

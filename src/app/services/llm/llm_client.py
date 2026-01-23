@@ -2,6 +2,13 @@
 @file llm_client.py
 @author naflashDev
 @brief HTTP client for interacting with a local Ollama server.
+@details This module provides a simple wrapper to send prompts and receive responses from an LLM served by Ollama.
+"""
+import os
+"""
+@file llm_client.py
+@author naflashDev
+@brief HTTP client for interacting with a local Ollama server.
 @details This module provides a simple wrapper to send prompts
          and receive responses from an LLM served by Ollama.
 """
@@ -20,12 +27,15 @@ OLLAMA_MODEL_NAME = os.getenv("OLLAMA_MODEL_NAME", "cybersentinel")
 
 
 def query_llm(prompt: str, system_prompt: str | None = None) -> str:
-    """
+    '''
     @brief Sends a prompt to the local Ollama server and returns its response.
-    @param prompt User prompt or question.
-    @param system_prompt Optional system-level instruction.
-    @return Generated text from the LLM.
-    """
+
+    Sends a prompt and optional system instruction to the Ollama LLM server and returns the generated response.
+
+    @param prompt User prompt or question (str).
+    @param system_prompt Optional system-level instruction (str | None).
+    @return Generated text from the LLM (str).
+    '''
     try:
         url = f"{OLLAMA_BASE_URL}/api/chat"
 

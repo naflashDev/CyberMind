@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>CYBERMIND</title>
+  <link rel="icon" type="image/x-icon" href="/ui/CyberMindLogo.ico">
   <link rel="stylesheet" href="/ui/styles.css">
   <!-- Markdown parser (marked) -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -23,7 +24,20 @@
     <button class="nav-button" data-view="datos" id="btn-datos">Datos</button>
     <button class="nav-button" data-view="tiny" id="btn-tiny">Noticias Tiny</button>
     <button class="nav-button" data-view="llm" id="btn-llm">CyberSentinel IA</button>
+    <button class="nav-button" data-view="docs" id="btn-docs">Documentación</button>
   </aside>
+      <!-- Vista: Documentación del proyecto (en main-content, no en sidebar) -->
+      <div class="view" id="view-docs">
+        <div style="display:flex; height:100%;">
+          <div class="docs-list-pane" style="width:220px; background:#181f2a; color:#e5e7eb; padding:12px; box-sizing:border-box; overflow-y:auto; display:block;">
+            <h3 style="margin-top:0;">Documentos</h3>
+            <ul id="docs-list" style="list-style:none; padding:0; margin:0;"></ul>
+          </div>
+          <div class="docs-content-pane" style="flex:1; padding:16px; overflow:auto; background:#0b0f13;">
+            <div id="docs-content" style="max-width:900px; margin:auto; background:#181f2a; color:#e5e7eb; border-radius:8px; padding:24px; min-height:80vh; box-shadow:0 2px 8px #0002;"></div>
+          </div>
+        </div>
+      </div>
 
   <!-- MAIN -->
   <div class="main">

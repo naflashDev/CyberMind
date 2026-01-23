@@ -1,3 +1,9 @@
+"""
+@file test_network_api_scan_range.py
+@author naflashDev
+@brief Unit tests for network API scan range endpoint.
+@details Tests FastAPI endpoint for scanning network ranges, including patching scan_ports and validating response structure.
+"""
 import pytest
 from fastapi.testclient import TestClient
 

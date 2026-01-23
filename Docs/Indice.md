@@ -10,7 +10,7 @@ Bienvenido a la documentación de **CyberMind**. Utiliza este índice para naveg
 |:---|:---|:---|
 | 🏠 **Introducción** | Resumen, objetivo y visión general del proyecto | [Resumen y objetivo](home.md) |
 | 🧩 **Concepto y arquitectura** | Estructura, módulos y arquitectura técnica | [API Endpoints](api_endpoints.md)<br>[LLM integrado (CyberSentinel)](llm.md) |
-| ⚙️ **Instalación y despliegue** | Guías paso a paso para instalar dependencias y servicios | [Instalación de dependencias](instalacion_dependencias.md)<br>[Instalación OpenSearch (Docker Compose)](opensearch_install.md)<br>[Instalación TinyRSS (Docker Compose)](tiny_rss_install.md) |
+| ⚙️ **Instalación y despliegue** | Guías paso a paso para instalar dependencias y servicios | [Instalación de dependencias](instalacion_dependencias.md)<br>[Instalación OpenSearch (Docker Compose)](opensearch_install.md)<br>[Instalación Tiny RSS (Docker Compose)](tiny_rss_install.md) |
 | 🛠️ **Tareas y operaciones** | Operaciones rápidas y tareas de mantenimiento | [Tareas de Instalación / Operaciones rápidas](task.md) |
 
 ---

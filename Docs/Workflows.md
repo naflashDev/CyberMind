@@ -1,4 +1,3 @@
-
 # ⚙️ Cambios en los Workflows de GitHub Actions
 
 Resumen de las mejoras y correcciones aplicadas a los workflows en `.github/workflows/`.
@@ -39,6 +38,29 @@ Resumen de las mejoras y correcciones aplicadas a los workflows en `.github/work
 
 - Añadido `.github/workflows/unified-ci.yml`
 - Eliminados los workflows individuales (si no se requiere mantenerlos en paralelo)
+
+---
+
+## Visualización de documentación en la UI
+
+A partir de la versión [fecha actual], la interfaz de usuario incluye un apartado específico para la visualización de la documentación del proyecto. Esta funcionalidad permite consultar tanto el contenido de `README.md` como todos los archivos Markdown ubicados en la carpeta `Docs/` directamente desde la UI web.
+
+### Características
+- Acceso desde la barra lateral mediante el botón **Documentación**.
+- Visualización en formato enriquecido (Markdown renderizado).
+- Listado automático de todos los archivos `.md` de la carpeta `Docs/`.
+- Selección y cambio dinámico de documento sin recargar la página.
+
+### Implementación técnica
+- Se ha añadido un endpoint REST (`/docs/list`, `/docs/readme`, `/docs/file/{filename}`) para exponer los archivos de documentación.
+- La UI consume estos endpoints y renderiza el contenido usando un parser Markdown.
+- El código fuente de la integración se encuentra en:
+  - Backend: `src/app/controllers/routes/docs_controller.py`
+  - Frontend: `src/app/ui/static/index.html`, `ui.js`, `styles.css`
+
+### Requisitos
+- El usuario debe tener acceso a la UI web.
+- Los archivos de documentación deben estar presentes en el sistema de archivos del servidor.
 
 ---
 

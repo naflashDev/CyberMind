@@ -1,7 +1,10 @@
-## \file etiquetas_api.py
-## \brief REST API to process a JSON file using entity analysis with spaCy.
-## \details This endpoint reads a `result.json` file, processes it to extract named entities,
-## and returns a generated `labels_result.json` file.
+
+"""
+@file spacy_controller.py
+@author naflashDev
+@brief REST API to process a JSON file using entity analysis with spaCy.
+@details This endpoint reads a `result.json` file, processes it to extract named entities, and returns a generated `labels_result.json` file.
+"""
 
 
 import os

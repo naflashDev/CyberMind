@@ -1,3 +1,9 @@
+"""
+@file test_integration_spacy_flow.py
+@author naflashDev
+@brief Integration tests for spaCy controller endpoints.
+@details Tests FastAPI endpoints for spaCy-based entity extraction, ensuring correct routing and response handling in integration scenarios.
+"""
 import sys
 from pathlib import Path
 import unittest

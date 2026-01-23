@@ -1,3 +1,10 @@
+"""
+@file news_gd.py
+@author naflashDev
+@brief Google Dork search for cybersecurity news feeds.
+@details Provides asynchronous search utilities to find cybersecurity-related news feeds using Google Dorks and store results for further processing.
+"""
+import asyncio
 import asyncio
 import json
 import random
@@ -39,12 +46,11 @@ def is_relevant(text: str, keywords: List[str] = KEYWORDS) -> bool:
     '''
     @brief Check if the article contains any relevant keyword.
 
-    Evaluates whether the given text includes at least one of the defined
-    keywords (case-insensitive).
+    Evaluates whether the given text includes at least one of the defined keywords (case-insensitive).
 
-    @param text: Full text content of the article.
-    @param keywords: List of keywords to check against.
-    @return: True if any keyword is found, False otherwise.
+    @param text Full text content of the article (str).
+    @param keywords List of keywords to check against (List[str]).
+    @return True if any keyword is found, False otherwise (bool).
     '''
     return any(k.lower() in text.lower() for k in keywords)
 
@@ -53,12 +59,10 @@ async def extract_news_structure(url: str) -> Optional[Dict]:
     '''
     @brief Extract structured content from a news article URL.
 
-    Fetches and parses the HTML of the given URL to extract article content
-    and metadata. Only returns the result if it's considered relevant.
+    Fetches and parses the HTML of the given URL to extract article content and metadata. Only returns the result if it's considered relevant.
 
-    @param url: URL of the article.
-    @return: Dictionary containing article metadata or None if irrelevant or
-    error occurs.
+    @param url URL of the article (str).
+    @return Dictionary containing article metadata or None if irrelevant or error occurs (Optional[Dict]).
     '''
     try:
         async with httpx.AsyncClient(
@@ -69,6 +73,12 @@ async def extract_news_structure(url: str) -> Optional[Dict]:
             soup = BeautifulSoup(response.text, "html.parser")
 
             def extract_all(tag: str) -> List[str]:
+                '''
+                @brief Extract all text content for a given HTML tag from the soup.
+
+                @param tag HTML tag to search for (str).
+                @return List of text content for the given tag (List[str]).
+                '''
                 return [e.get_text(strip=True) for e in soup.find_all(tag)]
 
             news = {
@@ -97,9 +107,9 @@ async def async_search(query: str, num_results: int = 5) -> List[str]:
 
     Executes a Google search for the given query in a non-blocking way.
 
-    @param query: Search string.
-    @param num_results: Number of URLs to retrieve.
-    @return: List of result URLs.
+    @param query Search string (str).
+    @param num_results Number of URLs to retrieve (int).
+    @return List of result URLs (List[str]).
     '''
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
@@ -113,7 +123,7 @@ def load_existing_urls() -> set:
 
     Reads existing URLs from the JSON file to avoid duplication.
 
-    @return: Set of existing URLs.
+    @return Set of existing URLs (set).
     '''
     if OUTPUT_FILE.exists():
         try:
@@ -132,7 +142,8 @@ def append_news_item(news_item: Dict):
 
     Loads existing items, appends a new one, and writes back to disk.
 
-    @param news_item: Dictionary with structured news content.
+    @param news_item Dictionary with structured news content (Dict).
+    @return None.
     '''
     try:
         if OUTPUT_FILE.exists():
@@ -154,10 +165,9 @@ async def run_news_search():
     '''
     @brief Main routine to search and collect cybersecurity news articles.
 
-    - Iterates over predefined dorks.
-    - Searches via Google.
-    - Extracts and filters relevant articles.
-    - Writes each relevant article to JSON immediately.
+    Iterates over predefined dorks, searches via Google, extrae y filtra artículos relevantes y escribe cada artículo relevante en un archivo JSON inmediatamente.
+
+    @return None.
     '''
     logger.info("Starting news search...")
 

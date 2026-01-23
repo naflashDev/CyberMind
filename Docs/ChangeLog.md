@@ -8,6 +8,35 @@ El formato se basa en "Keep a Changelog" y este proyecto sigue el Versionado Sem
 
 ### Cambiado (2026-01-23)
 
+- Eliminadas las líneas de cabecera estándar (`# Cabecera estándar para ...`) en todos los archivos de test bajo `tests/` para homogeneizar el formato y evitar redundancia documental. No afecta a la lógica de pruebas ni a la cobertura.
+
+Archivos modificados:
+ - `tests/controllers/test_controllers_tiny_postgres.py`
+ - `tests/controllers/test_workers_ui.py`
+ - `tests/controllers/test_scraping_news_worker.py`
+ - `tests/controllers/test_network_api_scan_range.py`
+ - `tests/controllers/test_network_api_nmap_timeout.py`
+ - `tests/controllers/test_network_api_integration.py`
+ - `tests/controllers/test_llm_controller.py`
+ - `tests/integration/test_news_endpoint_integration.py`
+ - `tests/integration/test_integration_spider_rss_flow.py`
+ - `tests/integration/test_integration_spacy_flow.py`
+ - `tests/integration/test_integration_news_flow.py`
+ - `tests/integration/test_integration_llm_flow.py`
+ - `tests/integration/test_integration_full_pipeline.py`
+ - `tests/integration/test_e2e_pipelines.py`
+ - `tests/integration/test_e2e_basic_pipeline.py`
+ - `tests/services/test_spider_rss_nonblocking.py`
+ - `tests/services/test_services_text_processor.py`
+ - `tests/services/test_services_spider_rss.py`
+ - `tests/services/test_services_llm.py`
+ - `tests/services/test_scan_range_end.py`
+ - `tests/services/test_run_services_minimal.py`
+ - `tests/services/test_run_nmap_timeout_unit.py`
+ - `tests/services/test_network_service_unit.py`
+ - `tests/utils/test_run_services_combined.py`
+ - `tests/utils/test_run_services.py`
+
 - Documentación actualizada en `Docs/home.md` y `Docs/api_endpoints.md` para reflejar el carácter multifunción de CyberMind: plataforma para auditoría, automatización, análisis, reporting, dashboards, integración de IA y no solo recolección IT/OT. Se amplía la introducción, objetivos, características, casos de uso y definiciones para alinearse con la realidad del proyecto y su uso en auditoría y flujos avanzados de ciberseguridad.
 
 Archivos modificados:
@@ -71,6 +100,11 @@ Files modificados:
 
 **Seguridad**: Se aplicaron correcciones en local al manejo de ejecución de comandos (sin `shell=True`) y se añadieron herramientas para auditar `f-strings`. Revisar y parchear manualmente las interpolaciones detectadas.
 
+### Añadido (2026-01-23)
+
+- Sección de documentación accesible desde la UI: permite visualizar `README.md` y todos los archivos Markdown de la carpeta `Docs/` desde la interfaz web.
+- Endpoints REST para exponer archivos de documentación (`/docs/list`, `/docs/readme`, `/docs/file/{filename}`).
+- Actualización de estilos y lógica de la UI para soporte de documentación.
 
 ## [0.0.0] - 2026-01-14
 - Entrada inicial de notas de la versión (desarrollo interno)

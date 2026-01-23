@@ -1,3 +1,9 @@
+"""
+@file test_scan_range_end.py
+@author naflashDev
+@brief Unit tests for scan_range_end service helpers.
+@details Tests helper functions and logic in the scan_range_end service layer, including range validation and edge cases.
+"""
 import sys
 import os
 import asyncio

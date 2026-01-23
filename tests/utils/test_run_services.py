@@ -1,3 +1,9 @@
+"""
+@file test_run_services.py
+@author naflashDev
+@brief Unit tests for run_services utility functions.
+@details Contains unit tests for infrastructure detection and helper functions in run_services.py, ensuring correct OS/platform detection and Docker/compose logic.
+"""
 import sys
 import os
 import unittest

@@ -1,3 +1,10 @@
+"""
+@file google_alerts_pages.py
+@author naflashDev
+@brief Extracts real URLs from Google Alerts RSS feeds.
+@details Automates extraction and cleaning of URLs from Google Alerts RSS feeds, saving results to a file for further processing. Includes logging for monitoring.
+"""
+import feedparser
 # @ Author: RootAnto
 # @ Project: Cebolla
 # @ Create Time: 2025-05-20 10:30:50
@@ -22,14 +29,10 @@ def clean_google_redirect_url(url: str) -> str:
     '''
     @brief Extracts the real URL from a Google Alerts redirect link.
 
-    Google Alerts often provides links that redirect through Google's own
-    tracking system. This function parses the URL and extracts the actual
-    destination URL from the query string.
+    Google Alerts often provides links that redirect through Google's own tracking system. This function parses the URL and extracts the actual destination URL from the query string.
 
-    @param url: The full Google redirect URL
-    (typically containing a ?url= parameter).
-    @return: The real target URL extracted from the redirect,
-    or the original URL if not found.
+    @param url The full Google redirect URL (typically containing a ?url= parameter) (str).
+    @return The real target URL extracted from the redirect, or the original URL if not found (str).
     '''
     parsed = urllib.parse.urlparse(url)
     query_params = urllib.parse.parse_qs(parsed.query)
@@ -39,21 +42,9 @@ def clean_google_redirect_url(url: str) -> str:
 
 def fetch_and_save_alert_urls():
     '''
-    @brief Parses Google Alerts RSS feeds and extracts the real destination
-    URLs.
+    @brief Parses Google Alerts RSS feeds and extracts the real destination URLs.
 
-    This function reads RSS feed URLs from a file, parses each feed using
-    `feedparser`, and extracts the actual destination URLs from redirect links
-    (typical in Google Alerts). It removes any redirect/tracking wrappers,
-    cleans the URLs, and writes the final list to a specified output file.
-
-    The input file (defined by FEEDS_FILE_PATH) should contain one feed URL
-    per line. Lines may optionally contain additional info after
-    a '|' character, which will be ignored.
-
-    @note Uses the `clean_google_redirect_url()` helper to extract real URLs
-    from redirect links.
-    @note Logs progress and warnings using the `loguru` logger.
+    Reads RSS feed URLs from a file, parses each feed using `feedparser`, and extracts the actual destination URLs from redirect links (typical in Google Alerts). Removes any redirect/tracking wrappers, cleans the URLs, and writes the final list to a specified output file.
 
     @return None. The function writes output to a file and logs progress.
     '''

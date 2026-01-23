@@ -10,8 +10,26 @@ El incumplimiento de cualquiera de estas normas invalida el cambio realizado.
 
 ## 📝 Normas de codificación y comentarios
 
+- **Cabecera de archivo obligatoria:**
+  - Todo archivo Python (*.py*) que no sea `__init__.py` **DEBE** incluir al inicio una cabecera con el siguiente formato (adaptando los campos según corresponda):
+    """
+    @file NOMBRE_DEL_ARCHIVO.py
+    @author naflashDev
+    @brief [Breve descripción funcional del archivo.]
+    @details [Descripción técnica o funcional ampliada.]
+    """
+
 - **Funciones nuevas:**
-  - Toda función nueva **DEBE** incluir un comentario descriptivo en la cabecera (docstring o comentario) explicando su propósito y funcionamiento.
+  - Toda función nueva **DEBE** incluir un docstring en la cabecera con la siguiente estructura (en inglés):
+    '''
+    @brief [Breve descripción de la función.]
+
+    [Explicación técnica o funcional ampliada.]
+
+    @param [nombre] [Descripción del parámetro.]
+    ...
+    @return [Descripción del valor de retorno.]
+    '''
   - El nombre de las funciones **DEBE** seguir el formato *snake_case*.
   - Todo fragmento relevante de código dentro de la función **DEBE** estar comentado con comentarios *inline* que expliquen qué hace cada parte.
   - **Todos los comentarios de código deben estar redactados en inglés** (tanto cabecera como inline).

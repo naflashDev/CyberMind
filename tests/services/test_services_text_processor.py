@@ -1,3 +1,9 @@
+"""
+@file test_services_text_processor.py
+@author naflashDev
+@brief Unit tests for text_processor service helpers.
+@details Tests helper functions and logic in the text_processor service layer, including entity extraction and language detection.
+"""
 import sys
 from pathlib import Path
 import unittest

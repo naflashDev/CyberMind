@@ -8,9 +8,7 @@ the project's `Install/` folder, and helper helpers for checking WSL-based
 Docker usage. These functions are invoked by the FastAPI startup lifecycle
 to verify and attempt to bring up dependent services before the app listens
 for incoming requests.
-@date Created: 2025-11-27 12:17:59
 @author naflashDev
-@project CyberMind
 """
 
 import subprocess

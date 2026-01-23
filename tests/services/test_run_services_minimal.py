@@ -1,3 +1,9 @@
+"""
+@file test_run_services_minimal.py
+@author naflashDev
+@brief Minimal unit tests for run_services helpers.
+@details Minimal tests for infrastructure detection and helper functions in run_services.py, focusing on edge cases and minimal configuration.
+"""
 import sys
 import subprocess
 

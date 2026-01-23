@@ -1,3 +1,9 @@
+"""
+@file test_controllers_spacy.py
+@author naflashDev
+@brief Unit tests for spacy_controller endpoints.
+@details Tests FastAPI endpoints for spaCy entity extraction, patching file existence and background threads, and validating responses.
+"""
 import sys
 from pathlib import Path
 import unittest

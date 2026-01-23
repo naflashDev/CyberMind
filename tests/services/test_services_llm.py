@@ -1,3 +1,9 @@
+"""
+@file test_services_llm.py
+@author naflashDev
+@brief Unit tests for LLM service helpers.
+@details Tests helper functions and logic in the LLM service layer, including prompt handling and model selection.
+"""
 import sys
 from pathlib import Path
 import unittest

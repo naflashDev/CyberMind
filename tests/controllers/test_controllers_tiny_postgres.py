@@ -1,3 +1,9 @@
+"""
+@file test_controllers_tiny_postgres.py
+@author naflashDev
+@brief Unit tests for tiny_postgres_controller endpoints.
+@details Tests FastAPI endpoints for managing and retrieving RSS feed metadata in PostgreSQL, including async pool handling and response validation.
+"""
 import sys
 from pathlib import Path
 import asyncio

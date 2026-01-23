@@ -14,11 +14,14 @@ from loguru import logger
 
 
 def _load_json(path: str):
-    """
+    '''
     @brief Loads a JSON file if it exists.
-    @param path File path.
+
+    Loads a JSON file from the given path if it exists, otherwise returns None.
+
+    @param path File path (str).
     @return Parsed JSON object or None.
-    """
+    '''
     if not os.path.exists(path):
         logger.warning(f"[FinetuneBuilder] File not found: {path}")
         return None
@@ -35,12 +38,16 @@ def build_finetune_dataset(
     news_path: str = "./outputs/result.json",
     output_path: str = "./outputs/finetune_data.jsonl",
 ) -> None:
-    """
+    '''
     @brief Builds a JSONL dataset mixing CVE and news examples.
-    @param cve_path Path to consolidated CVE json file.
-    @param news_path Path to scraped news json file.
-    @param output_path Output JSONL path for the dataset.
-    """
+
+    Reads CVE and news data, consolidates them into an instruction-style JSONL file for fine-tuning or evaluation.
+
+    @param cve_path Path to consolidated CVE json file (str).
+    @param news_path Path to scraped news json file (str).
+    @param output_path Output JSONL path for the dataset (str).
+    @return None.
+    '''
     logger.info("[FinetuneBuilder] Building dataset (CVE + news)...")
 
     cve_data = _load_json(cve_path) or []

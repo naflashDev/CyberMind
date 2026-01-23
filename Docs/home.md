@@ -1,6 +1,3 @@
-
-
-
 # 🧠 CyberMind – Plataforma Multifunción de Ciberseguridad y Auditoría
 
 **CyberMind** es una plataforma modular, automatizada y de código abierto para la auditoría, análisis, monitorización y automatización de tareas de ciberseguridad en entornos **IT** y **OT**. Va mucho más allá de la simple recolección de datos: permite realizar auditorías técnicas, análisis de vulnerabilidades, orquestación de flujos de trabajo, generación de dashboards, integración de IA y procesamiento avanzado de información.

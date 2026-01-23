@@ -1,3 +1,9 @@
+"""
+@file test_integration_llm_flow.py
+@author naflashDev
+@brief Integration tests for LLM controller endpoints.
+@details Tests FastAPI endpoints for LLM query and updater, ensuring correct routing and response handling in integration scenarios.
+"""
 import sys
 from pathlib import Path
 import unittest

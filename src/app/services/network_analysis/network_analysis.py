@@ -1,3 +1,9 @@
+"""
+@file network_analysis.py
+@author naflashDev
+@brief Network scanning and analysis utilities.
+@details Provides functions for port scanning, service detection, and integration with nmap. Includes helpers for common ports and connection methods.
+"""
 import socket
 import errno
 import ipaddress
@@ -35,6 +41,14 @@ COMMON_PORTS_DETAILS = {
 
 
 def _is_valid_ip(host: str) -> bool:
+    '''
+    @brief Check if a string is a valid IP address.
+
+    Attempts to parse the input string as an IP address.
+
+    @param host Host string to check (str).
+    @return True if valid IP address, False otherwise (bool).
+    '''
     try:
         ipaddress.ip_address(host)
         return True
@@ -43,11 +57,16 @@ def _is_valid_ip(host: str) -> bool:
 
 
 def scan_ports(host: str, ports: Optional[List[int]] = None, timeout: float = 0.5) -> List[Dict]:
-    """Scan a list of ports on a host and return friendly results.
+    '''
+    @brief Scan a list of ports on a host and return friendly results.
 
-    This function performs TCP connect attempts with a short timeout.
-    It is intentionally simple (no raw sockets, no OS-specific features).
-    """
+    Performs TCP connect attempts with a short timeout. Returns a list of port scan results.
+
+    @param host Host to scan (str).
+    @param ports List of ports to scan (Optional[List[int]]).
+    @param timeout Timeout for each connection attempt (float).
+    @return List of dictionaries with port scan results (List[Dict]).
+    '''
     logger.info("scan_ports called: host={}, ports={}, timeout={}", host, ports, timeout)
     if not host:
         logger.error("scan_ports: missing host")
@@ -100,12 +119,16 @@ def scan_ports(host: str, ports: Optional[List[int]] = None, timeout: float = 0.
 
 
 def run_nmap_scan(host: str, ports: Optional[List[int]] = None, timeout: int = 120) -> Tuple[List[Dict], str]:
-    """Run nmap -sV against the host and parse results.
+    '''
+    @brief Run nmap -sV against the host and parse results.
 
-    Returns a tuple (results_list, raw_xml) where results_list contains dicts with
-    port, open (bool), service, product, version, methods (from COMMON_PORTS_DETAILS), vulnerabilities (empty list).
-    Raises FileNotFoundError if `nmap` binary not found.
-    """
+    Runs nmap with service detection and parses the XML output.
+
+    @param host Host to scan (str).
+    @param ports List of ports to scan (Optional[List[int]]).
+    @param timeout Timeout for nmap execution (int).
+    @return Tuple with list of port scan results and raw XML output (Tuple[List[Dict], str]).
+    '''
     logger.info("run_nmap_scan called: host={} ports={} timeout={}", host, ports, timeout)
     nmap_path = shutil.which("nmap")
     if not nmap_path:
@@ -202,12 +225,21 @@ async def scan_range(cidr: Optional[str] = None,
                      use_nmap: bool = True,
                      concurrency: int = 20,
                      max_allowed: int = 1024) -> Dict:
-    """Scan a range of hosts defined by CIDR or start/end IPs.
+    '''
+    @brief Scan a range of hosts defined by CIDR or start/end IPs.
 
-    This function is async and will run blocking scans in threads.
-    Returns a dict with keys: `scanned`, `hosts` (list of per-host dicts), `duration_seconds`.
-    Raises ValueError on invalid inputs (caller should translate to HTTP errors).
-    """
+    Asynchronously scans a range of hosts using nmap or TCP connect, returning results for each host.
+
+    @param cidr CIDR notation for the range (Optional[str]).
+    @param start Start IP address (Optional[str]).
+    @param end End IP address (Optional[str]).
+    @param ports List of ports to scan (Optional[List[int]]).
+    @param timeout Timeout for each scan (Optional[float]).
+    @param use_nmap Whether to use nmap or fallback TCP scan (bool).
+    @param concurrency Number of concurrent scans (int).
+    @param max_allowed Maximum number of hosts allowed in the range (int).
+    @return Dictionary with scan summary and per-host results (Dict).
+    '''
     import asyncio
     import time
     import subprocess

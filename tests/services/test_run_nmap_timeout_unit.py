@@ -1,3 +1,9 @@
+"""
+@file test_run_nmap_timeout_unit.py
+@author naflashDev
+@brief Unit tests for nmap timeout handling in network service.
+@details Tests timeout scenarios and error handling for nmap integration in the network service layer.
+"""
 import subprocess
 import shutil
 import pytest

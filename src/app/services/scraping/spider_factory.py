@@ -6,9 +6,7 @@ provides helpers to run the spider either once (`run_dynamic_spider`) or
 continuously by polling a PostgreSQL database (`run_dynamic_spider_from_db`).
 The module writes results to a local JSON file and registers spawned
 processes so the application UI can terminate them via a stop event.
-@date Created: 2025-05-05 12:17:59
 @author naflashDev
-@project CyberMind
 """
 from scrapy.spiders import Spider
 from scrapy.crawler import CrawlerProcess
@@ -40,18 +38,16 @@ CYBERSECURITY_KEYWORDS = [
 ]
 
 def write_json_array_with_lock(data, filename=OUTPUT_FILE, lockfile=LOCKFILE):
-    """
-    Writes data into a single JSON array file with each JSON object on one line.
-    Uses file-based locking to prevent concurrent writes.
+    '''
+    @brief Writes data into a single JSON array file with each JSON object on one line, using file-based locking.
 
-    If file doesn't exist, creates it with an array containing the first data object.
-    If file exists, inserts the new data before the closing ] with a comma separator.
+    If the file does not exist, creates it with an array containing the first data object. If the file exists, inserts the new data before the closing bracket with a comma separator.
 
-    Args:
-        data (dict): The scraped data to write.
-        filename (str): Path to the JSON file.
-        lockfile (str): Path to the lock file.
-    """
+    @param data The scraped data to write (dict).
+    @param filename Path to the JSON file (str).
+    @param lockfile Path to the lock file (str).
+    @return None.
+    '''
     import os
     import time
     import json
@@ -97,25 +93,15 @@ def write_json_array_with_lock(data, filename=OUTPUT_FILE, lockfile=LOCKFILE):
 
 
 def create_dynamic_spider(urls,parameters) -> Type[Spider]:
-    """
-    Creates a dynamic Scrapy spider class for extracting content from a list
-    of URLs.
+    '''
+    @brief Creates a dynamic Scrapy spider class for extracting content from a list of URLs.
 
-    This function defines and returns a custom Scrapy Spider class that
-    processes each URL by extracting:
-      - The page title
-      - All text content inside header tags (h1–h6) and paragraph tags (p)
-      - Writes scraped data into a JSON file with manual file locking
-      - Marks the URL as scraped in the database opening and closing
-        a connection for each URL.
+    Defines and returns a custom Scrapy Spider class that processes each URL, extracts content, writes data to a JSON file, and marks the URL as scraped in the database.
 
-    Args:
-        urls (list[str]): A list of URLs to crawl.
-        db_config (dict): Configuration dict for asyncpg connection parameters.
-
-    Returns:
-        Type[Spider]: A dynamically created Scrapy Spider class.
-    """
+    @param urls List of URLs to crawl (list[str]).
+    @param parameters Tuple of parameters for OpenSearch connection (tuple).
+    @return A dynamically created Scrapy Spider class (Type[Spider]).
+    '''
 
     class DynamicSpider(Spider):
         name = "dynamic_spider"
@@ -151,26 +137,15 @@ def create_dynamic_spider(urls,parameters) -> Type[Spider]:
 
 
 def run_dynamic_spider(urls,parameters) -> None:
-    """
-    Runs a dynamically generated Scrapy spider to scrape content from a list
-    of URLs.
+    '''
+    @brief Runs a dynamically generated Scrapy spider to scrape content from a list of URLs.
 
-    This function sets up logging and Scrapy settings, creates a dynamic
-    spider using the provided URLs, and launches a Scrapy crawler process with
-    that spider.
+    Sets up logging and Scrapy settings, creates a dynamic spider using the provided URLs, and launches a Scrapy crawler process with that spider.
 
-    Features configured:
-        - Disables default Scrapy logging to avoid console clutter.
-        - Sets a realistic user-agent string for better scraping reliability.
-        - Enables a download delay and auto-throttling to reduce server load.
-        - Configures retries for transient HTTP errors (e.g., 429, 503).
-        - Writes scraped data into a local JSON file ("result.json") using
-          manual file locking to avoid concurrency problems.
-
-    Args:
-        urls (list[str]): A list of web URLs to be scraped.
-        parameters (tuple): A tuple of parameters to connect to the OpenSearch database.
-    """
+    @param urls List of web URLs to be scraped (list[str]).
+    @param parameters Tuple of parameters to connect to the OpenSearch database (tuple).
+    @return None.
+    '''
     configure_logging(install_root_handler=False)
     logging.getLogger('scrapy').propagate = False
     logging.getLogger().setLevel(logging.CRITICAL)
@@ -197,22 +172,16 @@ def run_dynamic_spider(urls,parameters) -> None:
 
 
 async def run_dynamic_spider_from_db(pool, stop_event=None, register_process=None) -> Coroutine[Any, Any, None]:
-    """
-    Creates and returns an asynchronous function that continuously runs the
-    dynamic Scrapy spider.
+    '''
+    @brief Continuously runs the dynamic Scrapy spider, polling URLs from the database and launching scraping processes.
 
-    This function:
-    - Periodically acquires URLs from a PostgreSQL connection pool.
-    - Spawns a separate process to run a Scrapy spider using those URLs.
-    - Waits 60 seconds before repeating the process.
+    Periodically acquires URLs from a PostgreSQL connection pool, spawns a separate process to run a Scrapy spider, and waits before repeating the process. Responds to stop events for graceful shutdown.
 
-    Args:
-        pool (asyncpg.pool.Pool): The asyncpg connection pool for database
-        access.
-
-    Returns:
-        None.
-    """
+    @param pool The asyncpg connection pool for database access.
+    @param stop_event Optional event to signal stopping the loop.
+    @param register_process Optional callback to register the spawned process.
+    @return None (asynchronous coroutine).
+    '''
     number = 0
     while True:
         # Respect immediate stop requests

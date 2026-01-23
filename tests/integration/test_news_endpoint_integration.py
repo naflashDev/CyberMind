@@ -1,3 +1,9 @@
+"""
+@file test_news_endpoint_integration.py
+@author naflashDev
+@brief Integration test for news endpoint and dynamic spider status.
+@details Verifies that scraping news sets the correct worker status and endpoint returns expected results.
+"""
 from fastapi.testclient import TestClient
 from main import app
 

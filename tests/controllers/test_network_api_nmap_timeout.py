@@ -1,3 +1,9 @@
+"""
+@file test_network_api_nmap_timeout.py
+@author naflashDev
+@brief Unit tests for network API nmap timeout endpoint.
+@details Tests FastAPI endpoint for nmap timeout handling, patching subprocess and validating 504 error response.
+"""
 import subprocess
 import shutil
 import pytest

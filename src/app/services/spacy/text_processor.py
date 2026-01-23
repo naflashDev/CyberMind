@@ -1,5 +1,10 @@
-## \file text_processor.py
-## \brief Processes multilingual texts by detecting language and extracting named entities using spaCy.
+
+"""
+@file text_processor.py
+@author naflashDev
+@brief Processes multilingual texts by detecting language and extracting named entities using spaCy.
+@details Provides utilities to detect language, extract entities, and manage spaCy models for multilingual text processing. Integrates with OpenSearch for storage and deduplication.
+"""
 
 
 import spacy
@@ -20,11 +25,14 @@ _models = {}
 models = _models
 
 def _get_model(lang_code: str):
-    """Return a spaCy model for the requested language, loading it on first use.
+    '''
+    @brief Return a spaCy model for the requested language, loading it on first use.
 
-    If the requested model is not available, falls back to Spanish (es) model
-    and logs a warning.
-    """
+    Loads and returns a spaCy model for the given language code. Falls back to Spanish if the requested model is not available.
+
+    @param lang_code Language code (str).
+    @return Loaded spaCy model for the language.
+    '''
     if lang_code in _models and _models[lang_code] is not None:
         return _models[lang_code]
 
@@ -54,8 +62,11 @@ def _get_model(lang_code: str):
 def detect_language(text):
     '''
     @brief Detects the language of a text.
-    @param text Text in string format to analyze.
-    @return ISO 639-1 code of the detected language (e.g., 'es', 'en', 'fr').
+
+    Detects the language of the input text using langdetect.
+
+    @param text Text in string format to analyze (str).
+    @return ISO 639-1 code of the detected language (e.g., 'es', 'en', 'fr') (str).
     '''
     try:
         return detect(text)
@@ -65,8 +76,11 @@ def detect_language(text):
 def tag_text(text):
     '''
     @brief Tags named entities in a text by automatically detecting the language.
-    @param text Text to process.
-    @return A tuple with the list of found entities [(text, type)] and the detected language.
+
+    Detects the language, loads the appropriate spaCy model, and extracts named entities from the text.
+
+    @param text Text to process (str).
+    @return Tuple with the list of found entities [(text, type)] and the detected language (tuple).
     '''
     language = detect_language(text)
     model = _get_model(language)
@@ -76,8 +90,11 @@ def tag_text(text):
 def extract_texts(data):
     '''
     @brief Extracts relevant text strings from the input JSON data.
+
+    Extracts text fields such as title, h1, h2, h3, h4, and p from the input JSON object.
+
     @param data JSON object (dict) with keys like title, h1, h2, h3, h4, p, etc.
-    @return List of text strings extracted from the JSON.
+    @return List of text strings extracted from the JSON (list).
     '''
     texts = []
 
@@ -95,9 +112,12 @@ def extract_texts(data):
 def process_json(input_path, output_path):
     '''
     @brief Processes an input JSON file, tagging texts by language, and saves the results to another JSON.
-    @param input_path Path to the input JSON file.
-    @param output_path Path where the result JSON file will be saved.
-    @return List of results with text, language, tags, and relevance (number of tags).
+
+    Loads an input JSON file, extracts texts, tags them by language, stores results in OpenSearch, and saves the results to another JSON file.
+
+    @param input_path Path to the input JSON file (str).
+    @param output_path Path where the result JSON file will be saved (str).
+    @return List of results with text, language, tags, and relevance (number of tags) (list).
     '''
     with open(input_path, "r", encoding="utf-8") as f:
         data = json.load(f)
