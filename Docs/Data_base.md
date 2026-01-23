@@ -1,31 +1,32 @@
-# Bases de datos
+
+# 🗄️ Bases de Datos en CyberMind
 
 Este capítulo describe las bases de datos utilizadas en el sistema y su propósito dentro del flujo de recolección y gestión de información.
 
 ---
 
-## OpenSearch
+## 🔎 OpenSearch
 
-OpenSearch se utiliza como base de datos para **almacenar los datos scrapeados desde la web**.  
-En ella se guarda la información recopilada mediante:
+OpenSearch se utiliza para **almacenar los datos scrapeados desde la web**. Permite búsquedas rápidas y eficientes sobre textos y metadatos recolectados.
 
-- Técnicas de scraping.
-- Consultas de Google Dorking.
-- Fuentes RSS externas no gestionadas por TinyRSS.
+**Se almacena información proveniente de:**
 
-Su función principal es permitir búsquedas rápidas y eficientes sobre los textos y metadatos recolectados.
+- Técnicas de scraping
+- Consultas de Google Dorking
+- Fuentes RSS externas no gestionadas por TinyRSS
 
----
-
-## PostgreSQL
-
-PostgreSQL se emplea como base de datos para **almacenar la información procedente de TinyRSS**.  
-Aquí se registran:
-
-- Las fuentes RSS configuradas en TinyRSS.
-- Los artículos obtenidos desde cada feed.
-- Los metadatos asociados a los artículos.
-
-Esta base de datos sirve como repositorio estructurado para toda la información gestionada por el sistema TinyRSS.
+> 📈 **Ventaja:** Búsqueda semántica y filtrado avanzado sobre grandes volúmenes de datos no estructurados.
 
 ---
+
+## 🐘 PostgreSQL
+
+PostgreSQL se emplea para **almacenar la información procedente de TinyRSS**. Es el repositorio estructurado de todas las fuentes y artículos gestionados por el sistema TinyRSS.
+
+**Se registran:**
+
+- Fuentes RSS configuradas en TinyRSS
+- Artículos obtenidos desde cada feed
+- Metadatos asociados a los artículos
+
+> 🗃️ **Ventaja:** Permite consultas estructuradas, relaciones y gestión eficiente de feeds y artículos.

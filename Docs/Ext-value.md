@@ -1,38 +1,45 @@
-# Extracción de valores de datos
 
-# Text Processor
+# 🏷️ Extracción de Valores de Datos
 
-`text_processor.py` es una utilidad en Python para procesar textos en varios idiomas, detectar el idioma automáticamente y extraer entidades nombradas utilizando modelos de spaCy.
+## 📝 Text Processor
 
-## Características
+`text_processor.py` es una utilidad en Python para procesar textos multilingües, detectar el idioma automáticamente y extraer entidades nombradas usando modelos de **spaCy**.
 
-- Detección automática de idioma con `langdetect`
-- Extracción de entidades nombradas con `spaCy`
-- Compatible con textos en español, inglés y francés
-- Procesamiento de archivos JSON estructurados
-- Resultados ordenados por relevancia (número de entidades)
+---
 
-## Integración con herramientas de PLN
+## ✨ Características principales
 
-Este proyecto está diseñado para ser extensible e integrarse con herramientas modernas de procesamiento de lenguaje natural:
+| Funcionalidad | Descripción |
+|:---|:---|
+| Detección automática de idioma | Utiliza `langdetect` |
+| Extracción de entidades nombradas | Basada en `spaCy` |
+| Multilingüe | Español, inglés y francés |
+| Procesamiento de archivos JSON | Entrada/salida estructurada |
+| Resultados ordenados | Por relevancia (número de entidades) |
 
-- **spaCy**: para reconocimiento de entidades y extracción estructurada.
-- **Hugging Face Transformers**: para tareas avanzadas de NLP, como clasificación de texto, resumen o análisis de sentimientos.
-- **LangChain**: para crear cadenas de procesamiento inteligentes y contextuales con LLMs.
+---
 
-## Caso de uso
+## 🔗 Integración con herramientas de PLN
 
-Este procesador de texto se puede integrar fácilmente en flujos de trabajo de extracción y análisis de noticias o contenidos multilingües.
+El procesador es extensible e integrable con herramientas modernas de PLN:
 
-Por ejemplo:
+- **spaCy**: reconocimiento de entidades y extracción estructurada
+- **Hugging Face Transformers**: clasificación, resumen, análisis de sentimientos
+- **LangChain**: cadenas de procesamiento inteligentes con LLMs
 
-1. Las noticias se obtienen utilizando herramientas de extracción como **Scrapy** u otros métodos de scraping web.
-2. El archivo resultante, normalmente en formato JSON estructurado, se pasa a través del script `text_processor.py`.
-3. El texto se analiza con **spaCy**, que identifica y etiqueta entidades nombradas como personas, organizaciones y ubicaciones.
-4. El resultado se guarda en un nuevo archivo JSON, el cual puede ser indexado en una base de datos como **OpenSearch**.
-5. Un agente inteligente (por ejemplo, implementado con **LangChain**) puede consultar esta base de datos para responder preguntas, generar informes o realizar tareas automatizadas sobre la información.
+---
 
-## Requisitos
+## 🛠️ Caso de uso típico
+
+1. Obtención de noticias mediante **Scrapy** u otros métodos de scraping
+2. Procesamiento del archivo JSON resultante con `text_processor.py`
+3. Análisis con **spaCy** para identificar entidades (personas, organizaciones, ubicaciones)
+4. Guardado del resultado en un nuevo JSON indexable en **OpenSearch**
+5. Consulta por un agente inteligente (ej. con **LangChain**) para responder preguntas, generar informes o automatizar tareas
+
+---
+
+## 📦 Requisitos
 
 - Python 3.7+
 - Dependencias:
@@ -43,16 +50,19 @@ Por ejemplo:
   python -m spacy download fr_core_news_sm
   ```
 
-## Uso
+---
+
+## ▶️ Uso
 
 ```bash
 python text_processor.py input.json output.json
 ```
 
-### Ejemplo de entrada (`input.json`):
+---
+
+## 📄 Ejemplo de entrada (`input.json`)
 
 ```json
-]
 {
     "url": "https://www.industrialdataworks.com/",
     "title": "ICS Vulnerability API",

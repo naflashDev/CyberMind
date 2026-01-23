@@ -29,11 +29,13 @@ cd CyberMind
 python -m venv env
 source env/bin/activate  # En Windows: .\env\Scripts\activate
 pip install -r requirements.txt
+#Opcional, ya que el programa hace el compose automaticamente
 cd Install
 docker compose -f opensearch-compose.yml up -d
 docker compose -f tinytinyrss.yml up -d
 cd ..
-python -m src.main
+cd src
+python main.py
 ```
 
 - 🌐 UI: [http://127.0.0.1:8000/ui](http://127.0.0.1:8000/ui)

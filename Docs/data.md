@@ -1,63 +1,70 @@
+
 # 📚 Fuentes de Datos y Recolección
 
-# Definición
-
-Obtención de fuentes y métodos utilizados para la recolección automatizada de información relacionada con **vulnerabilidades en tecnologías IT y OT**. La información recolectada se utiliza como base para procesos de análisis, documentación, inteligencia y respuesta ante amenazas.
+Este documento describe las fuentes y métodos utilizados para la **recolección automatizada de información** sobre vulnerabilidades en tecnologías IT y OT. La información recolectada es la base para análisis, inteligencia y respuesta ante amenazas.
 
 ---
 
-## Métodos de Recolección
+## 🔍 Métodos de Recolección
 
-### 1. Feeds RSS/Atom (Google Alerts)
+### 1️⃣ Feeds RSS/Atom (Google Alerts)
 
-Se utilizan Google Alerts configurados con palabras clave específicas para detectar noticias, reportes y publicaciones relevantes. De estos alerts se extrae la web que contiene la información, en busca de nuevos feeds RSS o Atom, los cuales son consumidos automáticamente mediante agregadores o scripts personalizados.
+Se emplean Google Alerts configurados con palabras clave específicas para detectar noticias, reportes y publicaciones relevantes. El flujo es:
 
-- Los feeds de Google Alerts se almacenan en el archivo `google_alert_rss.txt`de forma manual.  
-- Desde este archivo se extraen webs limpias que podrían contener feeds relevantes en ciberseguridad.  
-- Las webs extraídas se almacenan junto con otras obtenidas mediante técnicas de Google Dorking en el archivo `urls_cybersecurity_ot_it.txt`.
+1. Los feeds de Google Alerts se almacenan manualmente en `google_alert_rss.txt`.
+2. De este archivo se extraen webs limpias que podrían contener feeds relevantes.
+3. Las webs extraídas se combinan con otras obtenidas mediante Google Dorking en `urls_cybersecurity_ot_it.txt`.
 
+**Ejemplos de palabras clave:**
 
-- **Ejemplos de palabras clave:**
-  - `ciberseguridad IT`
-  - `ciberseguridad OT`
-  - `ciberataque OT`
-  - `ciberataque IT`
-  - `industrial control system attack`
-  - `SCADA attack`
-  - `Otros` 
+| Palabra clave |
+|:---|
+| ciberseguridad IT |
+| ciberseguridad OT |
+| ciberataque OT |
+| ciberataque IT |
+| industrial control system attack |
+| SCADA attack |
+| Otros |
 
-- **Herramientas recomendadas:**
-  - Feedparser Para leer y analizar feeds RSS/Atom de Google Alerts
-  - Urllib.parse Para extraer y limpiar URLs reales desde enlaces redirigidos de Google
-  - Scripts en Python
+**Herramientas recomendadas:**
+
+- `feedparser` para leer y analizar feeds RSS/Atom
+- `urllib.parse` para extraer y limpiar URLs desde enlaces redirigidos
+- Scripts en Python
 
 ---
 
-### 2. Google Dorking
+### 2️⃣ Google Dorking
 
-Se emplean técnicas de **Google Dorking** para realizar búsquedas avanzadas con el objetivo de encontrar documentos técnicos, publicaciones, investigaciones y noticias ocultas en resultados convencionales.
+Se utilizan técnicas de **Google Dorking** para búsquedas avanzadas y encontrar documentos técnicos, investigaciones y noticias no visibles en resultados convencionales.
 
-- **Ejemplos de dorks utilizados:**
-  - `inurl:/scada filetype:pdf site:.gov`
-  - `"PLC vulnerability" site:ics-cert.us-cert.gov`
-  - `intitle:"index of" "OT network"`
-  - `"vulnerabilidad ICS" site:.edu OR site:.org`
+**Ejemplos de dorks utilizados:**
 
-- **Objetivo:**
-  - Recolectar información técnica relevante no indexada de forma directa.
-  - Identificar fuentes confiables y actualizadas en materia de seguridad OT/IT.
-  - Extraer noticias específicas y posibles feeds RSS de medios especializados.
-  - Detectar enlaces a reportes técnicos, boletines RSS y archivos PDF públicos.
+| Dork |
+|:---|
+| inurl:/scada filetype:pdf site:.gov |
+| "PLC vulnerability" site:ics-cert.us-cert.gov |
+| intitle:"index of" "OT network" |
+| "vulnerabilidad ICS" site:.edu OR site:.org |
 
-- **Frecuencia:**
-  - Consultas automatizadas cada 24 horas.
-  - Consultas programadas con rotación de agentes de usuario y retardos aleatorios.
+**Objetivos:**
 
-#### Automatización y Procesamiento
+- Recolectar información técnica relevante no indexada directamente
+- Identificar fuentes confiables y actualizadas en seguridad OT/IT
+- Extraer noticias específicas y posibles feeds RSS de medios especializados
+- Detectar enlaces a reportes técnicos, boletines RSS y archivos PDF públicos
 
-Se han desarrollado scripts en **Python** para automatizar todo el flujo:
+**Frecuencia:**
 
-- **Módulo de Búsqueda:**
+- Consultas automatizadas cada 24 horas
+- Consultas programadas con rotación de agentes de usuario y retardos aleatorios
+
+---
+
+### ⚙️ Automatización y Procesamiento
+
+Se han desarrollado scripts en **Python** para automatizar todo el flujo de búsqueda, extracción y almacenamiento de fuentes.
   - Utiliza `googlesearch` para ejecutar las consultas de dorking.
   - Extrae las URLs devueltas por Google.
 

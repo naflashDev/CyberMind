@@ -1,160 +1,89 @@
 
-# Proyecto CyberMind – Plataforma Abierta de Análisis de Información
-
-**CyberMind** es una plataforma modular, automatizada y de código abierto para la recolección, análisis y visualización de información sobre vulnerabilidades IT y OT (Tecnologías de la Información y Tecnologías de Operación). Su objetivo es facilitar el acceso a datos estructurados y procesados a partir de fuentes públicas, con enfoque en la transparencia, la colaboración abierta y el uso de metodologías de inteligencia.
-
-El proyecto está orientado a investigadores, periodistas de datos, analistas y desarrolladores interesados en contribuir con nuevos módulos y fuentes.
-
----
-
-##  Definiciones
 
 
+# 🧠 CyberMind – Plataforma Multifunción de Ciberseguridad y Auditoría
 
-## 🧭 Objetivo del proyecto
+**CyberMind** es una plataforma modular, automatizada y de código abierto para la auditoría, análisis, monitorización y automatización de tareas de ciberseguridad en entornos **IT** y **OT**. Va mucho más allá de la simple recolección de datos: permite realizar auditorías técnicas, análisis de vulnerabilidades, orquestación de flujos de trabajo, generación de dashboards, integración de IA y procesamiento avanzado de información.
 
-Crear una herramienta abierta, extensible y replicable que permita:
-
-- Recolectar noticias y documentos desde múltiples fuentes web.
-- Procesar información no estructurada usando técnicas de NLP y machine learning.
-- Detectar patrones, narrativas y entidades clave dentro de los textos.
-- Correlacionar datos de fuentes heterogéneas (noticias, estadísticas, vulnerabilidades).
-- Visualizar resultados mediante dashboards e interfaces interactivas.
-- Servir como base para entrenar modelos de lenguaje adaptados a casos concretos.
+> 🎯 **Objetivo:** Proveer una solución integral y flexible para la gestión de inteligencia, auditoría y automatización en ciberseguridad, facilitando el acceso a datos estructurados y procesados, la correlación de eventos y la toma de decisiones informada. Promueve la transparencia, la colaboración abierta y el uso de metodologías de inteligencia y automatización.
 
 ---
 
-## 🧩 Características principales
+## 👥 ¿A quién va dirigido?
 
-- 🔁 **Orquestación y orquestador ligero**: la plataforma permite orquestar tareas de recolección y análisis; en despliegues avanzados puede integrarse con Airflow u otros programadores.
-- 🌐 **Multifuente**: integraciones con RSS (TinyRSS), Google Alerts, Google Dorking, bases de datos públicas, APIs de seguridad, etc.
-- 🧠 **Procesamiento semántico**: extracción de keywords, NER, sentimiento, embeddings vectoriales.
-- 🗂️ **Almacenamiento híbrido**: OpenSearch para búsquedas semánticas.
-- 📊 **Visualización abierta**: dashboards configurables con herramientas como Grafana o Chartbrew.
-- 🧱 **Arquitectura modular**: diseñada para incorporar nuevos dominios de análisis de forma independiente.
+Investigadores, periodistas de datos, analistas y desarrolladores interesados en contribuir con nuevos módulos, fuentes y casos de uso.
 
 ---
+
+
+## 🧭 Objetivos principales
+
+- Automatizar la recolección, análisis y correlación de información de ciberseguridad desde múltiples fuentes (noticias, feeds, APIs, escaneos de red, etc.).
+- Facilitar auditorías técnicas y análisis de vulnerabilidades en infraestructuras IT/OT.
+- Orquestar flujos de trabajo y tareas periódicas (scraping, procesamiento NLP, actualización de modelos, etc.).
+- Procesar información no estructurada usando técnicas de NLP, machine learning y modelos LLM.
+- Detectar patrones, narrativas, entidades clave y anomalías en grandes volúmenes de datos.
+- Correlacionar eventos y datos de fuentes heterogéneas (noticias, estadísticas, vulnerabilidades, escaneos, logs).
+- Visualizar resultados mediante dashboards, informes y paneles interactivos.
+- Servir como base para entrenar y evaluar modelos de lenguaje adaptados a ciberseguridad.
+- Permitir la integración de nuevos módulos, plugins y servicios para ampliar capacidades.
+
+---
+
+
+## ⚙️ Características destacadas
+
+| Característica | Descripción |
+|:---|:---|
+| 🔁 Orquestación y automatización | Orquestación de tareas de recolección, análisis, escaneo, procesamiento NLP, actualización de modelos y generación de informes. Integración opcional con Airflow u otros programadores. |
+| 🌐 Multifuente y multipropósito | Integración con RSS (TinyRSS), Google Alerts, Google Dorking, APIs públicas, escaneos de red, logs, bases de datos y más. |
+| 🧠 Procesamiento semántico y ML | Extracción de keywords, NER, sentimiento, embeddings, categorización y análisis avanzado con NLP y machine learning. |
+| 🗂️ Almacenamiento híbrido | OpenSearch para búsquedas semánticas, PostgreSQL para datos estructurados, soporte para outputs customizados. |
+| 📊 Dashboards e informes | Visualización configurable con OpenSearch Dashboards, Grafana, Chartbrew, generación de informes y paneles interactivos. |
+| 🤖 Integración de IA y LLM | Módulo de IA especializado en ciberseguridad, consultas técnicas, resumen de CVEs, análisis de noticias y soporte a auditoría. |
+| 🛡️ Auditoría y análisis de red | Funciones de escaneo de red, análisis de puertos, correlación de vulnerabilidades y soporte a auditoría técnica. |
+| 🧩 Arquitectura modular y extensible | Permite incorporar nuevos dominios, módulos, plugins y servicios de forma independiente. |
+
+---
+
 
 ## 🧪 Casos de uso iniciales
 
-union está preparado para adaptarse a distintos dominios temáticos. Algunos de los primeros módulos en desarrollo incluyen:
-
-- **Análisis de vulnerabilidades tecnológicas**: detección y correlación de CVEs, CWE, CAPEC, y noticias sobre ciberseguridad.
-- **Entrenamiento de un LLM sobre ciberseguridad industrial**: detección y correlación de CVEs, CWE, CAPEC, y noticias sobre ciberseguridad.
-
+- **Auditoría y análisis de infraestructuras IT/OT:** Escaneo de red, análisis de puertos, correlación de vulnerabilidades, generación de informes técnicos.
+- **Automatización de flujos de inteligencia:** Orquestación de scraping, procesamiento NLP, actualización de modelos y generación de dashboards.
+- **Análisis y monitorización de amenazas:** Detección y correlación de CVEs, CWE, CAPEC, noticias y eventos de ciberseguridad.
+- **Entrenamiento y evaluación de modelos LLM para ciberseguridad:** Modelos adaptados a la detección y análisis de amenazas OT/IT, generación de datasets y validación de resultados.
 
 ---
 
-## 🚀 Objetivo como proyecto open source
+## 🚀 Filosofía open source
 
 - Fomentar la colaboración entre comunidades técnicas y académicas.
 - Proveer una infraestructura reutilizable para proyectos de investigación aplicada.
-- Crear un ecosistema de plugins y módulos que permita ampliar las capacidades de la plataforma.
+- Crear un ecosistema de plugins y módulos para ampliar capacidades.
 - Servir como punto de partida para iniciativas públicas o ciudadanas de análisis e inteligencia de datos.
 
 ---
 
-## 🌍 Acceso a la plataforma
+## 🌍 Acceso y despliegue
 
-Habrá una instancia pública en línea accesible desde web para explorar módulos activos como vivienda o desinformación. También se podrá clonar e instalar localmente o adaptar para nuevos fines.
+Habrá una instancia pública en línea para explorar módulos activos. También puedes clonar e instalar localmente o adaptar la plataforma para nuevos fines.
+
+> ℹ️ **Consulta el resto de la documentación para guías de instalación, arquitectura, API y casos de uso avanzados.**
 
 ---
 
-## Definiciones
 
-### **OSINT (Open Source Intelligence)**  
+## Definiciones y enfoque multifunción
 
-**Definición**:  
-El **OSINT** (Inteligencia de Fuentes Abiertas) es una metodología para recopilar, analizar y aprovechar información de **fuentes de acceso público** con el fin de generar conocimiento útil. Se centra en datos disponibles legalmente, sin requerir técnicas intrusivas o ilegales.
+**CyberMind** integra y automatiza técnicas de recolección, análisis, auditoría y procesamiento de información para ciberseguridad, combinando metodologías OSINT, escaneo de red, análisis de vulnerabilidades, procesamiento NLP/ML y generación de dashboards. No es solo una herramienta de recolección, sino una plataforma multifunción para la gestión y automatización de inteligencia y auditoría técnica.
 
-#### **Características clave**:  
-- **Fuentes**: Redes sociales, sitios web, foros, registros gubernamentales, artículos, metadatos, imágenes, y cualquier recurso público.  
-- **Propósito**:  
-  - Apoyar investigaciones (periodísticas, policiales, corporativas).  
-  - Identificar riesgos de seguridad (fugas de datos, vulnerabilidades).  
-  - Analizar tendencias o comportamientos en redes sociales.  
-- **Ética**: Se basa en el uso responsable de información pública, respetando la privacidad y leyes locales.  
+### Ejemplos de capacidades:
+- Recolección y análisis de fuentes abiertas (OSINT): feeds, noticias, APIs, Google Dorking, etc.
+- Auditoría y escaneo de red: análisis de puertos, correlación de vulnerabilidades, generación de informes técnicos.
+- Procesamiento avanzado de texto: NLP, extracción de entidades, categorización, sentimiento, embeddings, clustering.
+- Automatización de flujos: scraping, procesamiento periódico, actualización de modelos, generación de dashboards.
+- Generación de datasets y entrenamiento de modelos LLM para ciberseguridad.
+- Visualización y reporting: dashboards, informes, paneles interactivos.
 
-#### **Ejemplos de aplicaciones**:  
-- Periodistas: Verificar datos para reportajes.  
-- Equipos de ciberseguridad: Detectar exposiciones de datos sensibles.  
-- Empresas: Estudiar a la competencia o proteger su reputación.  
-
-#### **Herramientas asociadas**:  
-- Buscadores avanzados (Google Dorking).  
-- Shodan (dispositivos IoT expuestos).  
-- Maltego (mapeo de relaciones entre datos).  
-- theHarvester (recolección de correos y dominios).  
-
-### **Técnicas de Extracción de Datos**  
-
-**Definición**:  
-Procesos para obtener, transformar y estructurar información cruda (texto, imágenes, metadatos, etc.) desde fuentes heterogéneas (webs, documentos, PDFs) a formatos útiles (CSV, JSON, bases de datos).  
-
-#### **1. Web Scraping (Extracción de datos de sitios web)**  
-- **Propósito**: Automatizar la recolección de datos estructurados desde páginas web.  
-- **Herramientas**:  
-  - **Scrapy** (framework en Python para scraping avanzado).  
-  - **Beautiful Soup** (biblioteca para parsear HTML/XML).  
-- **Cómo funciona**:  
-  - Identifica patrones en el HTML (etiquetas, clases CSS).  
-  - Extrae texto, enlaces, tablas o imágenes.  
-  - Almacena los datos en formatos como JSON o CSV. 
-
-### **2. Procesamiento de Documentos**  
-
-**Propósito**: Extraer texto, tablas o metadatos de PDFs, Word, Excel, etc.  
-
-**Herramientas**:  
-- **Apache Tika (Java/Python)**: Extracción de contenido y metadatos.  
-  ```bash  
-  # Usar Tika desde línea de comandos  
-  java -jar tika-app.jar --text documento.pdf  
-- **APyPDF2 (Python)**: Manipulación básica de PDFs.
-
-### **3. Extracción de Metadatos**  
-
-**Propósito**:Obtener información oculta (autor, GPS, fecha de creación).
-**Herramientas**:  
-- **ExifTool**: Metadatos en imágenes, PDFs y videos.
-
-## **Procesamiento de Texto y Categorización con NLP/ML**  
-
-### **1. Procesamiento de Texto (NLP)**  
-
-**Propósito**:  
-Transformar texto no estructurado en información estructurada (keywords, entidades, temas) para clasificar y priorizar datos en herramientas de inteligencia como **MISP**.  
-
-**Técnicas Clave**:  
-
-#### **A. Preprocesamiento de Texto**  
-- **Tokenización**: Dividir texto en palabras o frases.  
-
-#### **B. Extracción de Keywords**  
-- **Tokenización**: Dividir texto en palabras o frases. 
-
-##### **B. Extracción de Keywords**  
-
--TF-IDF (Frecuencia Término-Inverso de Documento): Identifica palabras clave relevantes en un corpus de documentos. 
-- RAKE (Rapid Automatic Keyword Extraction): Extrae frases clave basadas en frecuencia y co-ocurrencia.
-
-##### **C. Reconocimiento de Entidades (NER)**  
-
-- Identificar entidades como organizaciones, ubicaciones, o indicadores de compromiso (IOCs).
-
-### **2. Machine Learning para Categorización
-
-**Propósito**: Clasificar automáticamente la información en categorías útiles para inteligencia (ej: "phishing", "malware", "vulnerabilidades").
-
-**Técnicas Clave**: 
-
-##### **A. Aprendizaje Supervisado**
-
-**Clasificación de Texto**: Con modelos como SVM, Random Forest, Redes Neuronales (LSTM, Transformers). Se debe Etiquetar datos manualmente y Entrenar un modelo con embeddings.
-
-##### **B. Aprendizaje No Supervisado**
-
-- *Clustering*: Agrupar documentos similares sin etiquetas previas.
-- *Topic Modeling*: Descubrir temas ocultos en documentos (ej: LDA).
-
-> 💡 *Creemos que la inteligencia de datos debe estar al servicio de la sociedad. Este proyecto es nuestra apuesta por una tecnología transparente, abierta y colaborativa.*
+> 💡 *CyberMind apuesta por una tecnología transparente, abierta, colaborativa y orientada a la automatización y la auditoría avanzada en ciberseguridad.*

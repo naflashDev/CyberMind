@@ -1,24 +1,25 @@
 
-# Instalación y configuración de TinyRSS para CyberMind (Docker Compose)
 
-Este documento describe cómo instalar y configurar **TinyRSS** como servicio auxiliar de **CyberMind** usando **Docker Compose** dentro de WSL. Los archivos `stack.env` y `tinytinyrss.yml` se encuentran en la carpeta `Install/` del repositorio.
+# 📰 Instalación y configuración de TinyRSS para CyberMind (Docker Compose)
 
----
-
-## 1. Requisitos previos
-
-- **WSL2** instalado y funcionando.
-- **Docker Desktop** con soporte para WSL2.
-- **Docker Compose** instalado.
-- Una terminal dentro de la distribución Linux de WSL (por ejemplo Ubuntu).
-
-> Todos los archivos necesarios (`stack.env`, `tinytinyrss.yml`) se encuentran en la carpeta `install`.
+Guía para instalar y configurar **TinyRSS** como servicio auxiliar de **CyberMind** usando Docker Compose (recomendado en WSL).
 
 ---
 
-## 2. Archivo de entorno (`stack.env`)
+## 1️⃣ Requisitos previos
 
-Contenido del archivo `stack.env`:
+- **WSL2** instalado y funcionando
+- **Docker Desktop** con soporte para WSL2
+- **Docker Compose** instalado
+- Terminal dentro de la distribución Linux de WSL (ej. Ubuntu)
+
+> 📁 Todos los archivos necesarios (`stack.env`, `tinytinyrss.yml`) están en la carpeta `Install/`.
+
+---
+
+## 2️⃣ Archivo de entorno (`stack.env`)
+
+Ejemplo de contenido de `stack.env`:
 
 ```env
 TTRSS_DB_USER=postgres
@@ -27,15 +28,15 @@ TTRSS_DB_PASS=password123
 HTTP_PORT=127.0.0.1:8280
 ```
 
-- `TTRSS_DB_USER`, `TTRSS_DB_NAME`, `TTRSS_DB_PASS`: credenciales de la base de datos PostgreSQL para TinyRSS.
-- `HTTP_PORT`: puerto local donde se expondrá TinyRSS.
+- `TTRSS_DB_USER`, `TTRSS_DB_NAME`, `TTRSS_DB_PASS`: credenciales de la base de datos PostgreSQL para TinyRSS
+- `HTTP_PORT`: puerto local donde se expondrá TinyRSS
 
-> Importante: el fichero `stack.env` debe existir en la misma carpeta que `tinytinyrss.yml` (la carpeta `Install/`). El compose usa estas variables para configurar la base de datos y el puerto. Si falta, la ejecución fallará.
+> ⚠️ **Importante:** El fichero `stack.env` debe existir en la misma carpeta que `tinytinyrss.yml` (`Install/`). El compose usa estas variables para configurar la base de datos y el puerto. Si falta, la ejecución fallará.
 
-Si prefieres, crea una copia y personalízala:
+Puedes crear una copia y personalizarla:
 
 ```bash
-cp Install/stack.env.example Install/stack.env  # si incluyes un template
+cp Install/stack.env.example Install/stack.env  # si hay template
 # o crear manualmente
 cat > Install/stack.env <<'EOF'
 TTRSS_DB_USER=postgres
@@ -47,9 +48,9 @@ EOF
 
 ---
 
-## 3. Docker Compose para TinyRSS (`tinytinyrss.yml`)
+## 3️⃣ Docker Compose para TinyRSS (`tinytinyrss.yml`)
 
-Contenido del archivo `tinytinyrss.yml`:
+Ejemplo de contenido de `tinytinyrss.yml`:
 
 ```yaml
 version: '3'

@@ -1,117 +1,334 @@
-# API Endpoints
 
-Este documento resume los endpoints públicos expuestos por la API de CyberMind. Puedes probarlos desde la UI o usando `curl` / `httpie`. La documentación interactiva (Swagger) está disponible en `http://127.0.0.1:8000/docs` cuando la API está en ejecución.
 
-## Raíz y UI
-- `GET /` — Redirige o devuelve información básica (no incluida en el esquema Swagger).
-- `GET /ui` — Página web de la UI (servida desde `src/app/ui/static`).
 
-## News Spider (`/newsSpider`)
-Prefijo: `/newsSpider`
 
-- `POST /newsSpider/save-feed-google-alerts` — Añade y valida un feed RSS (body: `{ "feed_url": "https://..." }`).
-  - Respuesta: `SaveLinkResponse` con título y link guardado.
-- `GET /newsSpider/scrape-news` — Lanza el proceso de scraping de noticias (background task).
-- `GET /newsSpider/start-google-alerts` — Inicia el programador periódico que procesa los feeds listados en `data/google_alert_rss.txt`.
-- `GET /newsSpider/scrapy/google-dk/feeds` — Inicia scraping de feeds usando Google Dorking (tarea programada cada 24h).
-- `GET /newsSpider/scrapy/google-dk/news` — Inicia scraping de noticias usando Google Dorking (tarea programada cada 24h).
 
-Uso típico (curl):
+# 🚀 **Endpoints de la API CyberMind**
+<div align="center">
+  <img src="https://img.shields.io/badge/API-RESTful-009688?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Seguridad-By%20Design-4ECDC4?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/IA-Integrada-7B68EE?style=for-the-badge" />
+</div>
+<div align="center">
+  <strong>Plataforma modular para automatización, análisis y auditoría de ciberseguridad IT/OT</strong>
+</div>
 
-```bash
-curl -X POST http://127.0.0.1:8000/newsSpider/save-feed-google-alerts -H "Content-Type: application/json" -d '{"feed_url":"https://example.com/rss"}'
-```
+---
 
-## TinyRSS/Postgres (`/postgre-ttrss`)
-Prefijo: `/postgre-ttrss`
+<details>
+<summary><strong>ℹ️ Descripción general</strong></summary>
 
-- `GET /postgre-ttrss/search-and-insert-rss` — Lanza la extracción periódica de URLs listadas en `data/urls_cybersecurity_ot_it.txt` y persiste los feeds en Postgres.
-- `GET /postgre-ttrss/feeds?limit=10` — Devuelve feeds guardados en la BD, con parámetro `limit` (por defecto 10).
+**CyberMind** es una plataforma multifunción que integra:
 
-Ejemplo:
+- 🕸️ Scraping y feeds
+- 🤖 Procesamiento semántico y LLM
+- 🛡️ Análisis de vulnerabilidades
+- 🌐 Escaneo de red
+- 🗂️ Orquestación de tareas
+- 📊 Dashboards y reporting
 
-```bash
-curl http://127.0.0.1:8000/postgre-ttrss/feeds?limit=20
-```
+Permite desde la recolección y correlación de datos hasta la ejecución de auditorías técnicas, automatización de flujos y generación de informes avanzados.
 
-## LLM (`/llm`)
-Prefijo: `/llm`
+<div align="center">
+  <b>Todos los endpoints pueden probarse desde la UI o con herramientas como <code>curl</code> o <code>httpie</code>.</b>
+</div>
 
-- `POST /llm/query` — Envía un `prompt` y devuelve la respuesta del LLM.
-  - Body: `{ "prompt": "Explica CVE-2024-XXXX" }`
-  - Respuesta: `{ "response": "..." }`
-- `GET /llm/updater` — Inicia el proceso de actualización/finetune periódico del LLM (background loop semanal).
-- `GET /llm/stop-updater` — Detiene el proceso iniciado por `/llm/updater`.
+> 📑 <b>Documentación interactiva (Swagger):</b> <br>
+> Accede a <a href="http://127.0.0.1:8000/docs">http://127.0.0.1:8000/docs</a> para explorar y probar los endpoints de forma visual.
 
-Ejemplo de consulta al LLM:
+</details>
 
-```bash
-curl -X POST http://127.0.0.1:8000/llm/query -H "Content-Type: application/json" -d '{"prompt":"Resume CVE-2024-4320"}'
-```
+---
 
-### Integración con la UI
 
-La UI proporciona controles para iniciar/detener el `llm_updater` y para enviar consultas al LLM desde el panel interactivo. En la UI, las solicitudes se envían al endpoint `/llm/query` y al endpoint `/llm/updater` para controlar el proceso de actualización.
 
-#### Panel de Operaciones (FastAPI) — categoría `OSINT`
+## 🏠 **Raíz y UI**
 
-En la vista `Operaciones FastAPI` de la UI se ha añadido una categoría llamada **OSINT** que agrupa accesos rápidos a las secciones relacionadas con la recolección y el procesamiento de información de fuentes abiertas. Al desplegar `OSINT` en el panel de `Controllers` se muestran las subsecciones:
+<table>
+  <thead>
+    <tr>
+      <th>Método</th>
+      <th>Ruta</th>
+      <th>Descripción</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>GET</b></td>
+      <td><code>/</code></td>
+      <td>Redirige o devuelve información básica (no incluida en Swagger)</td>
+    </tr>
+    <tr>
+      <td><b>GET</b></td>
+      <td><code>/ui</code></td>
+      <td>Página web de la UI (servida desde <code>src/app/ui/static</code>)</td>
+    </tr>
+  </tbody>
+</table>
 
-- **Scrapy**: operaciones bajo el prefijo `/newsSpider` (scrapers, Google Alerts, Google Dorking).
-- **SpaCy**: operaciones de procesamiento NLP (`/start-spacy`).
-- **Tiny**: operaciones relacionadas con TinyRSS/Postgres (`/postgre-ttrss/*`).
-- **LLM**: operaciones del módulo de LLM (`/llm/*`).
+---
 
-Cada subsección expande su listado de operaciones (botones) que ejecutan llamadas HTTP a los endpoints descritos en este documento. Por ejemplo, al seleccionar `Scrapy` se muestran los botones para `scrape-news`, `start-google-alerts` o `save-feed-google-alerts`, que invocan los endpoints bajo `/newsSpider`.
 
-Esta agrupación es puramente organizativa en la UI para facilitar el acceso a las herramientas de OSINT y no cambia la ruta o el contrato de los endpoints que siguen documentados en sus secciones correspondientes.
 
-### Comportamiento y alcance del LLM
+## 🕸️ **News Spider** <code>(/newsSpider)</code>
 
-- El LLM integrado está especializado en ciberseguridad: responde a consultas relacionadas con CVE, análisis técnico, forense digital, y noticias recogidas por los scrapers del sistema.
-- No es una búsqueda generalista: su conocimiento está orientado a la información procesada por la plataforma (CVE, artefactos técnicos, resúmenes de noticias).
-- Recomendación de uso: formular preguntas concretas sobre vulnerabilidades, descripciones técnicas y resúmenes de noticias; evita pedir información fuera del dominio técnico.
+<details>
+<summary><b>📥 Ver endpoints de scraping y feeds</b></summary>
 
-## SpaCy (`/start-spacy`)
-- `GET /start-spacy` — Inicia un proceso background que lee `outputs/result.json`, extrae entidades y escribe `outputs/labels_result.json`. Programado para ejecutarse cada 24 horas si se lanza desde la API.
+<table>
+  <thead>
+    <tr>
+      <th>Método</th>
+      <th>Ruta</th>
+      <th>Descripción</th>
+      <th>Body/Parámetros</th>
+      <th>Respuesta</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/newsSpider/save-feed-google-alerts</code></td>
+      <td>Añade y valida un feed RSS</td>
+      <td><code>{ "feed_url": "https://..." }</code></td>
+      <td><code>SaveLinkResponse</code> (título y link)</td>
+    </tr>
+    <tr>
+      <td><b>GET</b></td>
+      <td><code>/newsSpider/scrape-news</code></td>
+      <td>Lanza scraping de noticias (background)</td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><b>GET</b></td>
+      <td><code>/newsSpider/start-google-alerts</code></td>
+      <td>Inicia el programador periódico para feeds de <code>data/google_alert_rss.txt</code></td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><b>GET</b></td>
+      <td><code>/newsSpider/scrapy/google-dk/feeds</code></td>
+      <td>Scraping de feeds con Google Dorking (cada 24h)</td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><b>GET</b></td>
+      <td><code>/newsSpider/scrapy/google-dk/news</code></td>
+      <td>Scraping de noticias con Google Dorking (cada 24h)</td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+  </tbody>
+</table>
 
-## Estado y control (`/status`, `/workers/*`)
-- `GET /status` — Devuelve un objeto JSON con el estado del sistema, listando workers y flags de inicialización.
-- `POST /workers/{worker_name}` — Controla (activar/desactivar) workers desde la UI (se espera body `{ "enabled": true|false }`).
+<blockquote>
+<b>Ejemplo de uso (curl):</b>
 
-Ejemplo:
+<pre><code>curl -X POST http://127.0.0.1:8000/newsSpider/save-feed-google-alerts -H "Content-Type: application/json" -d '{"feed_url":"https://example.com/rss"}'
+</code></pre>
+</blockquote>
+
+</details>
+
+---
+
+
+
+## 📰 **TinyRSS/Postgres** <code>(/postgre-ttrss)</code>
+
+<details>
+<summary><b>📥 Ver endpoints de feeds y almacenamiento</b></summary>
+
+<table>
+  <thead>
+    <tr>
+      <th>Método</th>
+      <th>Ruta</th>
+      <th>Descripción</th>
+      <th>Parámetros</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>GET</b></td>
+      <td><code>/postgre-ttrss/search-and-insert-rss</code></td>
+      <td>Extrae periódicamente URLs de <code>data/urls_cybersecurity_ot_it.txt</code> y persiste feeds en Postgres</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><b>GET</b></td>
+      <td><code>/postgre-ttrss/feeds?limit=10</code></td>
+      <td>Devuelve feeds guardados en la BD (por defecto 10)</td>
+      <td><code>limit</code> (opcional)</td>
+    </tr>
+  </tbody>
+</table>
+
+<blockquote>
+<b>Ejemplo:</b>
+
+<pre><code>curl http://127.0.0.1:8000/postgre-ttrss/feeds?limit=20
+</code></pre>
+</blockquote>
+
+</details>
+
+---
+
+
+
+## 🤖 **LLM** <code>(/llm)</code>
+
+<details>
+<summary><b>🧠 Ver endpoints de IA y consultas técnicas</b></summary>
+
+<table>
+  <thead>
+    <tr>
+      <th>Método</th>
+      <th>Ruta</th>
+      <th>Descripción</th>
+      <th>Body/Parámetros</th>
+      <th>Respuesta</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/llm/query</code></td>
+      <td>Envía un <code>prompt</code> y devuelve la respuesta del LLM</td>
+      <td><code>{ "prompt": "Explica CVE-2024-XXXX" }</code></td>
+      <td><code>{ "response": "..." }</code></td>
+    </tr>
+    <tr>
+      <td><b>GET</b></td>
+      <td><code>/llm/updater</code></td>
+      <td>Inicia el proceso de actualización/finetune periódico del LLM</td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><b>GET</b></td>
+      <td><code>/llm/stop-updater</code></td>
+      <td>Detiene el proceso iniciado por <code>/llm/updater</code></td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+  </tbody>
+</table>
+
+<blockquote>
+<b>Ejemplo de consulta al LLM:</b>
+
+<pre><code>curl -X POST http://127.0.0.1:8000/llm/query -H "Content-Type: application/json" -d '{"prompt":"Resume CVE-2024-4320"}'
+</code></pre>
+</blockquote>
+
+</details>
+
+---
+
+
+
+## 🖥️ **Integración con la UI y flujos multifunción**
+
+<details>
+<summary><b>🖱️ ¿Qué permite la UI de CyberMind?</b></summary>
+
+- Iniciar/detener el <code>llm_updater</code> y otros workers de automatización
+- Enviar consultas al LLM especializado en ciberseguridad
+- Acceder a paneles de auditoría, análisis de red, scraping, procesamiento NLP, reporting y dashboards
+- Orquestar flujos de trabajo: scraping, análisis, escaneo, generación de informes y dashboards
+- Visualizar resultados en tiempo real y acceder a informes técnicos generados automáticamente
+
+<br/>
+
+<b>Las categorías de la UI agrupan accesos rápidos a:</b>
+
+| Categoría | Funcionalidad |
+|---|---|
+| <b>Scrapy</b> | Scraping de noticias, feeds, Google Alerts, Google Dorking |
+| <b>SpaCy</b> | Procesamiento NLP, extracción de entidades, análisis semántico |
+| <b>TinyRSS/Postgres</b> | Gestión y consulta de feeds estructurados |
+| <b>LLM</b> | Consultas técnicas, resumen de CVEs, análisis de noticias y soporte a auditoría |
+| <b>Network</b> | Escaneo de red, análisis de puertos, correlación de vulnerabilidades |
+| <b>Dashboards/Reporting</b> | Visualización de resultados, generación de informes y paneles interactivos |
+
+Cada subsección expande su listado de operaciones (botones) que ejecutan llamadas HTTP a los endpoints descritos en este documento. Por ejemplo, al seleccionar <code>Network</code> se muestran los botones para escaneo de red, análisis de puertos o generación de informes técnicos.
+
+<br/>
+
+<b>Comportamiento y alcance del LLM:</b>
+
+- El LLM integrado está especializado en ciberseguridad: responde a consultas sobre CVE, análisis técnico, forense digital, noticias, correlación de vulnerabilidades y soporte a auditoría.
+- No es una búsqueda generalista: su conocimiento está orientado a la información procesada y auditada por la plataforma.
+- Recomendación de uso: formular preguntas concretas sobre vulnerabilidades, auditoría, descripciones técnicas, resúmenes de noticias y análisis de red.
+
+</details>
+
+---
+
+
+## 🧩 **Endpoints adicionales y utilidades**
+
+<details>
+<summary><b>🟣 SpaCy (`/start-spacy`)</b></summary>
+
+- <b>GET /start-spacy</b> — Inicia un proceso background que lee <code>outputs/result.json</code>, extrae entidades y escribe <code>outputs/labels_result.json</code>. Programado para ejecutarse cada 24 horas si se lanza desde la API.
+
+</details>
+
+<details>
+<summary><b>🟢 Estado y control (`/status`, `/workers/*`)</b></summary>
+
+- <b>GET /status</b> — Devuelve un objeto JSON con el estado del sistema, listando workers y flags de inicialización.
+- <b>POST /workers/{worker_name}</b> — Controla (activar/desactivar) workers desde la UI (se espera body <code>{ "enabled": true|false }</code>).
+
+<b>Ejemplo:</b>
 
 ```bash
 curl http://127.0.0.1:8000/status
 curl -X POST http://127.0.0.1:8000/workers/rss_extractor -H "Content-Type: application/json" -d '{"enabled":true}'
 ```
 
-## Network (`/network`)
-Prefijo: `/network`
+</details>
 
-- `POST /network/scan` — Escanea puertos TCP del host indicado y devuelve una lista de puertos con indicador `open` y una etiqueta heurística de servicio.
-  - Body: `{ "host": "1.2.3.4", "ports": [22,80], "timeout": 0.5 }` (el campo `ports` es opcional; si se omite se usan puertos comunes).
-  - Respuesta: `{ "host": "1.2.3.4", "results": [{"port":22,"open":true,"service":"ssh"}, ...] }`
+---
 
-- `GET /network/ports` — Devuelve una lista de puertos comunes sugeridos para escaneo.
+## 🌐 **Network (`/network`)**
 
-### Escaneo por rango / CIDR
+<details>
+<summary><b>🔎 Endpoints de escaneo y análisis de red</b></summary>
 
-- `POST /network/scan_range` — Escanea un rango de IPs (por CIDR o por start/end) y devuelve, por cada host, la lista de puertos analizados junto con su `state`.
-  - Body (JSON):
-    - `cidr` (string, opcional): bloque CIDR (ej. `192.168.1.0/28`). Si se proporciona, se escanean las IPs del bloque. Si está vacío (`""`) se trata como omitido.
-    - `start` (string, opcional): IP inicial del rango (ej. `192.168.1.3`). Se usa cuando `cidr` no está presente.
-    - `end` (string, opcional): IP final del rango. Si no se proporciona, se escanea solo `start`.
-    - `ports` (array de ints o string CSV, opcional): lista de puertos a escanear. La UI puede enviar CSV (`"22,80,443"`) o un arreglo JSON.
-    - `timeout` (number, opcional): timeout por host para `nmap` (segundos). El fallback TCP usa un timeout menor (p. ej. 0.5s).
-    - `use_nmap` (bool, opcional): si `true`, intenta ejecutar `nmap -sV`; si `nmap` no está disponible se usa un fallback TCP.
-    - `concurrency` (int, opcional): máximo de tareas concurrentes (por seguridad el servidor aplica un valor por defecto y límites).
+<ul>
+<li><b>POST /network/scan</b> — Escanea puertos TCP del host indicado y devuelve una lista de puertos con indicador <code>open</code> y una etiqueta heurística de servicio.<br>
+<b>Body:</b> <code>{ "host": "1.2.3.4", "ports": [22,80], "timeout": 0.5 }</code> (el campo <code>ports</code> es opcional; si se omite se usan puertos comunes).<br>
+<b>Respuesta:</b> <code>{ "host": "1.2.3.4", "results": [{"port":22,"open":true,"service":"ssh"}, ...] }</code>
+</li>
+<li><b>GET /network/ports</b> — Devuelve una lista de puertos comunes sugeridos para escaneo.</li>
+</ul>
 
-  - Restricciones y validaciones:
-    - Límite por petición: máximo 1024 hosts. Si el bloque/rango supera ese límite, la API responde `400` con detalle.
-    - Se valida que `end >= start` cuando ambos son IPs.
+<details>
+<summary><b>🟦 Escaneo por rango / CIDR</b></summary>
 
-  - Respuesta (ejemplo simplificado):
+- <b>POST /network/scan_range</b> — Escanea un rango de IPs (por CIDR o por start/end) y devuelve, por cada host, la lista de puertos analizados junto con su <code>state</code>.
+  - <b>Body (JSON):</b>
+    - <code>cidr</code> (string, opcional): bloque CIDR (ej. <code>192.168.1.0/28</code>). Si se proporciona, se escanean las IPs del bloque. Si está vacío (<code>""</code>) se trata como omitido.
+    - <code>start</code> (string, opcional): IP inicial del rango (ej. <code>192.168.1.3</code>). Se usa cuando <code>cidr</code> no está presente.
+    - <code>end</code> (string, opcional): IP final del rango. Si no se proporciona, se escanea solo <code>start</code>.
+    - <code>ports</code> (array de ints o string CSV, opcional): lista de puertos a escanear. La UI puede enviar CSV (<code>"22,80,443"</code>) o un arreglo JSON.
+    - <code>timeout</code> (number, opcional): timeout por host para <code>nmap</code> (segundos). El fallback TCP usa un timeout menor (p. ej. 0.5s).
+    - <code>use_nmap</code> (bool, opcional): si <code>true</code>, intenta ejecutar <code>nmap -sV</code>; si <code>nmap</code> no está disponible se usa un fallback TCP.
+    - <code>concurrency</code> (int, opcional): máximo de tareas concurrentes (por seguridad el servidor aplica un valor por defecto y límites).
+
+  - <b>Restricciones y validaciones:</b>
+    - Límite por petición: máximo 1024 hosts. Si el bloque/rango supera ese límite, la API responde <code>400</code> con detalle.
+    - Se valida que <code>end >= start</code> cuando ambos son IPs.
+
+  - <b>Respuesta (ejemplo simplificado):</b>
 
 ```json
 {
@@ -130,13 +347,13 @@ Prefijo: `/network`
 }
 ```
 
-  - Notas importantes:
-    - Cada elemento en `results` incluye `state` además de `open`. Valores observados: `open`, `closed`, `filtered`, `unknown`.
-    - La UI interpreta `state === 'filtered'` y muestra un badge naranja; `open` mostrará badge verde; cualquier otro estado se considera `CLOSED` (rojo) en la vista.
+  - <b>Notas importantes:</b>
+    - Cada elemento en <code>results</code> incluye <code>state</code> además de <code>open</code>. Valores observados: <code>open</code>, <code>closed</code>, <code>filtered</code>, <code>unknown</code>.
+    - La UI interpreta <code>state === 'filtered'</code> y muestra un badge naranja; <code>open</code> mostrará badge verde; cualquier otro estado se considera <b>CLOSED</b> (rojo) en la vista.
 
-  - Uso en la UI: Panel "Controllers" → sección "Network" → Operación "Análisis de redes (rango)". Parámetros: completar `cidr` O `start` (+ opcional `end`), ajustar `ports`, `use_nmap` y `concurrency`.
+  - <b>Uso en la UI:</b> Panel "Controllers" → sección "Network" → Operación "Análisis de redes (rango)". Parámetros: completar <code>cidr</code> O <code>start</code> (+ opcional <code>end</code>), ajustar <code>ports</code>, <code>use_nmap</code> y <code>concurrency</code>.
 
-  - Ejemplo cURL (CIDR, fallback TCP):
+  - <b>Ejemplo cURL (CIDR, fallback TCP):</b>
 
 ```bash
 curl -X POST http://127.0.0.1:8000/network/scan_range \
@@ -144,7 +361,7 @@ curl -X POST http://127.0.0.1:8000/network/scan_range \
   -d '{"cidr":"127.0.0.0/30","use_nmap":false,"ports":[22,80,443]}'
 ```
 
-  - Ejemplo cURL (start–end, intentar nmap):
+  - <b>Ejemplo cURL (start–end, intentar nmap):</b>
 
 ```bash
 curl -X POST http://127.0.0.1:8000/network/scan_range \
@@ -152,25 +369,21 @@ curl -X POST http://127.0.0.1:8000/network/scan_range \
   -d '{"start":"192.168.1.2","end":"192.168.1.5","use_nmap":true,"concurrency":10}'
 ```
 
-  - Nota legal: realizar escaneos de red contra hosts ajenos puede ser intrusivo y requiere autorización. Usa estas herramientas solo contra sistemas que controlas o tienes permiso explícito para analizar.
+  - <b>Nota legal:</b> realizar escaneos de red contra hosts ajenos puede ser intrusivo y requiere autorización. Usa estas herramientas solo contra sistemas que controlas o tienes permiso explícito para analizar.
 
-### Cambios recientes (2026-01-19)
+</details>
 
-- **Refactor:** La lógica que realizaba el escaneo de un rango de IPs fue movida desde la ruta hacia el servicio interno para mejorar separación de responsabilidades. La ruta `POST /network/scan_range` ahora delega toda la lógica de generación de hosts, concurrencia, timeouts y fallback a la función `scan_range` en el servicio `src/app/services/network_analysis/network_analysis.py`.
-- **Archivos modificados:** `src/app/controllers/routes/network_analysis_controller.py` (ahora sólo orquesta la petición y respuesta) y `src/app/services/network_analysis/network_analysis.py` (nueva función `scan_range`).
-- **Comportamiento:** No se cambió la interfaz del endpoint; las validaciones y límites (p. ej. máximo 1024 hosts) se mantienen, pero la implementación está centralizada en el servicio para facilitar testeo y reutilización.
+</details>
 
-- **Corregido (2026-01-19):** Se solucionó un error interno que producía "TypeError: scan_range() got an unexpected keyword argument 'cidr'" al invocar `POST /network/scan_range`. La ruta ahora delega correctamente en la función de servicio (`scan_range`) importada como `service_scan_range`, evitando el sombreado del nombre y los fallos en tiempo de ejecución.
+---
 
-Ejemplo (scan):
+## 📝 **Notas**
 
-```bash
-curl -X POST http://127.0.0.1:8000/network/scan -H "Content-Type: application/json" -d '{"host":"8.8.8.8","ports":[53,80]}'
-```
+<details>
+<summary><b>📌 Notas</b></summary>
 
-Nota legal: Realizar escaneos de red contra hosts ajenos puede ser intrusivo y requiere autorización. Usa estas herramientas solo contra sistemas que controlas o tienes permiso explícito para analizar.
+- La UI (<code>/ui</code>) ofrece controles para orquestar, auditar, analizar y automatizar tareas de ciberseguridad, mostrando el estado y resultados en tiempo real.
+- Los endpoints pueden ser utilizados para flujos de auditoría, reporting, generación de dashboards, análisis de red, scraping, procesamiento NLP, automatización y más.
+- Para ver tipos y modelos, consulta la documentación interactiva en <code>http://127.0.0.1:8000/docs</code>.
 
-## Notas
-- La UI (`/ui`) ofrece controles que llaman a estos endpoints y muestra el estado en tiempo real.
-- Para ver tipos y modelos, consulta la documentación interactiva en `http://127.0.0.1:8000/docs`.
-"""
+</details>
