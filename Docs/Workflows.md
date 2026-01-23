@@ -42,12 +42,3 @@ Resumen de las mejoras y correcciones aplicadas a los workflows en `.github/work
 
 ---
 
-## 🗂️ Notas y siguientes pasos
-
-- Documentación: entrada agregada en `Docs/ChangeLog.md`
-- Revisión recomendada: verificar en la siguiente ejecución de CI que los artifacts se suben correctamente
-- Si lo deseas, puedo:
-  - Ejecutar `pytest` localmente en el entorno virtual y reportar fallos
-  - Añadir cache para dependencias en el job `tests`
-
----
