@@ -6,6 +6,19 @@ El formato se basa en "Keep a Changelog" y este proyecto sigue el Versionado Sem
 
 ## [Sin publicar]
 
+### Security (2026-01-23)
+
+- Migración de credenciales de base de datos PostgreSQL (usuario, contraseña, host, puerto) desde el código fuente a variables de entorno gestionadas en `.env`.
+- Eliminados todos los datos críticos hardcoded en `src/main.py` y `src/app/services/scraping/spider_factory.py`.
+- Añadido soporte a `python-dotenv` para carga automática de variables.
+- Documentación ampliada en `Docs/instalacion_dependencias.md` con instrucciones y advertencias de seguridad sobre el uso de `.env`.
+
+Archivos modificados:
+ - `src/main.py`
+ - `src/app/services/scraping/spider_factory.py`
+ - `.env.example` (nuevo)
+ - `.env` (nuevo)
+ - `Docs/instalacion_dependencias.md`
 ### Cambiado (2026-01-23)
 
 - Eliminadas las líneas de cabecera estándar (`# Cabecera estándar para ...`) en todos los archivos de test bajo `tests/` para homogeneizar el formato y evitar redundancia documental. No afecta a la lógica de pruebas ni a la cobertura.

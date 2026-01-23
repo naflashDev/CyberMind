@@ -13,6 +13,8 @@ from PostgreSQL using asyncpg.
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import asyncio
 import threading
 from contextlib import asynccontextmanager
@@ -218,11 +220,11 @@ async def initialize_background_tasks(app: FastAPI):
     try:
         logger.info("[UI-init] Connecting to PostgreSQL database...")
         pool = await asyncpg.create_pool(
-            user="postgres",
-            password="password123",
-            database="postgres",
-            host="127.0.0.1",
-            port=5432,
+            user=os.getenv("POSTGRES_USER"),
+            password=os.getenv("POSTGRES_PASSWORD"),
+            database=os.getenv("POSTGRES_DB"),
+            host=os.getenv("POSTGRES_HOST"),
+            port=int(os.getenv("POSTGRES_PORT", 5432)),
             min_size=5,
             max_size=20,
         )

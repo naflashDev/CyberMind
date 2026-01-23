@@ -1,3 +1,6 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
 """
 @file spider_factory.py
 @brief Dynamic Scrapy spider factory and runner.
@@ -194,11 +197,11 @@ async def run_dynamic_spider_from_db(pool, stop_event=None, register_process=Non
             try:
                 import asyncpg
                 pool = await asyncpg.create_pool(
-                    user="postgres",
-                    password="password123",
-                    database="postgres",
-                    host="127.0.0.1",
-                    port=5432,
+                    user=os.getenv("POSTGRES_USER"),
+                    password=os.getenv("POSTGRES_PASSWORD"),
+                    database=os.getenv("POSTGRES_DB"),
+                    host=os.getenv("POSTGRES_HOST"),
+                    port=int(os.getenv("POSTGRES_PORT", 5432)),
                     min_size=1,
                     max_size=5,
                 )
