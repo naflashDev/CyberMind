@@ -17,78 +17,95 @@ Documentación principal y enlaces rápidos.
 - Crear y activar el entorno virtual: sigue la guía en [Docs/instalacion_dependencias.md](Docs/instalacion_dependencias.md).
 
 - Levantar los servicios de soporte (OpenSearch + Dashboards y TinyRSS) usando Docker Compose. Hay un `docker-compose` preparado en `Install/opensearch-compose.yml` y `Install/tinytinyrss.yml`. Para lanzar OpenSearch y Dashboards:
+# CyberMind
+
+Proyecto CyberMind – Plataforma abierta de análisis de información para ciberseguridad
+
+## Descripción
+
+`CyberMind` es una plataforma modular y de código abierto diseñada para la recolección, enriquecimiento, análisis y visualización de información relacionada con vulnerabilidades y eventos de ciberseguridad (IT y OT). Está orientada a investigadores, analistas, periodistas de datos y desarrolladores que necesiten procesar feeds, scrapers y pipelines de NLP/LLM para generar alertas, resúmenes y dashboards.
+
+## Stack tecnológico
+
+- Lenguaje: Python 3.10+.
+- Web/API: FastAPI (documentación OpenAPI/Swagger).
+- Búsqueda/almacenamiento: OpenSearch.
+- NLP: SpaCy.
+- Modelos LLM: integración con runtimes locales/externos (p. ej. Ollama o backends configurables).
+- Scrapers: Scrapy, TinyRSS y adaptadores para Google Alerts/feeds RSS.
+- Contenerización: Docker / Docker Compose (ficheros en `Install/`).
+- Tests: pytest; CI configurado en `.github/workflows/`.
+
+## Instalación y ejecución
+
+1. Clona el repositorio y sitúate en la raíz del proyecto.
+
+2. Crear y activar entorno virtual (Windows PowerShell):
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+3. Revisar `cfg.ini` y `src/cfg_services.ini` para parámetros de entorno (puertos, usuario/clave, endpoints LLM).
+
+4. Servicios opcionales (OpenSearch, Dashboards, TinyRSS):
 
 ```powershell
 cd Install
 docker compose -f opensearch-compose.yml up -d
+docker compose -f tinytinyrss.yml up -d  # opcional
 ```
 
-- Para TinyRSS (si lo necesitas) puedes lanzar el otro compose:
-
-```powershell
-docker compose -f tinytinyrss.yml up -d
-```
-
-- Ejecutar la API / UI (desde la raíz del proyecto):
+5. Ejecutar la aplicación principal (API + UI):
 
 ```powershell
 python -m src.main
 ```
 
-- Puedes interactuar con la API en `http://127.0.0.1:8000/docs` (Swagger UI).
+6. Acceder a:
+- Documentación interactiva: `http://127.0.0.1:8000/docs`
+- UI principal: `http://127.0.0.1:8000/ui`
 
-## Uso centralizado desde la UI
+## Estructura del proyecto (resumen)
 
-La interfaz web servida en `/ui` actúa como el panel de control principal de la plataforma. Desde esa UI puedes:
+- `src/` — Código fuente principal:
+	- `app/` — controladores, modelos, servicios, utils y UI estática.
+	- `main.py` — arranque de la aplicación.
+- `Docs/` — documentación (endpoints, guías de instalación y configuración).
+- `Install/` — compose y ficheros para levantar dependencias (OpenSearch, TinyRSS).
+- `tests/` — tests unitarios e integración (`pytest`).
+- `tools/` — utilidades y scripts auxiliares.
+- `data/`, `outputs/` — datos de entrada y artefactos generados.
 
-- Ejecutar y controlar scrapers (Google Dorking, Google Alerts, TinyRSS import).
-- Iniciar/parar workers y procesos background (Spacy, LLM updater, extractores periódicos).
-- Consultar el estado del sistema y ver logs resumidos (vía `GET /status`).
-- Ejecutar cualquier endpoint de la API sin salir de la interfaz (la UI hace las llamadas a los endpoints documentados en `Docs/api_endpoints.md`).
+## Funcionalidades principales
 
-El endpoint `main.py` arranca la API FastAPI y la UI; por tanto, levantar el servicio principal posibilita gestionar toda la plataforma desde la página `http://127.0.0.1:8000/ui`.
+- Recolección de fuentes: scrapers, importadores RSS y Google Alerts.
+- Pipeline de procesamiento con SpaCy (extracción de entidades, normalización).
+- Almacenamiento y búsqueda en OpenSearch; Dashboards para visualización.
+- Endpoints REST para control de pipelines, escaneos de red, consultas LLM y estado del sistema.
+- UI integrada con chat `CyberSentinel` para consultas LLM y gestión de workflows.
 
-### Chat integrado: CyberSentinel
+## Contribuir
 
-La UI incluye un chat llamado **CyberSentinel** que permite interaccionar con el LLM especializado en ciberseguridad (CVE, análisis técnico y resúmenes de noticias). El chat está disponible en la vista `CyberSentinel IA` de la interfaz y envía consultas al endpoint `/llm/query`.
+- Lee la documentación en `Docs/Indice.md` y `Docs/api_endpoints.md` antes de proponer cambios.
+- Añade tests para cambios funcionales y documenta cualquier endpoint nuevo en `Docs/api_endpoints.md`.
 
-### Recomendaciones de despliegue
+Para ejecutar tests localmente:
 
-- Para uso intensivo del LLM (queries frecuentes o finetuning), se recomienda un equipo con GPU para evitar sobrecarga en CPU/RAM y reducir latencias. Si el LLM se ejecuta en hardware local, habilitar GPU acelera la inferencia y entrenamiento.
-
-### Servicios que arranca la aplicación
-
-Al iniciar la aplicación principal (`main.py`), el proceso puede iniciar o comprobar los servicios configurados (por ejemplo, levantar contenedores Docker para OpenSearch o TinyRSS si así está configurado, y arrancar el componente LLM/local runner cuando esté habilitado). Comprueba la configuración en `Install/` y los ajustes en `cfg.ini` antes del despliegue automático.
-
-### Acceso a Dashboards y TinyRSS desde la UI
-
-La UI embedea (via iframes) las interfaces de OpenSearch Dashboards y TinyRSS; desde el panel principal puedes abrir esas UIs sin salir de `http://127.0.0.1:8000/ui`.
-Nota: la instalación manual de OpenSearch todavía está documentada en `Docs/opensearch_install.md` como alternativa, pero el camino recomendado es usar `docker compose`.
-
-## Visualización de los datos
-
--Para visualizar los datos scrapeados podemos observar el archivo [Result.json] del directorio [Outputs]
-
--Para visualizar los datos procesados con spacy podemos observar el archivo [Labels_Result.json] del directorio[Outputs]
-
--Para visualizar los datos almacenados en la BBDD [OpenSearch] puedes usar curl o acceder al Dashboards.
-
-Ver los índices (curl):
-
-```bash
-curl -X GET "http://localhost:9200/_cat/indices?v"
+```powershell
+pip install -r dev-requirements.txt
+pytest -q
 ```
 
-Ver el indice de scrapy_documents
+## Registro de cambios
 
-```bash
-curl -X GET "http://localhost:9200/scrapy_documents/_search?pretty"
-```
+Consulta `Docs/ChangeLog.md` para ver el historial de cambios.
 
-Ver el indice de spacy_documents
+## Licencia
 
-```bash
-curl -X GET "http://localhost:9200/spacy_documents/_search?pretty"
-```
+Revisa `LICENSE` en la raíz del repositorio.
 
--Para visualizar los datos almacenados en la BBDD [Opensearch] desde el DashBoard accederemos a la siguiente web si el dhasboard esta levantado [DashBoard](http://localhost:5601/).
+---
+Archivo actualizado: 2026-01-23

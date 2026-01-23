@@ -7,6 +7,7 @@ El formato se basa en "Keep a Changelog" y este proyecto sigue el Versionado Sem
 ## [Sin publicar]
 
 ### Añadido
+- Documentación: `README.md` actualizado con descripción general, stack tecnológico, instrucciones de instalación y ejecución, estructura del proyecto y funcionalidades principales. (2026-01-23)
 - Endpoint `POST /network/scan_range`: escanea un CIDR o un rango de IPs y devuelve, por host, los puertos abiertos/cerrados/filtrados. (2026-01-14)
 - UI: nueva operación "Análisis de redes (rango)" en el panel de operaciones de FastAPI; muestra una tarjeta por IP con los resultados de puertos y desplazamiento interno por tarjeta. (2026-01-14)
 - Tests: `tests/controllers/test_network_api_scan_range.py` que cubre el fallback de CIDR y el rechazo de rangos grandes. (2026-01-14)
