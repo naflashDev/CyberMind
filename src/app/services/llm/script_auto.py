@@ -331,6 +331,25 @@ def transform_json(cve_json: dict) -> list:
     records = []
 
     try:
+        # Some files may contain a list of CVE entries instead of a single dict.
+        # If we receive a list, transform each dict element and aggregate results.
+        if isinstance(cve_json, list):
+            aggregated = []
+            for item in cve_json:
+                if isinstance(item, dict):
+                    try:
+                        aggregated.extend(transform_json(item))
+                    except Exception as e:
+                        logger.warning(f"Skipping list item during transform: {e}")
+                else:
+                    logger.warning(f"Skipping non-dict item in CVE list: {type(item)}")
+            return aggregated
+
+        # Guard against unexpected types (e.g., plain strings or numbers)
+        if not isinstance(cve_json, dict):
+            logger.warning(f"Unexpected CVE JSON type: {type(cve_json)}; skipping")
+            return records
+
         # Only keep CVEs that are published.
         state = cve_json.get("cveMetadata", {}).get("state", "")
         if state != "PUBLISHED":
