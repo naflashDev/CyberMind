@@ -1,111 +1,175 @@
-# CyberMind
+<div align="center">
 
-# Proyecto CyberMind – Plataforma Abierta de Análisis de Información
+# 🛡️ CyberMind
 
-**CyberMind** es una plataforma modular, automatizada y de código abierto para la recolección, análisis y visualización de información relevante sobre Las vulnerabilidades IT y OT (Tecnologías de la Información y Tecnologías de Operación). Su objetivo es facilitar el acceso a datos estructurados y procesados a partir de fuentes públicas, con enfoque en la transparencia, la colaboración abierta y el uso de metodologías de inteligencia.
+**Plataforma modular de análisis y monitorización de ciberseguridad IT/OT con IA, scraping, dashboards y orquestación automatizada.**
 
-El proyecto está orientado tanto a investigadores, periodistas de datos y analistas, como a desarrolladores interesados en contribuir con nuevas funcionalidades y dominios de análisis.
+---
 
-Documentación principal y enlaces rápidos.
+[![Python](https://img.shields.io/badge/Python-3.10+-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://postgresql.org)
+[![OpenSearch](https://img.shields.io/badge/OpenSearch-0057B8?style=for-the-badge&logo=opensearch&logoColor=white)](https://opensearch.org)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
+[![CI/CD](https://img.shields.io/badge/GitHub%20Actions-CI%2FCD-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/features/actions)
+[![Security](https://img.shields.io/badge/Security-By%20Design-4ECDC4?style=for-the-badge)](#-seguridad)
+[![LLM](https://img.shields.io/badge/LLM-CyberSentinel-7B68EE?style=for-the-badge)](#-ia)
 
+</div>
 
-## Documentación (Docs)
-- Documentacion del proyecto: [Documentacion](Docs/Indice.md)
+---
 
-## Ejecución del programa
+## 🚀 Quick Start
 
-- Crear y activar el entorno virtual: sigue la guía en [Docs/instalacion_dependencias.md](Docs/instalacion_dependencias.md).
-
-- Levantar los servicios de soporte (OpenSearch + Dashboards y TinyRSS) usando Docker Compose. Hay un `docker-compose` preparado en `Install/opensearch-compose.yml` y `Install/tinytinyrss.yml`. Para lanzar OpenSearch y Dashboards:
-# CyberMind
-
-Proyecto CyberMind – Plataforma abierta de análisis de información para ciberseguridad
-
-## Descripción
-
-`CyberMind` es una plataforma modular y de código abierto diseñada para la recolección, enriquecimiento, análisis y visualización de información relacionada con vulnerabilidades y eventos de ciberseguridad (IT y OT). Está orientada a investigadores, analistas, periodistas de datos y desarrolladores que necesiten procesar feeds, scrapers y pipelines de NLP/LLM para generar alertas, resúmenes y dashboards.
-
-## Stack tecnológico
-
-- Lenguaje: Python 3.10+.
-- Web/API: FastAPI (documentación OpenAPI/Swagger).
-- Búsqueda/almacenamiento: OpenSearch.
-- NLP: SpaCy.
-- Modelos LLM: integración con runtimes locales/externos (p. ej. Ollama o backends configurables).
-- Scrapers: Scrapy, TinyRSS y adaptadores para Google Alerts/feeds RSS.
-- Contenerización: Docker / Docker Compose (ficheros en `Install/`).
-- Tests: pytest; CI configurado en `.github/workflows/`.
-
-## Instalación y ejecución
-
-1. Clona el repositorio y sitúate en la raíz del proyecto.
-
-2. Crear y activar entorno virtual (Windows PowerShell):
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+### 🐳 Con Docker Compose (Recomendado)
+```bash
+# 1. Clonar el repositorio
+# 2. Instalar dependencias y levantar servicios
+cd CyberMind
+python -m venv env
+source env/bin/activate  # En Windows: .\env\Scripts\activate
 pip install -r requirements.txt
-```
-
-3. Revisar `cfg.ini` y `src/cfg_services.ini` para parámetros de entorno (puertos, usuario/clave, endpoints LLM).
-
-4. Servicios opcionales (OpenSearch, Dashboards, TinyRSS):
-
-```powershell
 cd Install
 docker compose -f opensearch-compose.yml up -d
-docker compose -f tinytinyrss.yml up -d  # opcional
-```
-
-5. Ejecutar la aplicación principal (API + UI):
-
-```powershell
+docker compose -f tinytinyrss.yml up -d
+cd ..
 python -m src.main
 ```
 
-6. Acceder a:
-- Documentación interactiva: `http://127.0.0.1:8000/docs`
-- UI principal: `http://127.0.0.1:8000/ui`
-
-## Estructura del proyecto (resumen)
-
-- `src/` — Código fuente principal:
-	- `app/` — controladores, modelos, servicios, utils y UI estática.
-	- `main.py` — arranque de la aplicación.
-- `Docs/` — documentación (endpoints, guías de instalación y configuración).
-- `Install/` — compose y ficheros para levantar dependencias (OpenSearch, TinyRSS).
-- `tests/` — tests unitarios e integración (`pytest`).
-- `tools/` — utilidades y scripts auxiliares.
-- `data/`, `outputs/` — datos de entrada y artefactos generados.
-
-## Funcionalidades principales
-
-- Recolección de fuentes: scrapers, importadores RSS y Google Alerts.
-- Pipeline de procesamiento con SpaCy (extracción de entidades, normalización).
-- Almacenamiento y búsqueda en OpenSearch; Dashboards para visualización.
-- Endpoints REST para control de pipelines, escaneos de red, consultas LLM y estado del sistema.
-- UI integrada con chat `CyberSentinel` para consultas LLM y gestión de workflows.
-
-## Contribuir
-
-- Lee la documentación en `Docs/Indice.md` y `Docs/api_endpoints.md` antes de proponer cambios.
-- Añade tests para cambios funcionales y documenta cualquier endpoint nuevo en `Docs/api_endpoints.md`.
-
-Para ejecutar tests localmente:
-
-```powershell
-pip install -r dev-requirements.txt
-pytest -q
-```
-
-## Registro de cambios
-
-Consulta `Docs/ChangeLog.md` para ver el historial de cambios.
-
-## Licencia
-
-Revisa `LICENSE` en la raíz del repositorio.
+- 🌐 UI: [http://127.0.0.1:8000/ui](http://127.0.0.1:8000/ui)
+- 📡 API: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- 📊 Dashboards: [http://localhost:5601](http://localhost:5601)
 
 ---
-Archivo actualizado: 2026-01-23
+
+## 🛠️ Stack Tecnológico
+
+| Componente      | Descripción / Uso principal                  |
+|-----------------|---------------------------------------------|
+| 🐍 Python 3.10+ | Backend principal, scripts y automatización |
+| ⚡ FastAPI      | API REST y servidor web                      |
+| 🧠 SpaCy       | Procesamiento NLP, extracción de entidades   |
+| 📰 Scrapy       | Scraping de noticias, feeds y alertas        |
+| 🐘 PostgreSQL  | Base de datos estructurada                   |
+| 🔎 OpenSearch  | Búsqueda semántica y dashboards              |
+| 🐳 Docker      | Orquestación de servicios y contenedores     |
+| 🤖 LLM         | Chat IA especializado en CVE y OT/IT         |
+| 🦾 Workers     | Orquestación de tareas y procesos            |
+| 🛡️ Seguridad  | Validación, gestión de secretos, SAST        |
+| ⚙️ CI/CD      | Workflows automáticos con GitHub Actions      |
+
+---
+
+## ✨ Funcionalidades Principales
+
+- 🔗 Integración multifuente: RSS, Google Alerts, Google Dorking, APIs públicas
+- 🧠 Procesamiento semántico: keywords, NER, sentimiento, embeddings
+- 📦 Almacenamiento híbrido: OpenSearch y PostgreSQL
+- 📊 Dashboards abiertos: OpenSearch Dashboards, Grafana, Chartbrew
+- 🤖 LLM CyberSentinel: consulta y resumen de CVEs/noticias OT/IT
+- 🦾 Orquestador ligero: workers y tareas automatizadas
+- 🛡️ Security by Design: validación, gestión de secretos, CI/CD
+- 📝 Generación de JSON para finetune de LLM
+- 🚀 Expansión continua: nuevos módulos y servicios en desarrollo
+
+---
+
+## 🏗️ Estructura de directorios del proyecto
+
+```plaintext
+CyberMind/
+├── AGENTS.md
+├── LICENSE
+├── README.md
+├── requirements.txt
+├── dev-requirements.txt
+├── SECURITY.md
+├── Docs/
+│   ├── Indice.md
+│   ├── ChangeLog.md
+│   ├── api_endpoints.md
+│   ├── home.md
+│   ├── llm.md
+│   ├── instalacion_dependencias.md
+│   ├── opensearch_install.md
+│   ├── tiny_rss_install.md
+│   ├── ...
+├── Install/
+│   ├── opensearch-compose.yml
+│   ├── tinytinyrss.yml
+│   ├── stack.env
+│   ├── ...
+├── src/
+│   ├── main.py
+│   ├── cfg.ini
+│   ├── cfg_services.ini
+│   ├── app/
+│   │   ├── controllers/
+│   │   ├── models/
+│   │   ├── services/
+│   │   ├── ui/
+│   │   ├── utils/
+│   │   └── ...
+│   ├── data/
+│   │   ├── cve_list.json
+│   │   ├── feeds/
+│   │   ├── outputs/
+│   │   └── ...
+│   └── ...
+├── tests/
+│   ├── controllers/
+│   ├── integration/
+│   ├── services/
+│   ├── unit/
+│   ├── utils/
+│   └── ...
+├── tools/
+│   ├── audit_fstrings.py
+│   ├── scan_injection.py
+│   ├── outputs/
+│   ├── scripts/
+│   └── ...
+└── env/
+    ├── Scripts/
+    ├── Lib/
+    ├── Include/
+    └── ...
+```
+
+| Elemento                | Descripción breve                                                                 |
+|-------------------------|---------------------------------------------------------------------------------|
+| AGENTS.md               | Normas y estándares para el agente IA y desarrollo del proyecto                   |
+| LICENSE                 | Licencia de uso del software                                                     |
+| README.md               | Documentación principal y guía rápida                                            |
+| requirements.txt        | Dependencias principales del proyecto                                           |
+| dev-requirements.txt    | Dependencias para desarrollo y testing                                          |
+| SECURITY.md             | Políticas y recomendaciones de seguridad                                         |
+| Docs/                   | Documentación técnica, API, instalación, workflows y registro de cambios         |
+| Install/                | Archivos de configuración y orquestación de servicios (Docker Compose, env)      |
+| src/                    | Código fuente principal del proyecto                                            |
+| src/main.py             | Punto de entrada de la API y la UI                                              |
+| src/app/                | Módulos de la aplicación: controladores, servicios, UI, utilidades              |
+| src/data/               | Datos, feeds, resultados de scraping y procesamiento                             |
+| tests/                  | Pruebas unitarias, de integración y de servicios                                |
+| tools/                  | Scripts y utilidades para auditoría, análisis y automatización                   |
+| env/                    | Entorno virtual Python para aislar dependencias                                 |
+
+---
+
+## 🧩 Documentación y enlaces
+
+- 📚 Documentación principal: [Docs/Indice.md](Docs/Indice.md)
+- 🔗 Endpoints API: [Docs/api_endpoints.md](Docs/api_endpoints.md)
+- 🤖 LLM integrado: [Docs/llm.md](Docs/llm.md)
+- 🛠️ Instalación dependencias: [Docs/instalacion_dependencias.md](Docs/instalacion_dependencias.md)
+- ⚙️ Workflows CI/CD: [Docs/Workflows.md](Docs/Workflows.md)
+- 📝 Registro de cambios: [Docs/ChangeLog.md](Docs/ChangeLog.md)
+- 🛡️ Seguridad: [SECURITY.md](SECURITY.md)
+
+---
+
+<div align="center">
+<b>CyberMind &copy; 2026</b>
+</div>
+
+---

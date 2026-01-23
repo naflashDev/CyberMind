@@ -1,17 +1,13 @@
+
 # Índice de la documentación
 
-Accede a la documentación detallada de CyberMind desde los enlaces siguientes.
+Accede a la documentación detallada y visual de CyberMind:
 
 ## 0. Introducción
-- [Introducción](home.md)
+- [Resumen y objetivo](home.md)
 
 ## 1. Concepto y arquitectura
-- [Definición del proyecto](def.md)
-- [Fuentes de datos y Recolección](data.md)
-- [Extracción de valores de datos](Ext-value.md)
-- [Bases de datos](Data_base.md)
 
-## 2. API y UIs
 - [API Endpoints](api_endpoints.md)
 - [LLM integrado (CyberSentinel)](llm.md)
 
@@ -21,7 +17,7 @@ Accede a la documentación detallada de CyberMind desde los enlaces siguientes.
 - [Instalación TinyRSS (Docker Compose)](tiny_rss_install.md)
 
 ## 4. Tareas y operaciones
-- [Tareas de Instalacion / Operaciones rápidas](task.md)
+- [Tareas de Instalación / Operaciones rápidas](task.md)
 
 
 
