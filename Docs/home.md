@@ -64,7 +64,7 @@ Investigadores, periodistas de datos, analistas y desarrolladores interesados en
 
 ## 🌍 Acceso y despliegue
 
-Habrá una instancia pública en línea para explorar módulos activos. También puedes clonar e instalar localmente o adaptar la plataforma para nuevos fines.
+Puedes clonar e instalar localmente o adaptar la plataforma para nuevos fines.
 
 > ℹ️ **Consulta el resto de la documentación para guías de instalación, arquitectura, API y casos de uso avanzados.**
 

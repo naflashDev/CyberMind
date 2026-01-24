@@ -17,6 +17,10 @@
 
 </div>
 
+**CyberMind** es una plataforma modular, automatizada y de código abierto para la auditoría, análisis, monitorización y automatización de tareas de ciberseguridad en entornos **IT** y **OT**. Va mucho más allá de la simple recolección de datos: permite realizar auditorías técnicas, análisis de vulnerabilidades, orquestación de flujos de trabajo, generación de dashboards, integración de IA y procesamiento avanzado de información.
+
+> 🎯 **Objetivo:** Proveer una solución integral y flexible para la gestión de inteligencia, auditoría y automatización en ciberseguridad, facilitando el acceso a datos estructurados y procesados, la correlación de eventos y la toma de decisiones informada. Promueve la transparencia, la colaboración abierta y el uso de metodologías de inteligencia y automatización.
+
 ---
 
 ## 🚀 Quick Start
@@ -80,6 +84,17 @@ python main.py
 - 🛡️ Security by Design: validación, gestión de secretos, CI/CD
 - 📝 Generación de JSON para finetune de LLM
 - 🚀 Expansión continua: nuevos módulos y servicios en desarrollo
+
+---
+
+## 🧩 Documentación y enlaces
+
+- 📚 Documentación principal: [Docs/Indice.md](Docs/Indice.md)
+- 🔗 Endpoints API: [Docs/api_endpoints.md](Docs/api_endpoints.md)
+- 🤖 LLM integrado: [Docs/llm.md](Docs/llm.md)
+- 🛠️ Instalación dependencias: [Docs/instalacion_dependencias.md](Docs/instalacion_dependencias.md)
+- ⚙️ Workflows CI/CD: [Docs/Workflows.md](Docs/Workflows.md)
+- 📝 Registro de cambios: [Docs/ChangeLog.md](Docs/ChangeLog.md)
 
 ---
 
@@ -177,16 +192,6 @@ CyberMind/
 
 ---
 
-## 🧩 Documentación y enlaces
-
-- 📚 Documentación principal: [Docs/Indice.md](Docs/Indice.md)
-- 🔗 Endpoints API: [Docs/api_endpoints.md](Docs/api_endpoints.md)
-- 🤖 LLM integrado: [Docs/llm.md](Docs/llm.md)
-- 🛠️ Instalación dependencias: [Docs/instalacion_dependencias.md](Docs/instalacion_dependencias.md)
-- ⚙️ Workflows CI/CD: [Docs/Workflows.md](Docs/Workflows.md)
-- 📝 Registro de cambios: [Docs/ChangeLog.md](Docs/ChangeLog.md)
-
----
 ## 👨‍💻 Sobre el Creador
 
 ### Ignacio Fernández
