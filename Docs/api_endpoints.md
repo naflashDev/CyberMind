@@ -1,63 +1,3 @@
----
-
-### Notas técnicas
-- Los endpoints y la infraestructura ahora soportan parámetros en formato dict extraídos de los archivos .ini (clave=valor).
-# Endpoint: Configuración de archivos .ini
-
-
-## GET /config
-- **Descripción:** Devuelve los parámetros de los archivos .ini principales del sistema (cfg_services.ini, cfg.ini) en formato clave=valor.
-- **Parámetros de entrada:** Ninguno.
-- **Respuesta:**
-  - `files`: lista de archivos, cada uno con sus parámetros (`key`, `value`, `type`).
-- **Códigos de estado:** 200 OK, 500 Error interno.
-- **Autenticación:** No requiere.
-
----
-
-### Formato de configuración soportado
-- Las líneas principales de los archivos `.ini` deben estar en formato `clave=valor;clave=valor;...` para compatibilidad total con la edición vía API/UI.
-
-## POST /config
-  - `params`: lista de parámetros (`key`, `value`).
-- **Códigos de estado:** 200 OK, 404 Archivo no encontrado, 500 Error interno.
-
----
-
-### Notas de integración UI
-
-#### Cambios visuales y de usabilidad (2026-01-24)
-- El panel de configuración ahora utiliza esquinas cuadradas para una integración visual sin huecos.
-- Los textos de los parámetros de configuración se muestran con nombres amigables para el usuario.
-- Todos los botones principales de la UI (guardar, descartar, operaciones) incluyen iconos representativos según su función.
-- Se ha revisado el diseño para evitar huecos y mejorar la experiencia de usuario.
-
-El endpoint `/config` es consultado por la UI para:
-  - Mostrar/ocultar el apartado CyberSentinel IA según el parámetro `use_ollama`.
-  - Mostrar correctamente el panel de configuración al pulsar el botón correspondiente, eliminando cualquier restricción de visibilidad por CSS o atributos `style`.
-
-## Parámetro de configuración: uso de Ollama
-
-En el archivo `src/cfg_services.ini` se ha añadido el parámetro `use_ollama` para controlar la instalación y uso de Ollama.
-
-**Funcionamiento actualizado (2026-01-24):**
-- El valor de `use_ollama` se lee correctamente en el arranque de la aplicación y se interpreta como booleano, permitiendo que los cambios realizados desde la UI se reflejen en el comportamiento del sistema.
-- El endpoint POST `/config` actualiza el fichero y la lógica de arranque toma el valor actualizado, asegurando sincronización entre la configuración y la infraestructura.
-
-**Ejemplo de línea de configuración:**
-```
-distro_name=Ubuntu;dockers_name=install-updater-1,install-web-nginx-1,install-app-1,install-db-1,opensearch-dashboards,opensearch;use_ollama=true
-```
-
-- Si `use_ollama=true`, el sistema intentará instalar/inicializar Ollama si el hardware es suficiente (mínimo 8GB RAM y 2 núcleos CPU).
-- Si `use_ollama=false`, Ollama no se instalará ni inicializará.
-
-Este parámetro puede modificarse manualmente para activar/desactivar el uso de Ollama según las necesidades del usuario y los recursos disponibles.
-
-
-
-
-
 # 🚀 **Endpoints de la API CyberMind**
 <div align="center">
   <img src="https://img.shields.io/badge/API-RESTful-009688?style=for-the-badge" />
@@ -94,8 +34,6 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
 </details>
 
 ---
-
-
 
 ## 🏠 **Raíz y UI**
 
@@ -238,7 +176,14 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
 ## 🤖 **LLM** <code>(/llm)</code>
 
 <details>
-<summary><b>🧠 Ver endpoints de IA y consultas técnicas</b></summary>
+<summary><b>🧠 Endpoints de IA y consultas técnicas</b></summary>
+
+### Descripción general
+El módulo LLM de CyberMind utiliza un modelo **LLama3** restringido, configurado mediante un archivo **Model file** que limita sus respuestas y comportamiento. Su base de conocimiento está limitada hasta el año **2023** y no incluye información posterior. El modelo responde únicamente sobre temas de ciberseguridad y CVE según las restricciones del Model file. El finetuning con datos propios está planificado como mejora futura, pero el archivo JSON para el finetuning **sí se genera** automáticamente (`outputs/finetune_data.jsonl`), aunque no se utiliza aún para entrenar el modelo.
+
+> ⚠️ **Importante:** El modelo actual **NO ha sido finetuneado** con los datos extraídos por el sistema. La función de entrenamiento personalizado (finetuning) se implementará en el futuro, ya que el proceso es altamente demandante en recursos y tiempo.
+
+### Endpoints disponibles
 
 <table>
   <thead>
@@ -325,34 +270,6 @@ Cada subsección expande su listado de operaciones (botones) que ejecutan llamad
 </details>
 
 ---
-
-
-## 🧩 **Endpoints adicionales y utilidades**
-
-<details>
-<summary><b>🟣 SpaCy (`/start-spacy`)</b></summary>
-
-- <b>GET /start-spacy</b> — Inicia un proceso background que lee <code>outputs/result.json</code>, extrae entidades y escribe <code>outputs/labels_result.json</code>. Programado para ejecutarse cada 24 horas si se lanza desde la API.
-
-</details>
-
-<details>
-<summary><b>🟢 Estado y control (`/status`, `/workers/*`)</b></summary>
-
-- <b>GET /status</b> — Devuelve un objeto JSON con el estado del sistema, listando workers y flags de inicialización.
-- <b>POST /workers/{worker_name}</b> — Controla (activar/desactivar) workers desde la UI (se espera body <code>{ "enabled": true|false }</code>).
-
-<b>Ejemplo:</b>
-
-```bash
-curl http://127.0.0.1:8000/status
-curl -X POST http://127.0.0.1:8000/workers/rss_extractor -H "Content-Type: application/json" -d '{"enabled":true}'
-```
-
-</details>
-
----
-
 ## 🌐 **Network (`/network`)**
 
 <details>
@@ -432,13 +349,118 @@ curl -X POST http://127.0.0.1:8000/network/scan_range \
 
 ---
 
-## 📝 **Notas**
+## 🧩 **Endpoints adicionales y utilidades**
 
 <details>
-<summary><b>📌 Notas</b></summary>
+<summary><b>🟣 SpaCy (`/start-spacy`)</b></summary>
 
-- La UI (<code>/ui</code>) ofrece controles para orquestar, auditar, analizar y automatizar tareas de ciberseguridad, mostrando el estado y resultados en tiempo real.
-- Los endpoints pueden ser utilizados para flujos de auditoría, reporting, generación de dashboards, análisis de red, scraping, procesamiento NLP, automatización y más.
-- Para ver tipos y modelos, consulta la documentación interactiva en <code>http://127.0.0.1:8000/docs</code>.
+- <b>GET /start-spacy</b> — Inicia un proceso background que lee <code>outputs/result.json</code>, extrae entidades y escribe <code>outputs/labels_result.json</code>. Programado para ejecutarse cada 24 horas si se lanza desde la API.
 
 </details>
+
+<details>
+<summary><b>🟢 Estado y control (`/status`, `/workers/*`)</b></summary>
+
+- <b>GET /status</b> — Devuelve un objeto JSON con el estado del sistema, listando workers y flags de inicialización.
+- <b>POST /workers/{worker_name}</b> — Controla (activar/desactivar) workers desde la UI (se espera body <code>{ "enabled": true|false }</code>).
+
+<b>Ejemplo:</b>
+
+```bash
+curl http://127.0.0.1:8000/status
+curl -X POST http://127.0.0.1:8000/workers/rss_extractor -H "Content-Type: application/json" -d '{"enabled":true}'
+```
+
+</details>
+<details>
+<summary><strong>⚙️ Endpoints de configuración y parámetros</strong></summary>
+
+<div align="center">
+  <img src="https://img.shields.io/badge/CONFIG-API%20Config-009688?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Ollama-Integraci%C3%B3n-7B68EE?style=for-the-badge" />
+</div>
+
+### Notas técnicas
+- Los endpoints y la infraestructura soportan parámetros en formato dict extraídos de los archivos `.ini` (`clave=valor`).
+
+---
+
+### 📝 Endpoint: Configuración de archivos .ini
+
+<table>
+  <thead>
+    <tr>
+      <th>Método</th>
+      <th>Ruta</th>
+      <th>Descripción</th>
+      <th>Body/Parámetros</th>
+      <th>Respuesta</th>
+      <th>Autenticación</th>
+      <th>Códigos de estado</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>GET</b></td>
+      <td><code>/config</code></td>
+      <td>Devuelve los parámetros de los archivos .ini principales del sistema (<code>cfg_services.ini</code>, <code>cfg.ini</code>) en formato clave=valor.</td>
+      <td>—</td>
+      <td><code>{ files: [ { key, value, type } ] }</code></td>
+      <td>No requiere</td>
+      <td>200 OK, 500 Error interno</td>
+    </tr>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/config</code></td>
+      <td>Actualiza los parámetros de configuración.</td>
+      <td><code>{ params: [ { key, value } ] }</code></td>
+      <td>—</td>
+      <td>No requiere</td>
+      <td>200 OK, 404 Archivo no encontrado, 500 Error interno</td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+### 💡 Formato de configuración soportado
+- Las líneas principales de los archivos `.ini` deben estar en formato <code>clave=valor;clave=valor;...</code> para compatibilidad total con la edición vía API/UI.
+
+---
+
+### 🖥️ Notas de integración UI
+
+#### Cambios visuales y de usabilidad (2026-01-24)
+- El panel de configuración utiliza esquinas cuadradas para una integración visual sin huecos.
+- Los textos de los parámetros de configuración se muestran con nombres amigables para el usuario.
+- Todos los botones principales de la UI (guardar, descartar, operaciones) incluyen iconos representativos según su función.
+- Diseño revisado para evitar huecos y mejorar la experiencia de usuario.
+
+El endpoint <code>/config</code> es consultado por la UI para:
+  - Mostrar/ocultar el apartado CyberSentinel IA según el parámetro <code>use_ollama</code>.
+  - Mostrar correctamente el panel de configuración al pulsar el botón correspondiente, eliminando cualquier restricción de visibilidad por CSS o atributos <code>style</code>.
+
+---
+
+## 🟪 Parámetro de configuración: uso de Ollama
+
+En el archivo <code>src/cfg_services.ini</code> se ha añadido el parámetro <code>use_ollama</code> para controlar la instalación y uso de Ollama.
+
+**Funcionamiento actualizado (2026-01-24):**
+- El valor de <code>use_ollama</code> se lee correctamente en el arranque de la aplicación y se interpreta como booleano, permitiendo que los cambios realizados desde la UI se reflejen en el comportamiento del sistema.
+- El endpoint POST <code>/config</code> actualiza el fichero y la lógica de arranque toma el valor actualizado, asegurando sincronización entre la configuración y la infraestructura.
+
+**Ejemplo de línea de configuración:**
+<pre><code>distro_name=Ubuntu;dockers_name=install-updater-1,install-web-nginx-1,install-app-1,install-db-1,opensearch-dashboards,opensearch;use_ollama=true
+</code></pre>
+
+- Si <code>use_ollama=true</code>, el sistema intentará instalar/inicializar Ollama si el hardware es suficiente (mínimo 8GB RAM y 2 núcleos CPU).
+- Si <code>use_ollama=false</code>, Ollama no se instalará ni inicializará.
+
+Este parámetro puede modificarse manualmente para activar/desactivar el uso de Ollama según las necesidades del usuario y los recursos disponibles.
+
+</details>
+
+---
+
+

@@ -170,3 +170,9 @@ Archivos modificados:
 
 ## [0.0.0] - 2026-01-14
 - Entrada inicial de notas de la versión (desarrollo interno)
+
+### Changed
+- Se ha uniformado y ampliado la documentación de los endpoints LLM en Docs/api_endpoints.md, incluyendo descripción del modelo LLama3, restricciones, generación de archivo JSON para finetuning y formato tabular para los endpoints.
+
+Archivos modificados:
+ - Docs/api_endpoints.md
