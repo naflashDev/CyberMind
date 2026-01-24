@@ -142,7 +142,7 @@
   min-width: 180px;
   max-width: 260px;
 }
-    border-radius: 8px;
+
 .docs-content-pane {
   background: #0b0f13;
   min-width: 0;
@@ -195,21 +195,42 @@ html, body { background: #0b0f13; }
 /* Normalize heading margins that can collapse with flex children */
 h1, h2, h3 { margin-top: 0; margin-bottom: 8px; }
 
+
 .sidebar {
   width: 220px;
   background: #111827;
   color: #e5e7eb;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   padding: 16px;
   box-sizing: border-box;
   transition: width 0.2s ease, transform 0.2s ease;
+  height: 100vh;
+}
+
+.sidebar .sidebar-footer {
+  text-align: center;
+  margin-bottom: 18px;
+}
+.sidebar .sidebar-footer img {
+  width: 48px;
+  height: auto;
+  display: block;
+  margin: 0 auto 6px auto;
+}
+.sidebar .sidebar-footer div {
+  color: #b0b3b8;
+  font-size: 13px;
 }
 
 .sidebar.hidden {
   width: 0;
   padding: 16px 0;
   transform: translateX(-100%);
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
 }
 
 .sidebar h1 {
@@ -231,6 +252,8 @@ h1, h2, h3 { margin-top: 0; margin-bottom: 8px; }
   font-size: 14px;
   transition: background 0.15s;
   white-space: nowrap;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .nav-button:hover {

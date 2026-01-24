@@ -1,3 +1,7 @@
+
+### Fixed
+- Se ha corregido el comportamiento de ocultamiento de la sidebar principal: ahora al plegar la barra lateral se asegura su ocultación total y se evita cualquier interacción visual o de puntero, aplicando overflow: hidden, pointer-events: none y opacity: 0 en el CSS. Esto soluciona los casos en los que la sidebar quedaba parcialmente visible o interactuable.
+
 ### Changed
  - La función ensure_infrastructure ahora acepta parámetros como dict y extrae valores por clave, compatible con el nuevo formato de configuración.
  - Los archivos cfg_services.ini y cfg.ini ahora usan formato clave=valor para compatibilidad total con el panel de configuración y la API.

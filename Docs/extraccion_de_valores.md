@@ -41,7 +41,7 @@ El procesador es extensible e integrable con herramientas modernas de PLN:
 
 ## 📦 Requisitos
 
-- Python 3.7+
+- Python 3.12+
 - Dependencias:
   ```bash
   pip install spacy langdetect

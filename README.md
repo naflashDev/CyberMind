@@ -24,15 +24,16 @@
 ### 🐳 Con Docker Compose (Recomendado)
 ```bash
 # 1. Clonar el repositorio
-# 2. Instalar dependencias y levantar servicios
+# 2. Instalar dependencias
 cd CyberMind
 python -m venv env
 source env/bin/activate  # En Windows: .\env\Scripts\activate
 pip install -r requirements.txt
-#Opcional, ya que el programa hace el compose automaticamente
+# 3.Levantar servicios (Opcional, ya que el programa hace el compose automaticamente)
 cd Install
 docker compose -f opensearch-compose.yml up -d
 docker compose -f tinytinyrss.yml up -d
+# 4.Arrancar la aplicacion
 cd ..
 cd src
 python main.py

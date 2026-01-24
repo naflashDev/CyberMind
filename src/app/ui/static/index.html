@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>CYBERMIND</title>
-  <link rel="icon" type="image/x-icon" href="/ui/CyberMindLogo.ico">
+  <link rel="icon" type="image/x-icon" href="/ui/images/CyberMindLogo.ico">
   <link rel="stylesheet" href="/ui/styles.css">
   <!-- Markdown parser (marked) -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -18,14 +18,22 @@
   </div>
 
   <!-- SIDEBAR -->
-  <aside class="sidebar" id="sidebar">
-    <h1>CyberMind</h1>
-    <button class="nav-button active" data-view="fastapi" id="btn-fastapi"><span style="margin-right:6px;">⚡</span>Operaciones FastAPI</button>
-    <button class="nav-button" data-view="datos" id="btn-datos"><span style="margin-right:6px;">📊</span>Datos</button>
-    <button class="nav-button" data-view="tiny" id="btn-tiny"><span style="margin-right:6px;">📰</span>Noticias Tiny</button>
-    <button class="nav-button" data-view="llm" id="btn-llm"><span style="margin-right:6px;">🤖</span>CyberSentinel IA</button>
-    <button class="nav-button" data-view="docs" id="btn-docs"><span style="margin-right:6px;">📚</span>Documentación</button>
-    <button class="nav-button" data-view="config" id="btn-config"><span style="margin-right:6px;">⚙️</span>Configuración</button>
+  <aside class="sidebar" id="sidebar" style="display:flex; flex-direction:column; justify-content:space-between; height:100vh;">
+    <div>
+      <h1>CyberMind</h1>
+      <button class="nav-button active" data-view="fastapi" id="btn-fastapi"><span style="margin-right:6px;">⚡</span>Operaciones FastAPI</button>
+      <button class="nav-button" data-view="datos" id="btn-datos"><span style="margin-right:6px;">📊</span>Datos</button>
+      <button class="nav-button" data-view="tiny" id="btn-tiny"><span style="margin-right:6px;">📰</span>Noticias Tiny</button>
+      <button class="nav-button" data-view="llm" id="btn-llm"><span style="margin-right:6px;">🤖</span>CyberSentinel IA</button>
+      <button class="nav-button" data-view="docs" id="btn-docs"><span style="margin-right:6px;">📚</span>Documentación</button>
+      <button class="nav-button" data-view="config" id="btn-config"><span style="margin-right:6px;">⚙️</span>Configuración</button>
+    </div>
+    <div style="text-align:center; margin-bottom:18px;">
+      <a href="https://github.com/naflashDev" target="_blank" rel="noopener" style="display:inline-block;">
+          <img src="/ui/images/CyberMindLogo.webp" alt="CyberMind Logo" style="width:120px; height:auto; display:block; margin:0 auto 6px auto;" />
+      </a>
+      <div style="color:#b0b3b8; font-size:13px;">© CyberMind 2026</div>
+    </div>
   </aside>
       <!-- Vista: Documentación del proyecto (en main-content, no en sidebar) -->
       <div class="view" id="view-docs">
