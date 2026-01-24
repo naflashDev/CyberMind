@@ -106,7 +106,6 @@ CyberMind/
 ├── README.md
 ├── requirements.txt
 ├── dev-requirements.txt
-├── SECURITY.md
 ├── Docs/
 │   ├── Indice.md
 │   ├── ChangeLog.md
@@ -166,7 +165,6 @@ CyberMind/
 | README.md               | Documentación principal y guía rápida                                            |
 | requirements.txt        | Dependencias principales del proyecto                                           |
 | dev-requirements.txt    | Dependencias para desarrollo y testing                                          |
-| SECURITY.md             | Políticas y recomendaciones de seguridad                                         |
 | Docs/                   | Documentación técnica, API, instalación, workflows y registro de cambios         |
 | Install/                | Archivos de configuración y orquestación de servicios (Docker Compose, env)      |
 | src/                    | Código fuente principal del proyecto                                            |
