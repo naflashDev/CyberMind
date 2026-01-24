@@ -1,3 +1,44 @@
+### Changed
+ - La función ensure_infrastructure ahora acepta parámetros como dict y extrae valores por clave, compatible con el nuevo formato de configuración.
+ - Los archivos cfg_services.ini y cfg.ini ahora usan formato clave=valor para compatibilidad total con el panel de configuración y la API.
+ - Refactorizadas las funciones get_connection_parameters y get_connection_service_parameters en src/app/utils/utils.py para soportar el formato clave=valor en cfg.ini y cfg_services.ini.
+ - Restaurada la compatibilidad de toda la lógica de conexión con el nuevo formato clave=valor, corrigiendo los fallos provocados por el cambio de formato.
+ - Corregido el ciclo de vida FastAPI en main.py: el lifespan siempre ejecuta yield, evitando errores 'generator didn't yield' y restaurando los tests E2E.
+- Los archivos cfg_services.ini y cfg.ini ahora usan formato clave=valor para compatibilidad total con el panel de configuración y la API.
+## [Unreleased] - 2026-01-24
+### Changed
+- Los recuadros de cada sección del panel de configuración ahora tienen esquinas redondeadas para mejorar la estética visual.
+### Changed
+- Los hints explicativos de los campos ahora aparecen como tooltip al hacer hover sobre un icono de información junto al nombre del campo.
+### Added
+- Se han añadido hints explicativos a los campos del panel de configuración para guiar al usuario sobre el significado y el formato esperado de cada parámetro.
+### Changed
+- Los bloques y parámetros del panel de configuración ahora muestran nombres más claros y amigables: 'Configuración servicios', 'Configuración general', 'Nombre distribución', 'Nombre contenedores', 'IP servidor', 'Puerto servidor', etc.
+### Changed
+- Los botones de la sidebar principal ahora incluyen iconos representativos para cada sección.
+- El botón de activar IA (Sí/No) mantiene esquinas redondeadas para coherencia visual.
+### Changed
+- Restauradas las esquinas redondeadas en los botones de guardar, descartar y activar IA en el panel de configuración para mejorar la estética y coherencia visual.
+### Fixed
+### Changed
+### Added (2026-01-23)
+- Iconos representativos agregados a todos los botones principales de la UI (panel de configuración y panel de operaciones).
+
+### Changed
+- Se eliminaron las esquinas redondeadas del panel de configuración y sus elementos para una integración visual sin huecos.
+- Los textos de los parámetros de configuración ahora son más amigables para el usuario (user friendly).
+
+### Security
+- Revisión visual para evitar huecos y asegurar la correcta adaptación del panel de configuración.
+
+- Añadido parámetro `use_ollama` en `src/cfg_services.ini` para controlar la instalación y uso de Ollama.
+- Lógica condicional en `main.py` para instalar/inicializar Ollama solo si el parámetro está en `true` y el hardware cumple requisitos mínimos (8GB RAM, 2 núcleos CPU).
+- Documentación actualizada en `Docs/api_endpoints.md` sobre el nuevo parámetro y su funcionamiento.
+
+Archivos modificados:
+ - `src/main.py`
+ - `src/cfg_services.ini`
+ - `Docs/api_endpoints.md`
 # Registro de cambios
 
 Todos los cambios notables de este proyecto se documentarán en este archivo.
@@ -118,6 +159,14 @@ Files modificados:
 - Sección de documentación accesible desde la UI: permite visualizar `README.md` y todos los archivos Markdown de la carpeta `Docs/` desde la interfaz web.
 - Endpoints REST para exponer archivos de documentación (`/docs/list`, `/docs/readme`, `/docs/file/{filename}`).
 - Actualización de estilos y lógica de la UI para soporte de documentación.
+
+### Added
+- Se ha documentado en [Docs/llm.md](Docs/llm.md) y en [README.md](README.md) que la IA del proyecto utiliza un modelo restringido **LLama3** mediante un archivo Model file, con conocimiento limitado hasta 2023 y sin finetuning con datos propios. Se indica que el finetuning es una función futura por la alta demanda de recursos.
+
+Archivos modificados:
+ - Docs/llm.md
+ - README.md
+ - README.md: Se ha añadido en README.md que el archivo JSON para el finetuning sí se genera automáticamente (outputs/finetune_data.jsonl), aunque no se utiliza aún para entrenar el modelo.
 
 ## [0.0.0] - 2026-01-14
 - Entrada inicial de notas de la versión (desarrollo interno)

@@ -560,13 +560,16 @@ def ensure_containers(CONTAINERES: str, distro_name: Optional[str] = None):
         except Exception as e:
             logger.error(f"Unexpected error ensuring container '{name}': {e}")
 
-def ensure_infrastructure(parameters):
-    """
-    Ensure all infrastructure services are up in WSL:
-    - OpenSearch (via .sh)
-    - OpenSearch Dashboards (via .sh)
-    - Docker container with DB + Tiny RSS (via docker start)
-    """
+def ensure_infrastructure(parameters, use_ollama=True):
+    '''
+    @brief Ensures all required infrastructure services are running.
+
+    This function checks and starts Docker containers, OpenSearch, Dashboards, and Tiny RSS stack. Optionally installs and initializes Ollama if requested and hardware requirements are met.
+
+    @param parameters Tuple with infrastructure configuration parameters.
+    @param use_ollama Boolean flag to control Ollama installation/initialization.
+    @return None.
+    '''
     
     # Ensure docker daemon is running on host before interacting with containers
     host_os, distro = detect_host_os()
@@ -574,9 +577,19 @@ def ensure_infrastructure(parameters):
     # derive project root (repo root) so Install/ can be located
     project_root = Path(__file__).resolve().parents[3]
     # Decide whether to operate against the host Docker or inside WSL
+    distro_arg = None
+    dockers_arg = None
+    if isinstance(parameters, dict):
+        distro_arg = parameters.get('distro_name')
+        dockers_arg = parameters.get('dockers_name')
+    elif isinstance(parameters, (list, tuple)):
+        if len(parameters) > 0:
+            distro_arg = parameters[0]
+        if len(parameters) > 1:
+            dockers_arg = parameters[1]
+
     if is_docker_available():
         logger.info("Docker CLI available on host: using host Docker (distro_name=None)")
-        distro_arg = None
         # Ensure daemon running
         if not is_docker_daemon_running():
             logger.warning("Docker daemon does not appear to be running on host. Attempting to start it...")
@@ -587,9 +600,7 @@ def ensure_infrastructure(parameters):
         logger.warning("Docker CLI not found on host PATH. Will attempt to compose Install/ files or use WSL distro if provided.")
         # If we are on Windows prefer to use provided WSL distro name; otherwise fall back to parameter
         if host_os == 'Windows':
-            distro_arg = parameters[0] if parameters and len(parameters) > 0 else None
-        else:
-            distro_arg = parameters[0] if parameters and len(parameters) > 0 else None
+            pass # distro_arg ya extraído
 
     # Regardless of docker CLI presence, attempt to run compose files from Install/ (if present).
     try:
@@ -597,24 +608,27 @@ def ensure_infrastructure(parameters):
     except Exception as e:
         logger.error("Failed to run docker compose from Install/: {}", e)
 
-    # Ensure Ollama and model presence
-    try:
-        # attempt to detect/install ollama if missing
-        if not is_ollama_available():
-            logger.warning("Ollama CLI not found on PATH. Attempting automatic installation...")
-            installed_attempt = try_install_ollama(host_os)
-            if installed_attempt and is_ollama_available():
-                logger.success("Ollama installed and available on PATH.")
+    # Solo instalar/inicializar Ollama si use_ollama es True
+    if use_ollama:
+        try:
+            # attempt to detect/install ollama if missing
+            if not is_ollama_available():
+                logger.warning("Ollama CLI not found on PATH. Attempting automatic installation...")
+                installed_attempt = try_install_ollama(host_os)
+                if installed_attempt and is_ollama_available():
+                    logger.success("Ollama installed and available on PATH.")
+                else:
+                    logger.warning("Ollama not available after automatic installation attempts. Please install Ollama manually if you require model features.")
             else:
-                logger.warning("Ollama not available after automatic installation attempts. Please install Ollama manually if you require model features.")
-        else:
-            logger.info("Ollama CLI detected on PATH.")
+                logger.info("Ollama CLI detected on PATH.")
 
-        # ensure the model exists (create from Modelfile if missing)
-        if is_ollama_available():
-            ensure_ollama_model(project_root, model_name="cybersentinel")
-    except Exception as e:
-        logger.error(f"Error while ensuring Ollama/model: {e}")
+            # ensure the model exists (create from Modelfile if missing)
+            if is_ollama_available():
+                ensure_ollama_model(project_root, model_name="cybersentinel")
+        except Exception as e:
+            logger.error(f"Error while ensuring Ollama/model: {e}")
+    else:
+        logger.info("Ollama no será instalado ni inicializado por configuración (use_ollama=False).")
 
     logger.info("Ensuring infrastructure (OpenSearch, Dashboards, Tiny stack)...")
     # pass distro_arg (None for host Docker) and the container list
@@ -629,32 +643,22 @@ def ensure_infrastructure(parameters):
 
 
 def shutdown_services(project_root: Optional[Path] = None, stop_ollama: bool = True, force_stop_containers: bool = False, distro_name: Optional[str] = None, containers: Optional[str] = None) -> None:
-    """
-    Gracefully shut down infrastructure started by the application.
+    '''
+    @brief Gracefully shuts down all infrastructure services started by the application.
 
-    - Brings down compose files located in <project_root>/Install (if present).
-    - If `force_stop_containers` is True attempts to stop all running Docker
-      containers on the host (use with caution).
-    - Attempts to stop the Ollama daemon via the CLI (`ollama stop`) when
-      available; falls back to platform-specific process termination.
+    This function brings down Docker compose stacks, stops containers, and terminates Ollama processes if requested. It supports both host and WSL environments.
 
-    Args:
-        project_root: Repository root path. If None it is inferred from this file.
-        stop_ollama: Whether to attempt to stop Ollama processes.
-        force_stop_containers: If True, stop all running containers.
-        distro_name: Optional WSL distro to target on Windows.
-    """
+    @param project_root Optional path to the repository root.
+    @param stop_ollama Boolean flag to stop Ollama processes.
+    @param force_stop_containers Boolean flag to stop all running containers.
+    @param distro_name Optional WSL distro name for Windows.
+    @param containers Optional string with container names to stop.
+    @return None.
+    '''
     try:
-        if project_root is None:
-            project_root = Path(__file__).resolve().parents[3]
-
-        install_dir = project_root / "Install"
+        install_dir = project_root / "Install" if project_root else Path(__file__).resolve().parents[3] / "Install"
 
         def _run(cmd, capture_output=False, text=True):
-            """Run command on host or inside WSL distro when `distro_name` is provided.
-
-            Returns subprocess.CompletedProcess. Does not raise on non-zero returncode.
-            """
             if platform.system() == "Windows" and distro_name:
                 if isinstance(cmd, list):
                     runner = ["wsl", "-d", distro_name, "--"] + cmd
@@ -667,7 +671,6 @@ def shutdown_services(project_root: Optional[Path] = None, stop_ollama: bool = T
                 else:
                     return subprocess.run(shlex.split(cmd), capture_output=capture_output, text=text, check=False)
 
-        # Bring down compose stacks in Install/
         compose_cmd = None
         if shutil.which("docker"):
             compose_cmd = ["docker", "compose"]
@@ -685,14 +688,12 @@ def shutdown_services(project_root: Optional[Path] = None, stop_ollama: bool = T
                 except Exception as exc:
                     logger.error("Failed to bring down compose file {}: {}", cf, exc)
 
-        # Handle stopping containers
         if force_stop_containers and shutil.which("docker"):
             target_names = None
             if containers and isinstance(containers, str):
                 target_names = [c.strip() for c in containers.split(',') if c.strip()]
 
             if not target_names:
-                # stop all running containers
                 if platform.system() == "Windows" and distro_name:
                     proc = subprocess.run(["wsl", "-d", distro_name, "--", "docker", "ps", "-q"], capture_output=True, text=True, check=False)
                 else:
@@ -734,7 +735,6 @@ def shutdown_services(project_root: Optional[Path] = None, stop_ollama: bool = T
                 else:
                     logger.info("No target containers were stopped.")
 
-        # Stop Ollama if requested
         if stop_ollama:
             if is_ollama_available():
                 try:
@@ -744,10 +744,9 @@ def shutdown_services(project_root: Optional[Path] = None, stop_ollama: bool = T
                 except Exception as exc:
                     logger.warning("`ollama stop` failed: {}; trying process kill fallback", exc)
                     try:
-                        if platform.system() == "Windows" and not distro_name:
+                        if platform.system() == "Windows" and (distro_name is None or not distro_name):
                             subprocess.run(["taskkill", "/F", "/IM", "ollama.exe"], check=False)
                         else:
-                            # POSIX or WSL
                             subprocess.run(["pkill", "-f", "ollama"], check=False)
                         logger.success("Ollama processes signalled for termination.")
                     except Exception as exc2:

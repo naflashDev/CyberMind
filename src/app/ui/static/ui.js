@@ -12,7 +12,202 @@ document.addEventListener('DOMContentLoaded', function () {
     llm: document.getElementById("view-llm"),
     status: document.getElementById("view-status"),
     docs: document.getElementById("view-docs"),
+    config: document.getElementById("view-config"),
   };
+
+  // --- Mostrar/ocultar CyberSentinel IA según use_ollama ---
+  async function updateCyberSentinelVisibility() {
+    const btnLLM = document.getElementById('btn-llm');
+    const viewLLM = document.getElementById('view-llm');
+    try {
+      const resp = await fetch('/config');
+      if (!resp.ok) throw new Error('No se pudo obtener la configuración');
+      const data = await resp.json();
+      let useOllama = false;
+      for (const file of data.files) {
+        for (const p of file.params) {
+          if (p.key === 'use_ollama') {
+            useOllama = String(p.value).toLowerCase() === 'true';
+          }
+        }
+      }
+      if (!useOllama) {
+        if (btnLLM) btnLLM.style.display = 'none';
+        if (viewLLM) viewLLM.style.display = 'none';
+      } else {
+        if (btnLLM) btnLLM.style.display = '';
+        if (viewLLM) viewLLM.style.display = '';
+      }
+    } catch (e) {
+      // Si hay error, mostrar por defecto
+      if (btnLLM) btnLLM.style.display = '';
+      if (viewLLM) viewLLM.style.display = '';
+    }
+  }
+  updateCyberSentinelVisibility();
+    // --- Configuración editable de archivos .ini ---
+    let configCache = null;
+    const configFilesEl = document.getElementById('config-files');
+    const btnSaveConfig = document.getElementById('btn-save-config');
+    const btnDiscardConfig = document.getElementById('btn-discard-config');
+    const configStatus = document.getElementById('config-status');
+
+    async function loadConfigFiles() {
+      configStatus.textContent = '';
+      if (!configFilesEl) return;
+      configFilesEl.innerHTML = '<div style="color:#9aa6b2">Cargando configuración...</div>';
+      try {
+        const resp = await fetch('/config');
+        if (!resp.ok) throw new Error('No se pudo obtener la configuración');
+        const data = await resp.json();
+        configCache = JSON.parse(JSON.stringify(data.files)); // deep copy para edición
+        renderConfigFiles(configCache);
+      } catch (e) {
+        configFilesEl.innerHTML = '<div style="color:#fca5a5">Error cargando configuración</div>';
+      }
+    }
+
+    function renderConfigFiles(files) {
+      configFilesEl.innerHTML = '';
+      // Trabajar siempre sobre configCache
+        // Diccionario de nombres amigables para parámetros de configuración
+          const CONFIG_FRIENDLY_NAMES = {
+            "use_ollama": "Activar IA CyberSentinel",
+            "host": "Dirección del servidor",
+            "ports": "Puertos a escanear",
+            "concurrency": "Concurrencia de escaneo",
+            "cidr": "Rango de red (CIDR)",
+            "start": "IP de inicio",
+            "end": "IP de fin",
+            "distro_name": "Nombre distribución",
+            "dockers_name": "Nombre contenedores",
+            "server_ip": "IP servidor",
+            "server_port": "Puerto servidor"
+          };
+          // Diccionario de hints explicativos para cada campo
+          const CONFIG_HINTS = {
+            "distro_name": "Ejemplo: Ubuntu, Debian, Windows. Indica el sistema operativo principal.",
+            "dockers_name": "Lista separada por comas de los nombres de los contenedores Docker. Ejemplo: app1,db1,nginx.",
+            "use_ollama": "Activa la IA CyberSentinel si está disponible en el sistema.",
+            "server_ip": "Dirección IP o nombre DNS del servidor. Ejemplo: localhost, 192.168.1.10.",
+            "server_port": "Puerto de conexión del servidor. Ejemplo: 9200.",
+            "host": "IP o nombre del host a escanear. Ejemplo: 192.168.1.1 o example.com.",
+            "ports": "Puertos separados por comas. Ejemplo: 80,443,8080.",
+            "concurrency": "Número de procesos simultáneos para el escaneo. Ejemplo: 20.",
+            "cidr": "Rango de red en formato CIDR. Ejemplo: 192.168.1.0/24.",
+            "start": "IP de inicio del rango. Ejemplo: 192.168.1.1.",
+            "end": "IP final del rango. Ejemplo: 192.168.1.254. Opcional."
+          };
+      configCache.forEach((fileObj, fileIdx) => {
+        const fileDiv = document.createElement('div');
+        fileDiv.className = 'config-file-block';
+        // Nombres amigables para los bloques de archivo
+        let blockName = fileObj.file;
+        if (fileObj.file === "cfg_services.ini") blockName = "Configuración servicios";
+        else if (fileObj.file === "cfg.ini") blockName = "Configuración general";
+        fileDiv.innerHTML = `<h3 style="margin-bottom:8px;"><span style='margin-right:6px;'>🛠️</span>${blockName}</h3>`;
+        fileObj.params.forEach((p, idx) => {
+          const row = document.createElement('div');
+          row.className = 'config-param-row';
+          row.style.marginBottom = '10px';
+          const label = document.createElement('label');
+            label.textContent = CONFIG_FRIENDLY_NAMES[p.key] || p.key;
+          label.style.fontWeight = '600';
+          label.style.marginRight = '12px';
+            // Añadir icono de info con tooltip si existe hint
+            if (CONFIG_HINTS[p.key]) {
+              const infoIcon = document.createElement('span');
+              infoIcon.innerHTML = ' <span style="cursor:pointer;color:#60a5fa;font-size:16px;vertical-align:middle;" title="' + CONFIG_HINTS[p.key].replace(/"/g, '&quot;') + '">ℹ️</span>';
+              infoIcon.className = 'info-icon';
+              label.appendChild(infoIcon);
+            }
+          row.appendChild(label);
+          if (p.type === 'boolean') {
+            const toggle = document.createElement('button');
+            toggle.className = 'config-toggle-btn';
+              toggle.innerHTML = (String(p.value).toLowerCase() === 'true') ? '<span style="margin-right:6px;">✅</span>Sí' : '<span style="margin-right:6px;">❌</span>No';
+            toggle.style.background = (String(p.value).toLowerCase() === 'true') ? '#10b981' : '#ef4444';
+            toggle.style.color = '#fff';
+            toggle.style.border = 'none';
+              toggle.style.borderRadius = '0';
+            toggle.style.padding = '6px 18px';
+            toggle.style.cursor = 'pointer';
+            toggle.onclick = () => {
+              // Actualizar configCache directamente
+              configCache[fileIdx].params[idx].value = (String(p.value).toLowerCase() === 'true') ? 'false' : 'true';
+              renderConfigFiles(configCache);
+            };
+            row.appendChild(toggle);
+          } else {
+            const textarea = document.createElement('textarea');
+            textarea.value = p.value;
+            textarea.style.width = '320px';
+            textarea.style.minHeight = '28px';
+              textarea.style.borderRadius = '0';
+            textarea.style.border = '1px solid #6b7280';
+            textarea.style.padding = '6px';
+            textarea.oninput = (e) => {
+              configCache[fileIdx].params[idx].value = textarea.value;
+            };
+            row.appendChild(textarea);
+          }
+          fileDiv.appendChild(row);
+        });
+        configFilesEl.appendChild(fileDiv);
+      });
+    }
+
+    if (btnSaveConfig) btnSaveConfig.onclick = async function () {
+      configStatus.textContent = '';
+      if (!configCache) return;
+      btnSaveConfig.disabled = true;
+      try {
+        for (const fileObj of configCache) {
+          const resp = await fetch('/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file: fileObj.file, params: fileObj.params })
+          });
+          if (!resp.ok) throw new Error('Error guardando ' + fileObj.file);
+        }
+        configStatus.textContent = '¡Configuración guardada!';
+        await loadConfigFiles();
+        // Actualizar visibilidad CyberSentinel inmediatamente tras guardar
+        await updateCyberSentinelVisibility();
+        // Si se activa Ollama, recargar la vista CyberSentinel
+        const useOllama = configCache.some(fileObj => fileObj.params.some(p => p.key === 'use_ollama' && String(p.value).toLowerCase() === 'true'));
+        if (useOllama) {
+          // Forzar recarga de la vista CyberSentinel si está visible
+          const btnLLM = document.getElementById('btn-llm');
+          const viewLLM = document.getElementById('view-llm');
+          if (btnLLM && viewLLM) {
+            btnLLM.style.display = '';
+            viewLLM.style.display = '';
+          }
+        }
+      } catch (e) {
+        configStatus.textContent = 'Error al guardar: ' + e;
+      }
+      btnSaveConfig.disabled = false;
+    };
+     // Agregar icono al botón guardar
+     if (btnSaveConfig) btnSaveConfig.innerHTML = '<span style="margin-right:6px;">💾</span>Guardar';
+
+    if (btnDiscardConfig) btnDiscardConfig.onclick = function () {
+      configStatus.textContent = 'Cambios descartados.';
+      if (configCache) renderConfigFiles(configCache);
+    };
+     // Agregar icono al botón descartar
+     if (btnDiscardConfig) btnDiscardConfig.innerHTML = '<span style="margin-right:6px;">🗑️</span>Descartar';
+
+    // Activar vista configuración al pulsar el botón
+    const btnConfig = document.getElementById('btn-config');
+    if (btnConfig) {
+      btnConfig.addEventListener('click', () => {
+        activateView('config');
+        loadConfigFiles();
+      });
+    }
   // --- Documentation view logic ---
   // Handles documentation sidebar and markdown rendering
   const docsListEl = document.getElementById('docs-list');
@@ -173,11 +368,21 @@ document.addEventListener('DOMContentLoaded', function () {
    * @return void
    */
   function activateView(viewName) {
+    // Remove 'active' class from all buttons
     buttons.forEach(btn => btn.classList.remove("active"));
+    // Add 'active' class to the selected button
     const activeBtn = document.querySelector(`.nav-button[data-view="${viewName}"]`);
     if (activeBtn) activeBtn.classList.add("active");
-    Object.values(views).forEach(v => v.classList.remove("active"));
-    if (views[viewName]) views[viewName].classList.add("active");
+    // Hide all views except the selected one
+    Object.entries(views).forEach(([key, v]) => {
+      if (key === viewName) {
+        v.classList.add("active");
+        v.style.display = "";
+      } else {
+        v.classList.remove("active");
+        v.style.display = "none";
+      }
+    });
     // lazy-load any iframe placeholder inside the activated view
     try { ensureFrameLoaded(viewName); } catch (e) { /* ignore */ }
   }
@@ -317,17 +522,29 @@ document.addEventListener('DOMContentLoaded', function () {
         const opsContainer = document.createElement("div");
         opsContainer.className = "ops-container";
         controllers[name].forEach(op => {
-          const opBtn = document.createElement("button");
-          opBtn.className = "op-btn";
-          opBtn.textContent = op.title;
-          opBtn.type = "button";
-          opBtn.dataset.opId = op.id || '';
-          opBtn.addEventListener("click", () => {
-            document.querySelectorAll('.op-btn').forEach(b => b.classList.remove('active'));
-            opBtn.classList.add('active');
-            selectOperation(name, op, opBtn);
-          });
-          opsContainer.appendChild(opBtn);
+            const opBtn = document.createElement("button");
+            opBtn.className = "op-btn";
+            // Iconos representativos según el tipo de operación
+            let icon = '';
+            if (op.title.toLowerCase().includes('scan')) icon = '🔍';
+            else if (op.title.toLowerCase().includes('save')) icon = '💾';
+            else if (op.title.toLowerCase().includes('start')) icon = '▶️';
+            else if (op.title.toLowerCase().includes('list')) icon = '📋';
+            else if (op.title.toLowerCase().includes('updater')) icon = '♻️';
+            else if (op.title.toLowerCase().includes('status')) icon = '📊';
+            else if (op.title.toLowerCase().includes('feeds')) icon = '📰';
+            else if (op.title.toLowerCase().includes('spacy')) icon = '🧠';
+            else if (op.title.toLowerCase().includes('llm')) icon = '🤖';
+            else icon = '⚙️';
+            opBtn.innerHTML = `<span style='margin-right:6px;'>${icon}</span>${op.title}`;
+            opBtn.type = "button";
+            opBtn.dataset.opId = op.id || '';
+            opBtn.addEventListener("click", () => {
+              document.querySelectorAll('.op-btn').forEach(b => b.classList.remove('active'));
+              opBtn.classList.add('active');
+              selectOperation(name, op, opBtn);
+            });
+            opsContainer.appendChild(opBtn);
         });
         wrapper.appendChild(opsContainer);
 

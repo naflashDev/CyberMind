@@ -1,4 +1,3 @@
-
 # 🤖 LLM Integrado: Alcance y Uso
 
 Este documento describe el propósito, límites y recomendaciones de uso del **LLM** integrado en CyberMind.
@@ -24,6 +23,19 @@ El LLM actúa como asistente técnico especializado para:
 | **Dominio** | CVE, vulnerabilidades, mitigaciones, indicadores técnicos, resúmenes de noticias |
 | **Datos de entrenamiento** | Solo documentos y noticias scrapeados y procesados por el sistema (outputs/result.json, índices en OpenSearch) |
 | **Limitaciones** | No da consejos fuera del ámbito técnico ni debe usarse para decisiones legales sin verificación humana |
+
+---
+
+## 🦙 Modelo utilizado y restricciones
+
+El sistema de IA de CyberMind utiliza un modelo **LLama3** restringido, configurado mediante un archivo **Model file** que limita sus respuestas y comportamiento. La base de conocimiento del modelo está limitada hasta el año **2023** y no incluye información posterior.
+
+> ⚠️ **Importante:** El modelo actual **NO ha sido finetuneado** con los datos extraídos por el sistema. La función de entrenamiento personalizado (finetuning) se implementará en el futuro, ya que el proceso es altamente demandante en recursos y tiempo.
+
+- El modelo responde únicamente sobre temas de ciberseguridad y CVE según las restricciones del Model file.
+- No puede responder sobre eventos, vulnerabilidades o noticias posteriores a 2023.
+- El finetuning con datos propios está planificado como mejora futura.
+- El archivo JSON para el finetuning **sí se genera** automáticamente (`outputs/finetune_data.jsonl`), pero no se utiliza aún para entrenar el modelo.
 
 ---
 

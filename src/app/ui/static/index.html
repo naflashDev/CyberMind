@@ -20,11 +20,12 @@
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
     <h1>CyberMind</h1>
-    <button class="nav-button active" data-view="fastapi" id="btn-fastapi">Operaciones FastAPI</button>
-    <button class="nav-button" data-view="datos" id="btn-datos">Datos</button>
-    <button class="nav-button" data-view="tiny" id="btn-tiny">Noticias Tiny</button>
-    <button class="nav-button" data-view="llm" id="btn-llm">CyberSentinel IA</button>
-    <button class="nav-button" data-view="docs" id="btn-docs">Documentación</button>
+    <button class="nav-button active" data-view="fastapi" id="btn-fastapi"><span style="margin-right:6px;">⚡</span>Operaciones FastAPI</button>
+    <button class="nav-button" data-view="datos" id="btn-datos"><span style="margin-right:6px;">📊</span>Datos</button>
+    <button class="nav-button" data-view="tiny" id="btn-tiny"><span style="margin-right:6px;">📰</span>Noticias Tiny</button>
+    <button class="nav-button" data-view="llm" id="btn-llm"><span style="margin-right:6px;">🤖</span>CyberSentinel IA</button>
+    <button class="nav-button" data-view="docs" id="btn-docs"><span style="margin-right:6px;">📚</span>Documentación</button>
+    <button class="nav-button" data-view="config" id="btn-config"><span style="margin-right:6px;">⚙️</span>Configuración</button>
   </aside>
       <!-- Vista: Documentación del proyecto (en main-content, no en sidebar) -->
       <div class="view" id="view-docs">
@@ -42,6 +43,18 @@
   <!-- MAIN -->
   <div class="main">
     <div class="main-content">
+      <!-- Vista: Configuración editable de archivos .ini -->
+      <div class="view" id="view-config" style="display:none;">
+        <div class="config-panel">
+          <h2 class="config-title">Configuración del sistema</h2>
+          <div id="config-files"></div>
+          <div class="config-actions">
+            <button id="btn-save-config" class="config-btn-save">Guardar</button>
+            <button id="btn-discard-config" class="config-btn-discard">Descartar</button>
+            <span id="config-status" class="config-status"></span>
+          </div>
+        </div>
+      </div>
       <!-- Vista: FastAPI - Operaciones de los controllers -->
       <div class="view active" id="view-fastapi">
         <div style="display:flex; height:100%;">

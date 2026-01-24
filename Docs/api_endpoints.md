@@ -1,3 +1,58 @@
+---
+
+### Notas técnicas
+- Los endpoints y la infraestructura ahora soportan parámetros en formato dict extraídos de los archivos .ini (clave=valor).
+# Endpoint: Configuración de archivos .ini
+
+
+## GET /config
+- **Descripción:** Devuelve los parámetros de los archivos .ini principales del sistema (cfg_services.ini, cfg.ini) en formato clave=valor.
+- **Parámetros de entrada:** Ninguno.
+- **Respuesta:**
+  - `files`: lista de archivos, cada uno con sus parámetros (`key`, `value`, `type`).
+- **Códigos de estado:** 200 OK, 500 Error interno.
+- **Autenticación:** No requiere.
+
+---
+
+### Formato de configuración soportado
+- Las líneas principales de los archivos `.ini` deben estar en formato `clave=valor;clave=valor;...` para compatibilidad total con la edición vía API/UI.
+
+## POST /config
+  - `params`: lista de parámetros (`key`, `value`).
+- **Códigos de estado:** 200 OK, 404 Archivo no encontrado, 500 Error interno.
+
+---
+
+### Notas de integración UI
+
+#### Cambios visuales y de usabilidad (2026-01-24)
+- El panel de configuración ahora utiliza esquinas cuadradas para una integración visual sin huecos.
+- Los textos de los parámetros de configuración se muestran con nombres amigables para el usuario.
+- Todos los botones principales de la UI (guardar, descartar, operaciones) incluyen iconos representativos según su función.
+- Se ha revisado el diseño para evitar huecos y mejorar la experiencia de usuario.
+
+El endpoint `/config` es consultado por la UI para:
+  - Mostrar/ocultar el apartado CyberSentinel IA según el parámetro `use_ollama`.
+  - Mostrar correctamente el panel de configuración al pulsar el botón correspondiente, eliminando cualquier restricción de visibilidad por CSS o atributos `style`.
+
+## Parámetro de configuración: uso de Ollama
+
+En el archivo `src/cfg_services.ini` se ha añadido el parámetro `use_ollama` para controlar la instalación y uso de Ollama.
+
+**Funcionamiento actualizado (2026-01-24):**
+- El valor de `use_ollama` se lee correctamente en el arranque de la aplicación y se interpreta como booleano, permitiendo que los cambios realizados desde la UI se reflejen en el comportamiento del sistema.
+- El endpoint POST `/config` actualiza el fichero y la lógica de arranque toma el valor actualizado, asegurando sincronización entre la configuración y la infraestructura.
+
+**Ejemplo de línea de configuración:**
+```
+distro_name=Ubuntu;dockers_name=install-updater-1,install-web-nginx-1,install-app-1,install-db-1,opensearch-dashboards,opensearch;use_ollama=true
+```
+
+- Si `use_ollama=true`, el sistema intentará instalar/inicializar Ollama si el hardware es suficiente (mínimo 8GB RAM y 2 núcleos CPU).
+- Si `use_ollama=false`, Ollama no se instalará ni inicializará.
+
+Este parámetro puede modificarse manualmente para activar/desactivar el uso de Ollama según las necesidades del usuario y los recursos disponibles.
 
 
 

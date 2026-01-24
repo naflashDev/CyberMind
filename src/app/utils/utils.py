@@ -157,33 +157,25 @@ def get_connection_parameters(file_name: str)->tuple:
 
     # Local code
     if isinstance(file_name, str):
-        other_return = read_file( file_name, ['\n', '# '])
-
+        other_return = read_file(file_name, ['\n', '# '])
         if other_return[0] != 0:
             result = (1, f'Error while reading the file: {other_return[1]}')
-
         else:
             lines = other_return[2]
-
             if len(lines) != 1:
                 result = (2, 'Incorrect number of potentially valid lines.')
-
             else:
-                line = lines[0].split(';')
-
-                if len(line) != 2:
-                    result = (3, 'Incorrect number of parameters in the file.')
-
+                param_dict = {}
+                for part in lines[0].split(';'):
+                    if '=' in part:
+                        k, v = part.split('=', 1)
+                        param_dict[k.strip()] = v.strip()
+                if 'server_ip' in param_dict and 'server_port' in param_dict:
+                    result = (0, 'Connection parameters successfully retrieved.', (param_dict['server_ip'], param_dict['server_port']))
                 else:
-                    if not all(isinstance(x, str) for x in line) and not line[1].isdigit():
-                        result = (4, 'Incorrect type of parameters.')
-
-                    else:
-                        result = (0, 'Connection parameters successfully retrieved.', (line[0], line[1]))
-    
+                    result = (3, 'Missing required parameters (server_ip, server_port).')
     else:
         result = (5, 'Invalid input parameters.')
-
     return result
 
 def get_connection_service_parameters(file_name: str)->tuple:
@@ -201,33 +193,26 @@ def get_connection_service_parameters(file_name: str)->tuple:
 
     # Local code
     if isinstance(file_name, str):
-        other_return = read_file( file_name, ['\n', '# '])
-
+        other_return = read_file(file_name, ['\n', '# '])
         if other_return[0] != 0:
             result = (1, f'Error while reading the file: {other_return[1]}')
-
         else:
             lines = other_return[2]
-
             if len(lines) != 1:
                 result = (2, 'Incorrect number of potentially valid lines.')
-
             else:
-                line = lines[0].split(';')
-
-                if len(line) != 2:
-                    result = (3, 'Incorrect number of parameters in the file.')
-
+                param_dict = {}
+                for part in lines[0].split(';'):
+                    if '=' in part:
+                        k, v = part.split('=', 1)
+                        param_dict[k.strip()] = v.strip()
+                # Devuelve el dict completo para que main.py pueda acceder a todos los parámetros
+                if 'distro_name' in param_dict and 'dockers_name' in param_dict:
+                    result = (0, 'Connection parameters successfully retrieved.', param_dict)
                 else:
-                    if not all(isinstance(x, str) for x in line):
-                        result = (4, 'Incorrect type of parameters.')
-
-                    else:
-                        result = (0, 'Connection parameters successfully retrieved.', (line[0], line[1]))
-    
+                    result = (3, 'Missing required parameters (distro_name, dockers_name).')
     else:
         result = (5, 'Invalid input parameters.')
-
     return result
 
 def create_config_file( file_name: str, content: list[str])-> tuple:

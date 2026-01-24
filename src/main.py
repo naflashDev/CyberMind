@@ -75,6 +75,40 @@ async def lifespan(app: FastAPI):
     On shutdown, it:
     - Closes the PostgreSQL connection pool
     """
+    # --- cfg_services.ini config file recreation logic ---
+    parameters: tuple = (
+        'Ubuntu',
+        'install-updater-1,install-web-nginx-1,install-app-1,install-db-1,opensearch-dashboards,opensearch'
+    )
+    file_name: str = 'cfg_services.ini'
+    file_content: list[str] = [
+        '# Configuration file.\n',
+        '# This file contains the parameters for service orchestration.\n',
+        '# ONLY one uncommented line is allowed.\n',
+        '# The valid line format is: distro_name=valor;dockers_name=valor;use_ollama=valor\n',
+        f'distro_name={parameters[0]};dockers_name={parameters[1]};use_ollama=false\n'
+    ]
+
+    from app.utils.utils import get_connection_service_parameters, create_config_file
+    retorno_otros = get_connection_service_parameters(file_name)
+    logger.info(retorno_otros[1])
+    error_occurred = False
+    if retorno_otros[0] != 0:
+        logger.info('Recreating configuration file...')
+        retorno_otros = create_config_file(file_name, file_content)
+        logger.info(retorno_otros[1])
+        # If the file had to be recreated, default values will be used
+        if retorno_otros[0] != 0:
+            logger.error('Configuration file missing. Execution cannot continue without a configuration file.')
+            error_occurred = True
+        else:
+            # Intentar leer de nuevo tras crear el archivo
+            retorno_otros = get_connection_service_parameters(file_name)
+            logger.info(retorno_otros[1])
+            if retorno_otros[0] == 0:
+                parameters = retorno_otros[2]
+    else:
+        parameters = retorno_otros[2]  # Get parameters read from the config file
 
     # We will block on heavy startup work so the server only accepts requests
     # after infrastructure initialization completes.
@@ -89,39 +123,58 @@ async def lifespan(app: FastAPI):
 
     logger.info("Startup: initializing infrastructure and background tasks (blocking until ready)")
     try:
-        # Ensure infrastructure first (so services like DB/Opensearch are created)
-        # Read the configuration file to obtain parameters used by ensure_infrastructure
-        file_name: str = 'cfg_services.ini'
-        retorno_otros = get_connection_service_parameters(file_name)
-        if retorno_otros[0] != 0:
-            # If config missing, recreate with defaults so ensure_infrastructure has sensible defaults
-            parameters: tuple = (
-                'Ubuntu',
-                'install-updater-1,install-web-nginx-1,install-app-1,install-db-1,opensearch-dashboards,opensearch'
-            )
-        else:
-            parameters = retorno_otros[2]
+        # Procesar parámetros obtenidos
+        infra_params = {}
+        if not error_occurred:
+            # Si parameters es una tupla o lista, extraer valores
+            # Ahora parameters es siempre un dict
+            distro_name = parameters.get('distro_name', 'Ubuntu')
+            dockers_name = parameters.get('dockers_name', 'install-updater-1,install-web-nginx-1,install-app-1,install-db-1,opensearch-dashboards,opensearch')
 
-        try:
-            # create a stop event so background threads can be asked to stop gracefully
-            app.state.stop_event = threading.Event()
-            # per-worker stop events and timers
-            app.state.worker_stop_events = {}
-            app.state.worker_timers = {}
+            # El parámetro use_ollama solo debe usarse como flag, nunca como nombre de contenedor
+            raw_ollama = parameters.get('use_ollama', 'false')
+            if isinstance(raw_ollama, bool):
+                use_ollama = raw_ollama
+            else:
+                use_ollama = str(raw_ollama).strip().lower() == 'true'
+            # Eliminar accidentalmente 'use_ollama=true' de dockers_name si está presente
+            dockers_name = ','.join([c for c in dockers_name.split(',') if not c.strip().startswith('use_ollama')])
+
+            from app.utils.run_services import is_ollama_available, try_install_ollama, ensure_infrastructure
+            import psutil
+            min_ram_gb = 8
+            min_cpu = 2
+            if not use_ollama:
+                logger.info("El parámetro use_ollama está en false. Ollama no será instalado ni inicializado. Se pasa el parámetro a run_services.")
+                ensure_infrastructure((distro_name, dockers_name), use_ollama=False)
+            else:
+                ram_ok = psutil.virtual_memory().total >= min_ram_gb * 1024**3
+                cpu_ok = psutil.cpu_count(logical=False) >= min_cpu
+                if ram_ok and cpu_ok:
+                    if not is_ollama_available():
+                        logger.info("Ollama no está instalado. Intentando instalar...")
+                        host_platform = os.name
+                        try_install_ollama(host_platform)
+                    else:
+                        logger.info("Ollama ya está disponible en el sistema.")
+                    ensure_infrastructure((distro_name, dockers_name), use_ollama=True)
+                else:
+                    logger.warning(f"Hardware insuficiente para Ollama: RAM >= {min_ram_gb}GB, CPU >= {min_cpu} cores requerido. Se pasa el parámetro a run_services.")
+                    ensure_infrastructure((distro_name, dockers_name), use_ollama=False)
 
             try:
-                ensure_infrastructure(parameters)
+                app.state.stop_event = threading.Event()
+                app.state.worker_stop_events = {}
+                app.state.worker_timers = {}
                 app.state.infra_ready = True
             except Exception as e:
-                # record infra error but allow server to continue
                 app.state.infra_error = str(e)
                 logger.exception("[Startup] ensure_infrastructure failed")
-        except Exception:
-            logger.exception("[Startup] Exception while ensuring infrastructure")
-
-        logger.info("Infrastructure ensured; continuing startup to serve UI. Background services will start after UI access.")
+        else:
+            app.state.infra_error = 'Configuration file missing. Startup incomplete.'
     except Exception:
         logger.exception("[Startup] Exception during initialization")
+        error_occurred = True
 
     yield
 
@@ -183,8 +236,7 @@ async def initialize_background_tasks(app: FastAPI):
     - Create DB pool and store it in `app.state.pool`
     - Start background threads/tasks
     """
-    # Note: infrastructure should already be ensured by the lifespan startup.
-    # This function now focuses on creating DB pool and starting background services
+    # La infraestructura ya se asegura en lifespan. Aquí solo se inicializan pool y workers.
     file_name: str = 'cfg_services.ini'
     file_content: list[str] = [
         '# Configuration file.\n',
@@ -193,13 +245,10 @@ async def initialize_background_tasks(app: FastAPI):
         '# The valid line format is:distro_name,dockers_name\n',
     ]
 
-    # Get the connection parameters or assign default ones (for container names later)
     retorno_otros = get_connection_service_parameters(file_name)
     logger.info(retorno_otros[1])
-
     if retorno_otros[0] != 0:
         logger.info('Recreating configuration file with defaults...')
-        # reuse same defaults as earlier
         default_parameters: tuple = (
             'Ubuntu',
             'install-updater-1,install-web-nginx-1,install-app-1,install-db-1,opensearch-dashboards,opensearch'
@@ -383,6 +432,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 # Register route modules
+from app.controllers.routes.config_controller import router as config_controller
 app.include_router(scrapy_news_controller.router)
 app.include_router(spacy_controller.router)
 app.include_router(tiny_postgres_controller.router)
@@ -391,6 +441,7 @@ app.include_router(status_controller.router)
 app.include_router(worker_controller.router)
 app.include_router(network_analysis_controller.router)
 app.include_router(docs_controller.router)
+app.include_router(config_controller)
 
 # Serve UI static files (simple single-file UI under app/ui/static)
 STATIC_DIR = Path(__file__).resolve().parent / "app" / "ui" / "static"

@@ -225,6 +225,7 @@ async def run_dynamic_spider_from_db(pool, stop_event=None, register_process=Non
                     number += 1
                     logger.info(f"Scraped lap {number}: {len(urls)} URLs to process")
                     # Obtain the parameters for the OpenSearch database
+                    # Default parameters for OpenSearch connection
                     parameters: tuple = (
                         'localhost',
                         9200
@@ -234,8 +235,8 @@ async def run_dynamic_spider_from_db(pool, stop_event=None, register_process=Non
                         '# Configuration file.\n',
                         '# This file contains the parameters for connecting to the opensearch database server.\n',
                         '# ONLY one uncommented line is allowed.\n',
-                        '# The valid line format is: server_ip,server_port\n',
-                        f'{parameters[0]};{parameters[1]}\n'
+                        '# The valid line format is: server_ip=valor;server_port=valor\n',
+                        'server_ip=localhost;server_port=9200\n'
                     ]
 
                     # Get the connection parameters or assign default ones
@@ -247,10 +248,15 @@ async def run_dynamic_spider_from_db(pool, stop_event=None, register_process=Non
                         retorno_otros = create_config_file(file_name, file_content)
                         logger.info(retorno_otros[1])
                         # If the file had to be recreated, default values will be used
-
                         if retorno_otros[0] != 0:
                             logger.error('Configuration file missing. Execution cannot continue without a configuration file.')
                             return
+                        else:
+                            # Intentar leer de nuevo tras crear el archivo
+                            retorno_otros = get_connection_parameters(file_name)
+                            logger.info(retorno_otros[1])
+                            if retorno_otros[0] == 0:
+                                parameters = retorno_otros[2]
                     else:
                         parameters = retorno_otros[2]  # Get parameters read from the config file
 

@@ -76,6 +76,20 @@ python main.py
 
 ---
 
+## 🤖 IA y modelo LLM
+
+La IA integrada en CyberMind utiliza un modelo **LLama3** restringido, configurado mediante un archivo **Model file** que limita sus respuestas y comportamiento. La base de conocimiento del modelo está limitada hasta el año **2023** y no incluye información posterior.
+
+> ⚠️ **Importante:** El modelo actual **NO ha sido finetuneado** con los datos extraídos por el sistema. La función de entrenamiento personalizado (finetuning) se implementará en el futuro, ya que el proceso es altamente demandante en recursos y tiempo.
+
+- El modelo responde únicamente sobre temas de ciberseguridad y CVE según las restricciones del Model file.
+- No puede responder sobre eventos, vulnerabilidades o noticias posteriores a 2023.
+- El finetuning con datos propios está planificado como mejora futura.
+- El archivo JSON para el finetuning **sí se genera** automáticamente (outputs/finetune_data.jsonl), pero no se utiliza aún para entrenar el modelo.
+
+---
+
+
 ## 🏗️ Estructura de directorios del proyecto
 
 ```plaintext
@@ -204,3 +218,4 @@ Por favor incluye:
 </div>
 
 ---
+
