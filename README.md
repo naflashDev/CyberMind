@@ -24,16 +24,22 @@
 ### 🐳 Con Docker Compose (Recomendado)
 ```bash
 # 1. Clonar el repositorio
+
 # 2. Instalar dependencias
+
 cd CyberMind
 python -m venv env
 source env/bin/activate  # En Windows: .\env\Scripts\activate
 pip install -r requirements.txt
+
 # 3.Levantar servicios (Opcional, ya que el programa hace el compose automaticamente)
+
 cd Install
 docker compose -f opensearch-compose.yml up -d
 docker compose -f tinytinyrss.yml up -d
+
 # 4.Arrancar la aplicacion
+
 cd ..
 cd src
 python main.py
@@ -156,7 +162,7 @@ CyberMind/
 | Elemento                | Descripción breve                                                                 |
 |-------------------------|---------------------------------------------------------------------------------|
 | AGENTS.md               | Normas y estándares para el agente IA y desarrollo del proyecto                   |
-| LICENSE                 | Licencia de uso del software                                                     |
+| LICENSE                 | Licencia privativa: uso personal, educativo o investigación. Derivados solo con permiso. |
 | README.md               | Documentación principal y guía rápida                                            |
 | requirements.txt        | Dependencias principales del proyecto                                           |
 | dev-requirements.txt    | Dependencias para desarrollo y testing                                          |
@@ -191,6 +197,16 @@ CyberMind/
 - 🐙 **GitHub**: [@naflashDev](https://github.com/naflashDev)
 - 📧 **Email**: [Contactar via GitHub Issues](https://github.com/naflashDev/CyberMind/issues)
 
+
+## 📄 Licencia
+
+Este proyecto está protegido por una **licencia privativa personalizada**:
+
+- El uso está permitido únicamente para fines personales, educativos o de investigación.
+- Se permite la creación de versiones derivadas solo para uso personal, educativo o de investigación.
+- Queda prohibida la redistribución, publicación o uso comercial sin autorización expresa y por escrito del titular.
+- Toda versión derivada debe incluir un aviso visible de modificación y mantener el texto de licencia.
+- Para más detalles, consulta el archivo [LICENSE](LICENSE).
 
 ## 🤝 Contribuciones y Soporte
 

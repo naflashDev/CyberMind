@@ -12,6 +12,8 @@
 ## [Unreleased] - 2026-01-24
 ### Changed
 - Los recuadros de cada sección del panel de configuración ahora tienen esquinas redondeadas para mejorar la estética visual.
+### Security
+- Se ha cambiado la licencia del proyecto a una **licencia privativa personalizada**: solo uso personal, educativo o de investigación; derivados permitidos únicamente bajo las condiciones especificadas; prohibida la redistribución y el uso comercial sin autorización expresa del titular. Ver archivo LICENSE y README.md para detalles.
 ### Changed
 - Los hints explicativos de los campos ahora aparecen como tooltip al hacer hover sobre un icono de información junto al nombre del campo.
 ### Added
