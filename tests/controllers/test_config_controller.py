@@ -58,11 +58,110 @@ def test_update_config_file_not_found():
     resp = client.post('/config', json=data)
     assert resp.status_code == 404
 
+
 def test_update_config_ok(monkeypatch, tmp_path):
+    """
+    @brief Test de actualización exitosa de archivo ini.
+    Cubre la escritura de parámetros y preservación de comentarios.
+    """
     client = TestClient(app)
-    # Crear archivo temporal para simular ini
-    ini_path = tmp_path / 'cfg_services.ini'
+    from src.app.controllers.routes import config_controller
+    ini_path = config_controller.INI_FILES[0]['path']
+    backup = None
+    if ini_path.exists():
+        backup = ini_path.read_text()
     ini_path.write_text('#comentario\nclave=valor\n')
-import sys
-import importlib.util
+    try:
+        data = {'file': 'cfg_services.ini', 'params': [{'key': 'clave', 'value': 'nuevo_valor'}]}
+        resp = client.post('/config', json=data)
+        assert resp.status_code == 200
+        contenido = ini_path.read_text()
+        assert '#comentario' in contenido
+        assert 'clave=nuevo_valor' in contenido
+    finally:
+        if backup is not None:
+            ini_path.write_text(backup)
+        else:
+            ini_path.unlink(missing_ok=True)
+
+
+def test_update_config_file_not_found():
+    """
+    @brief Test de error cuando el archivo no existe.
+    """
+    client = TestClient(app)
+    data = {'file': 'noexiste.ini', 'params': []}
+    resp = client.post('/config', json=data)
+    assert resp.status_code == 404
+
+def test_update_config_empty_params(monkeypatch):
+    """
+    @brief Test de actualización con parámetros vacíos.
+    """
+    client = TestClient(app)
+    from src.app.controllers.routes import config_controller
+    ini_path = config_controller.INI_FILES[0]['path']
+    backup = ini_path.read_text() if ini_path.exists() else None
+    ini_path.write_text('#comentario\nclave=valor\n')
+    try:
+        data = {'file': 'cfg_services.ini', 'params': []}
+        resp = client.post('/config', json=data)
+        assert resp.status_code == 200
+        contenido = ini_path.read_text()
+        assert '#comentario' in contenido
+        # No debe haber parámetros nuevos
+        assert contenido.strip().endswith('') or contenido.strip() == '#comentario'
+    finally:
+        if backup is not None:
+            ini_path.write_text(backup)
+        else:
+            ini_path.unlink(missing_ok=True)
+
+def test_update_config_valid(monkeypatch):
+    """
+    @brief Test de actualización válida de parámetros.
+    """
+    client = TestClient(app)
+    from src.app.controllers.routes import config_controller
+    ini_path = config_controller.INI_FILES[0]['path']
+    backup = ini_path.read_text() if ini_path.exists() else None
+    ini_path.write_text('#comentario\nclave=valor\n')
+    try:
+        data = {'file': 'cfg_services.ini', 'params': [
+            {'key': 'clave', 'value': 'nuevo_valor'}
+        ]}
+        resp = client.post('/config', json=data)
+        assert resp.status_code == 200
+        contenido = ini_path.read_text()
+        assert '#comentario' in contenido
+        assert 'clave=nuevo_valor' in contenido
+    finally:
+        if backup is not None:
+            ini_path.write_text(backup)
+        else:
+            ini_path.unlink(missing_ok=True)
+
+def test_update_config_param_empty_key(monkeypatch, tmp_path):
+    """
+    @brief Test de parámetros con clave vacía (no deben añadirse).
+    """
+    client = TestClient(app)
+    from src.app.controllers.routes import config_controller
+    ini_path = config_controller.INI_FILES[0]['path']
+    backup = None
+    if ini_path.exists():
+        backup = ini_path.read_text()
+    ini_path.write_text('#comentario\nclave=valor\n')
+    try:
+        data = {'file': 'cfg_services.ini', 'params': [{'key': '', 'value': 'x'}]}
+        resp = client.post('/config', json=data)
+        assert resp.status_code == 200
+        contenido = ini_path.read_text()
+        # Solo debe quedar el comentario si no hay claves válidas
+        assert contenido.strip() == '#comentario'
+    finally:
+        if backup is not None:
+            ini_path.write_text(backup)
+        else:
+            ini_path.unlink(missing_ok=True)
 

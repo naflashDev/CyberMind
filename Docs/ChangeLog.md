@@ -54,9 +54,18 @@
 - La cobertura de `src/app/controllers/routes/scrapy_news_controller.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
 - La cobertura de `src/app/services/spacy/text_processor.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
 - La cobertura de `src/app/services/llm/script_auto.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
-# [Unreleased] - 2026-01-25
 ### Added
 - Se ha añadido `pytest-cov` a `dev-requirements.txt` para garantizar la correcta ejecución del workflow de cobertura en CI/CD.
+
+- Se han ampliado y corregido los tests unitarios para `src/app/services/scraping/news_gd.py`, cubriendo:
+	- Ramas de error en extracción de noticias, carga y escritura de archivos.
+	- Casos extremos y duplicados en la búsqueda y almacenamiento de resultados.
+	- Mock de dependencias externas (`httpx`, `googlesearch`, `asyncio.sleep`, logger).
+	- Ejecución completa de la función principal `run_news_search` y control de errores.
+	- Cobertura de condiciones de archivo corrupto y errores de escritura.
+
+### Changed
+- La cobertura de `src/app/services/scraping/news_gd.py` supera el 80% (actualmente 93%), incluyendo ramas de error, condiciones límite y ejecución asíncrona, cumpliendo la norma de calidad definida en `AGENTS.md`.
 
 ### Fixed
 - Se ha corregido el fallo en el workflow de GitHub Actions que impedía la generación de informes de cobertura, asegurando la instalación de `pytest-cov` en el entorno de CI.

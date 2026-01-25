@@ -1,3 +1,111 @@
+import threading
+import asyncio
+from src.app.controllers.routes import scrapy_news_controller
+
+def test_background_scraping_feeds_runs(monkeypatch):
+    monkeypatch.setattr(scrapy_news_controller, "run_dork_search_feed", lambda: None)
+    loop = asyncio.new_event_loop()
+    stop_event = threading.Event()
+    def dummy_register(timer): pass
+    scrapy_news_controller.background_scraping_feeds(loop, stop_event, dummy_register)
+    assert True
+
+def test_background_scraping_feeds_stop(monkeypatch):
+    monkeypatch.setattr(scrapy_news_controller, "run_dork_search_feed", lambda: None)
+    loop = asyncio.new_event_loop()
+    stop_event = threading.Event(); stop_event.set()
+    def dummy_register(timer): pass
+    scrapy_news_controller.background_scraping_feeds(loop, stop_event, dummy_register)
+    assert True
+
+def test_background_scraping_news_runs(monkeypatch):
+    monkeypatch.setattr(scrapy_news_controller, "run_news_search", lambda: None)
+    loop = asyncio.new_event_loop()
+    stop_event = threading.Event()
+    def dummy_register(timer): pass
+    scrapy_news_controller.background_scraping_news(loop, stop_event, dummy_register)
+    assert True
+
+def test_background_scraping_news_stop(monkeypatch):
+    monkeypatch.setattr(scrapy_news_controller, "run_news_search", lambda: None)
+    loop = asyncio.new_event_loop()
+    stop_event = threading.Event(); stop_event.set()
+    def dummy_register(timer): pass
+    scrapy_news_controller.background_scraping_news(loop, stop_event, dummy_register)
+    assert True
+
+def test_recurring_google_alert_scraper_runs(monkeypatch):
+    monkeypatch.setattr(scrapy_news_controller, "fetch_and_save_alert_urls", lambda: None)
+    loop = asyncio.new_event_loop()
+    stop_event = threading.Event()
+    def dummy_register(timer): pass
+    scrapy_news_controller.recurring_google_alert_scraper(loop, stop_event, dummy_register)
+    assert True
+
+def test_recurring_google_alert_scraper_stop(monkeypatch):
+    monkeypatch.setattr(scrapy_news_controller, "fetch_and_save_alert_urls", lambda: None)
+    loop = asyncio.new_event_loop()
+    stop_event = threading.Event(); stop_event.set()
+    def dummy_register(timer): pass
+    scrapy_news_controller.recurring_google_alert_scraper(loop, stop_event, dummy_register)
+    assert True
+def test_scrape_news_articles_success_endpoint(monkeypatch):
+    class DummyPool: pass
+    async def dummy_spider(pool, **kwargs): return None
+    monkeypatch.setattr("src.app.controllers.routes.scrapy_news_controller.run_dynamic_spider_from_db", dummy_spider)
+    app.state = type("State", (), {})()
+    app.state.pool = DummyPool()
+    client = TestClient(app)
+    resp = client.get("/newsSpider/scrape-news")
+    assert resp.status_code == 200
+    assert "News processing started" in resp.text
+
+def test_start_scraping_feeds_success(monkeypatch):
+    monkeypatch.setattr("src.app.controllers.routes.scrapy_news_controller.run_dork_search_feed", lambda: None)
+    client = TestClient(app)
+    resp = client.get("/newsSpider/scrapy/google-dk/feeds")
+    assert resp.status_code == 200
+    assert "Scraping started" in resp.text
+
+def test_start_scraping_news_success(monkeypatch):
+    monkeypatch.setattr("src.app.controllers.routes.scrapy_news_controller.run_news_search", lambda: None)
+    client = TestClient(app)
+    resp = client.get("/newsSpider/scrapy/google-dk/news")
+    assert resp.status_code == 200
+    assert "Scraping iniciado" in resp.text
+import os
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from src.app.controllers.routes.scrapy_news_controller import router as scrapy_router
+
+# Instancia mínima de FastAPI para pruebas de endpoints
+app = FastAPI()
+app.include_router(scrapy_router)
+
+def test_guardar_link_no_entries(monkeypatch):
+    class DummyFeed:
+        entries = []
+        feed = {}
+    monkeypatch.setattr("src.app.controllers.routes.scrapy_news_controller.feedparser.parse", lambda url: DummyFeed())
+    client = TestClient(app)
+    resp = client.post("/newsSpider/save-feed-google-alerts", json={"feed_url": "http://bad.com/rss"})
+    assert resp.status_code == 400
+    assert "Error validating the feed" in resp.text
+
+def test_guardar_link_exception(monkeypatch):
+    monkeypatch.setattr("src.app.controllers.routes.scrapy_news_controller.feedparser.parse", lambda url: (_ for _ in ()).throw(Exception("fail")))
+    client = TestClient(app)
+    resp = client.post("/newsSpider/save-feed-google-alerts", json={"feed_url": "http://fail.com/rss"})
+    assert resp.status_code == 400
+    assert "Error validating the feed" in resp.text
+
+def test_start_google_alert_scheduler_file_not_found(monkeypatch):
+    # Fuerza que el archivo no exista
+    monkeypatch.setattr(os.path, "exists", lambda path: False)
+    client = TestClient(app)
+    resp = client.get("/newsSpider/start-google-alerts")
+    assert resp.status_code == 404
+    assert "not found" in resp.text
 """
 @file test_scrapy_news_controller.py
 @author GitHub Copilot
