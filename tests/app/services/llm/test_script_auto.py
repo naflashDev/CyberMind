@@ -1,3 +1,118 @@
+def test_consolidate_json_stop_event(monkeypatch, tmp_path):
+    d = tmp_path / "repo3"
+    d.mkdir()
+    (d / "f0.json").write_text(json.dumps({"cveMetadata": {"state": "PUBLISHED"}}), encoding="utf-8")
+    class DummyEvent:
+        def is_set(self): return True
+    with patch("src.app.services.llm.script_auto.logger") as mock_logger:
+        script_auto.consolidate_json(str(d), str(tmp_path / "out3.json"), stop_event=DummyEvent())
+        assert mock_logger.info.called
+
+def test_consolidate_json_is_finalizing(monkeypatch, tmp_path):
+    d = tmp_path / "repo4"
+    d.mkdir()
+    (d / "f0.json").write_text(json.dumps({"cveMetadata": {"state": "PUBLISHED"}}), encoding="utf-8")
+    monkeypatch.setattr(script_auto.sys, "is_finalizing", lambda: True)
+    with patch("src.app.services.llm.script_auto.logger") as mock_logger:
+        script_auto.consolidate_json(str(d), str(tmp_path / "out4.json"))
+        assert mock_logger.warning.called
+
+def test_consolidate_json_active_processes(monkeypatch, tmp_path):
+    d = tmp_path / "repo5"
+    d.mkdir()
+    for i in range(2):
+        (d / f"f{i}.json").write_text(json.dumps({"cveMetadata": {"state": "PUBLISHED", "cveId": f"CVE-{i}"}}), encoding="utf-8")
+    # DummyProc simula procesos activos y join/terminate
+    class DummyProc:
+        def __init__(self, target, args): self._alive = True; self._target = target; self._args = args
+        def start(self): self._target(*self._args); self._alive = False
+        def is_alive(self): return self._alive
+        def join(self, timeout=None): self._alive = False
+        def terminate(self): self._alive = False
+    monkeypatch.setattr(script_auto, "_process_file_worker", lambda i, o: open(o, "w").write("[]"))
+    monkeypatch.setattr(script_auto.multiprocessing, "Process", DummyProc)
+    monkeypatch.setattr(script_auto.multiprocessing, "Manager", lambda: type("M", (), {"Lock": staticmethod(lambda: type("L", (), {"__enter__": lambda s: None, "__exit__": lambda s,a,b,c: None})())})())
+    out_file = tmp_path / "out5.json"
+    script_auto.consolidate_json(str(d), str(out_file))
+    assert out_file.exists()
+
+def test_consolidate_json_warning_partial(monkeypatch, tmp_path):
+    d = tmp_path / "repo6"
+    d.mkdir()
+    (d / "f0.json").write_text(json.dumps({"cveMetadata": {"state": "PUBLISHED"}}), encoding="utf-8")
+    # Fuerza excepción al leer parcial
+    import builtins
+    real_open = builtins.open
+    def fake_open(*a, **kw):
+        # Solo lanza excepción al leer el archivo parcial, no al escribir
+        if a[0].endswith("out_0.json") and (len(a) > 1 and a[1] == "r"):
+            raise Exception("fail read")
+        return real_open(*a, **kw)
+    monkeypatch.setattr(script_auto, "_process_file_worker", lambda i, o: open(o, "w").write("[]"))
+    monkeypatch.setattr(script_auto.multiprocessing, "Process", lambda target, args: type("P", (), {"start": lambda s: target(*args), "is_alive": lambda s: False, "join": lambda s, timeout=None: None, "terminate": lambda s: None})())
+    monkeypatch.setattr(script_auto.multiprocessing, "Manager", lambda: type("M", (), {"Lock": staticmethod(lambda: type("L", (), {"__enter__": lambda s: None, "__exit__": lambda s,a,b,c: None})())})())
+    monkeypatch.setattr("builtins.open", fake_open)
+    with patch("src.app.services.llm.script_auto.logger") as mock_logger:
+        out_file = tmp_path / "out6.json"
+        script_auto.consolidate_json(str(d), str(out_file))
+        # Solo debe verificar que el warning fue emitido
+        assert mock_logger.warning.called
+def test_clone_repository_git_error(tmp_path):
+    repo_dir = tmp_path / "repo3"
+    with patch("src.app.services.llm.script_auto.subprocess.check_call", side_effect=Exception("fail")), \
+         patch("src.app.services.llm.script_auto.logger") as mock_logger:
+        with pytest.raises(Exception):
+            script_auto.clone_repository("url", str(repo_dir))
+        assert mock_logger.error.called
+
+def test_update_repository_git_error(tmp_path):
+    repo_dir = tmp_path / "repo4"
+    repo_dir.mkdir()
+    with patch("src.app.services.llm.script_auto.subprocess.check_call", side_effect=Exception("fail")), \
+         patch("src.app.services.llm.script_auto.logger") as mock_logger:
+        with pytest.raises(Exception):
+            script_auto.update_repository(str(repo_dir))
+        assert mock_logger.error.called
+
+def test_process_file_json_decode_error(tmp_path):
+    file = tmp_path / "bad2.json"
+    file.write_text("{not json}", encoding="utf-8")
+    agg = []
+    lock = MagicMock()
+    with patch("src.app.services.llm.script_auto.logger") as mock_logger:
+        script_auto.process_file(file, agg, lock)
+        assert mock_logger.warning.called
+
+def test_process_file_unexpected_error(tmp_path):
+    file = tmp_path / "ok2.json"
+    file.write_text(json.dumps({"cveMetadata": {"state": "PUBLISHED"}}), encoding="utf-8")
+    agg = []
+    lock = MagicMock()
+    with patch("src.app.services.llm.script_auto.transform_json", side_effect=Exception("fail")), \
+         patch("src.app.services.llm.script_auto.logger") as mock_logger:
+        script_auto.process_file(file, agg, lock)
+        assert mock_logger.error.called
+
+def test__process_file_worker_error(tmp_path):
+    file = tmp_path / "input2.json"
+    file.write_text(json.dumps({"cveMetadata": {"state": "PUBLISHED"}}), encoding="utf-8")
+    out = tmp_path / "out2.json"
+    # Fuerza excepción en transformación
+    with patch("src.app.services.llm.script_auto.transform_json", side_effect=Exception("fail")):
+        script_auto._process_file_worker(str(file), str(out))
+    # El archivo de salida no debe existir
+    assert not out.exists()
+
+def test_consolidate_json_error(monkeypatch, tmp_path):
+    d = tmp_path / "repo2"
+    d.mkdir()
+    (d / "f0.json").write_text(json.dumps({"cveMetadata": {"state": "PUBLISHED"}}), encoding="utf-8")
+    # Fuerza excepción en open
+    monkeypatch.setattr("builtins.open", lambda *a, **kw: (_ for _ in ()).throw(Exception("fail open")))
+    with patch("src.app.services.llm.script_auto.logger") as mock_logger:
+        with pytest.raises(Exception):
+            script_auto.consolidate_json(str(d), str(tmp_path / "out2.json"))
+        assert mock_logger.error.called
 """
 @file test_script_auto.py
 @author GitHub Copilot

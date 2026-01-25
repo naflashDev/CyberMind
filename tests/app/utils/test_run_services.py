@@ -1,3 +1,85 @@
+def test_ensure_containers_error(monkeypatch):
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    with pytest.raises(Exception):
+        run_services.ensure_containers("container")
+
+def test_ensure_infrastructure_error(monkeypatch):
+    monkeypatch.setattr(run_services, "ensure_docker_daemon_running", lambda x: False)
+    with pytest.raises(Exception):
+        run_services.ensure_infrastructure({}, use_ollama=False)
+
+def test_shutdown_services_error(monkeypatch):
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    # No debe lanzar excepción, solo loguear
+    run_services.shutdown_services()
+
+def test_ensure_compose_from_install_success(monkeypatch, tmp_path):
+    # Simula ejecución exitosa
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(return_value=MagicMock(returncode=0))))
+    run_services.ensure_compose_from_install(tmp_path)
+import sys
+import types
+import pytest
+from unittest.mock import patch, MagicMock
+from src.app.utils import run_services
+
+def test_wsl_docker_is_running_false(monkeypatch):
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    assert run_services.wsl_docker_is_running("container") is False
+
+def test_wsl_docker_start_container_error(monkeypatch):
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    with pytest.raises(Exception):
+        run_services.wsl_docker_start_container("container")
+
+def test_detect_host_os_windows(monkeypatch):
+    monkeypatch.setattr(run_services.platform, "system", lambda: "Windows")
+    os, distro = run_services.detect_host_os()
+    assert os == "Windows"
+
+def test_detect_host_os_linux(monkeypatch):
+    monkeypatch.setattr(run_services.platform, "system", lambda: "Linux")
+    # Simula que /etc/os-release no existe
+    monkeypatch.setattr(run_services.Path, "exists", lambda self: False)
+    os, distro = run_services.detect_host_os()
+    assert os == "Linux"
+
+def test_is_docker_available_false(monkeypatch):
+    monkeypatch.setattr(run_services.shutil, "which", lambda x: None)
+    assert run_services.is_docker_available() is False
+
+def test_is_docker_daemon_running_false(monkeypatch):
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    assert run_services.is_docker_daemon_running() is False
+
+def test_ensure_docker_daemon_running_error(monkeypatch):
+    monkeypatch.setattr(run_services, "is_docker_daemon_running", lambda: False)
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    assert run_services.ensure_docker_daemon_running("windows") is False
+
+def test_ensure_compose_from_install_error(monkeypatch, tmp_path):
+    # Fuerza error en subprocess, solo debe loguear, no lanzar excepción
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    run_services.ensure_compose_from_install(tmp_path)
+    assert True
+
+def test_is_ollama_available_false(monkeypatch):
+    monkeypatch.setattr(run_services.shutil, "which", lambda x: None)
+    assert run_services.is_ollama_available() is False
+
+def test_try_install_ollama_error(monkeypatch):
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    assert run_services.try_install_ollama("windows") is False
+
+def test_ensure_ollama_model_error(monkeypatch, tmp_path):
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    run_services.ensure_ollama_model(tmp_path, "model")
+    assert True
+
+def test_os_get_euid(monkeypatch):
+    # Solo prueba que retorna un int, compatible multiplataforma
+    val = run_services.os_get_euid()
+    assert isinstance(val, int)
 """
 @file test_run_services.py
 @author GitHub Copilot

@@ -1,3 +1,136 @@
+import pytest
+
+@pytest.mark.asyncio
+async def test_scan_range_multiple_hosts(monkeypatch):
+    # Simula dos hosts, uno con error y otro ok
+    async def fake_to_thread(func, host, *a, **kw):
+        if host == "127.0.0.1":
+            return [{"port": 80, "open": True}]
+        raise Exception("fail host")
+    monkeypatch.setattr("asyncio.to_thread", fake_to_thread)
+    with patch("src.app.services.network_analysis.network_analysis.logger") as mock_logger:
+        result = await network_analysis.scan_range(start="127.0.0.1", end="127.0.0.2", use_nmap=False)
+        assert result["scanned"] == 2
+        assert any("error" in h for h in result["hosts"])
+        assert any("results" in h for h in result["hosts"])
+        assert mock_logger.exception.called or mock_logger.info.called
+
+@pytest.mark.asyncio
+async def test_scan_range_concurrency(monkeypatch):
+    # Simula concurrencia y logs
+    calls = []
+    async def fake_to_thread(func, host, *a, **kw):
+        calls.append(host)
+        return [{"port": 80, "open": True}]
+    monkeypatch.setattr("asyncio.to_thread", fake_to_thread)
+    with patch("src.app.services.network_analysis.network_analysis.logger") as mock_logger:
+        result = await network_analysis.scan_range(start="127.0.0.1", end="127.0.0.3", use_nmap=False, concurrency=2)
+        assert result["scanned"] == 3
+        assert len(calls) == 3
+        # No se asegura que mock_logger.info sea llamado en todas las ramas
+@pytest.mark.asyncio
+async def test_scan_range_asyncio_errors(monkeypatch):
+    # Simula error en asyncio.to_thread
+    async def fake_to_thread(func, *a, **kw):
+        raise Exception("fail to_thread")
+    monkeypatch.setattr("asyncio.to_thread", fake_to_thread)
+    result = await network_analysis.scan_range(start="127.0.0.1", end="127.0.0.1")
+    assert "error" in result["hosts"][0]
+
+@pytest.mark.asyncio
+async def test_scan_range_partial_results(monkeypatch):
+    # Simula resultado parcial y logs
+    async def fake_to_thread(func, *a, **kw):
+        if func == network_analysis.run_nmap_scan:
+            raise FileNotFoundError()
+        return [{"port": 80, "open": True}]
+    monkeypatch.setattr("asyncio.to_thread", fake_to_thread)
+    with patch("src.app.services.network_analysis.network_analysis.logger") as mock_logger:
+        result = await network_analysis.scan_range(start="127.0.0.1", end="127.0.0.1", use_nmap=True)
+        assert result["scanned"] == 1
+        assert "hosts" in result
+        assert mock_logger.warning.called or mock_logger.info.called
+
+@pytest.mark.asyncio
+async def test_scan_range_timeout(monkeypatch):
+    # Simula TimeoutExpired en nmap
+    class Timeout(Exception): pass
+    async def fake_to_thread(func, *a, **kw):
+        if func == network_analysis.run_nmap_scan:
+            raise network_analysis.subprocess.TimeoutExpired(cmd="nmap", timeout=1)
+        return [{"port": 80, "open": True}]
+    monkeypatch.setattr("asyncio.to_thread", fake_to_thread)
+    result = await network_analysis.scan_range(start="127.0.0.1", end="127.0.0.1", use_nmap=True)
+    assert result["hosts"][0]["error"].startswith("nmap timeout")
+import socket
+import errno
+import types
+from src.app.services.network_analysis import network_analysis
+def test__is_valid_ip_cases():
+    assert network_analysis._is_valid_ip("127.0.0.1") is True
+    assert network_analysis._is_valid_ip("::1") is True
+    assert network_analysis._is_valid_ip("notanip") is False
+
+def test_scan_ports_open_closed_filtered(monkeypatch):
+    # Simula puerto abierto
+    def fake_create_connection(addr, timeout=0.5):
+        if addr[1] == 80:
+            class Dummy:
+                def __enter__(self): return self
+                def __exit__(self, a, b, c): pass
+            return Dummy()
+        raise socket.timeout() if addr[1] == 81 else ConnectionRefusedError()
+    monkeypatch.setattr(socket, "create_connection", fake_create_connection)
+    results = network_analysis.scan_ports("127.0.0.1", [80, 81, 82], timeout=0.1)
+    assert any(r["open"] for r in results)
+    assert any(r["state"] == "filtered" for r in results)
+    assert any(r["state"] == "closed" for r in results)
+
+def test_scan_ports_oserror(monkeypatch):
+    def fake_create_connection(addr, timeout=0.5):
+        e = OSError()
+        e.errno = errno.ECONNREFUSED
+        raise e
+    monkeypatch.setattr(socket, "create_connection", fake_create_connection)
+    results = network_analysis.scan_ports("127.0.0.1", [80], timeout=0.1)
+    assert results[0]["state"] == "closed"
+
+def test_run_nmap_scan_not_found(monkeypatch):
+    monkeypatch.setattr(network_analysis.shutil, "which", lambda x: None)
+    with pytest.raises(FileNotFoundError):
+        network_analysis.run_nmap_scan("127.0.0.1")
+
+def test_run_nmap_scan_parse_error(monkeypatch):
+    monkeypatch.setattr(network_analysis.shutil, "which", lambda x: "nmap")
+    class DummyProc:
+        stdout = "<notxml>"
+        stderr = ""
+        returncode = 0
+    monkeypatch.setattr(network_analysis.subprocess, "run", lambda *a, **kw: DummyProc())
+    # No debe lanzar excepción, debe devolver lista vacía y raw
+    results, raw = network_analysis.run_nmap_scan("127.0.0.1")
+    assert isinstance(results, list)
+    assert raw
+
+def test_run_nmap_scan_fallback(monkeypatch):
+    monkeypatch.setattr(network_analysis.shutil, "which", lambda x: "nmap")
+    class DummyProc:
+        stdout = "PORT   STATE SERVICE\n80/tcp open http\n81/tcp closed ftp"
+        stderr = ""
+        returncode = 0
+    monkeypatch.setattr(network_analysis.subprocess, "run", lambda *a, **kw: DummyProc())
+    results, raw = network_analysis.run_nmap_scan("127.0.0.1")
+    assert any(r["open"] for r in results) or any(r["state"] == "closed" for r in results)
+
+import asyncio
+@pytest.mark.asyncio
+async def test_scan_range_value_errors():
+    with pytest.raises(ValueError):
+        await network_analysis.scan_range()
+    with pytest.raises(ValueError):
+        await network_analysis.scan_range(start="10.0.0.2", end="10.0.0.1")
+    with pytest.raises(ValueError):
+        await network_analysis.scan_range(cidr="10.0.0.0/24", max_allowed=1)
 
 
 

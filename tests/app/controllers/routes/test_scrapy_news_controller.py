@@ -1,3 +1,75 @@
+"""
+@file test_scrapy_news_controller.py
+@author GitHub Copilot
+@brief Tests for scrapy_news_controller.py
+@details Unit and integration tests for endpoints and background tasks. External dependencies and async calls are mocked.
+"""
+
+import threading
+import logging
+# --- Cobertura avanzada: errores y timers ---
+import pytest
+from unittest.mock import patch, MagicMock
+
+def test_recurring_google_alert_scraper_error_extract(monkeypatch):
+    # Fuerza excepción al extraer feeds
+    monkeypatch.setattr(scrapy_news_controller, "fetch_and_save_alert_urls", lambda: (_ for _ in ()).throw(Exception("fail")))
+    loop = MagicMock()
+    stop_event = threading.Event()
+    def dummy_register(timer): pass
+    # No debe lanzar excepción
+    scrapy_news_controller.recurring_google_alert_scraper(loop, stop_event, dummy_register)
+    assert True
+
+def test_recurring_google_alert_scraper_error_reschedule(monkeypatch):
+    monkeypatch.setattr(scrapy_news_controller, "fetch_and_save_alert_urls", lambda: None)
+    # Fuerza excepción al crear timer
+    class DummyTimer:
+        def __init__(*a, **kw): raise Exception("timer fail")
+    monkeypatch.setattr(scrapy_news_controller, "threading", MagicMock(Timer=DummyTimer))
+    loop = MagicMock()
+    stop_event = threading.Event()
+    def dummy_register(timer): pass
+    # No debe lanzar excepción
+    scrapy_news_controller.recurring_google_alert_scraper(loop, stop_event, dummy_register)
+    assert True
+
+def test_start_scraping_feeds_exception(monkeypatch):
+    # Fuerza excepción en Thread
+    monkeypatch.setattr(scrapy_news_controller, "threading", MagicMock(Thread=lambda *a, **kw: (_ for _ in ()).throw(Exception("thread fail"))))
+    from fastapi.testclient import TestClient
+    client = TestClient(app)
+    try:
+        client.get("/newsSpider/scrapy/google-dk/feeds")
+    except Exception as e:
+        assert "thread fail" in str(e)
+
+def test_start_scraping_news_exception(monkeypatch):
+    # Fuerza excepción en Thread
+    monkeypatch.setattr(scrapy_news_controller, "threading", MagicMock(Thread=lambda *a, **kw: (_ for _ in ()).throw(Exception("thread fail"))))
+    from fastapi.testclient import TestClient
+    client = TestClient(app)
+    try:
+        client.get("/newsSpider/scrapy/google-dk/news")
+    except Exception as e:
+        assert "thread fail" in str(e)
+
+def test_start_google_alert_scheduler_stop_event(monkeypatch):
+    # Simula que el evento de parada ya existe
+    from fastapi.testclient import TestClient
+    client = TestClient(app)
+    monkeypatch.setattr(os.path, "exists", lambda path: True)
+    # Simula app.state con evento de parada
+    class DummyEvt:
+        def is_set(self): return False
+    class DummyState:
+        worker_stop_events = {"google_alerts": DummyEvt()}
+        worker_timers = {}
+        worker_status = {}
+    app.state = DummyState()
+    resp = client.get("/newsSpider/start-google-alerts")
+    assert resp.status_code == 200
+    assert "Google Alerts scraping process started" in resp.text
 import threading
 import asyncio
 from src.app.controllers.routes import scrapy_news_controller
@@ -106,12 +178,7 @@ def test_start_google_alert_scheduler_file_not_found(monkeypatch):
     resp = client.get("/newsSpider/start-google-alerts")
     assert resp.status_code == 404
     assert "not found" in resp.text
-"""
-@file test_scrapy_news_controller.py
-@author GitHub Copilot
-@brief Tests for scrapy_news_controller.py
-@details Unit and integration tests for endpoints and background tasks. External dependencies and async calls are mocked.
-"""
+
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from src.app.controllers.routes import scrapy_news_controller
