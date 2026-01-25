@@ -6,10 +6,7 @@
 RSS feed ingestion and news scraping using Scrapy, schedules periodic
 tasks such as NLP processing with spaCy, and launches a dynamic spider
 from PostgreSQL using asyncpg.
-
-@date Created: 2025-05-05 12:17:59
-@author RootAnto
-@project Cebolla
+@author naflashDev
 """
 
 import os

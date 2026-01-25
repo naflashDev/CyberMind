@@ -2,8 +2,8 @@
 
 ## Estado actual (2026-01-25)
 
-- La cobertura de `src/app/controllers/routes/llm_controller.py` supera el 80% tras la ampliación de tests para ramas de error y condiciones límite.
-- Se han añadido pruebas para excepciones en eventos y timers, cumpliendo la política de calidad definida en `AGENTS.md`.
+- La cobertura de `src/app/controllers/routes/llm_controller.py`, `src/app/services/scraping/spider_factory.py`, `src/app/controllers/routes/network_analysis_controller.py` (y endpoints asociados) y `src/app/services/llm/script_auto.py` supera el 80% tras la ampliación de tests para ramas de error, condiciones límite, manejo de errores en pool, validaciones de endpoints y operaciones Git.
+- Se han añadido pruebas para excepciones en eventos, timers, errores de conexión, validaciones de parámetros y errores de operaciones Git, cumpliendo la política de calidad definida en `AGENTS.md`.
 
 
 Este script ejecuta los tests del proyecto y genera un informe de cobertura utilizando pytest-cov.

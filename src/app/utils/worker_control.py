@@ -7,9 +7,7 @@ persisted to `worker_settings.json` in the repository root. Functions:
 - `default_settings()` — default worker booleans
 - `load_worker_settings()` — read and merge persisted settings
 - `save_worker_settings()` — persist settings safely
-@date Created: 2025-11-27 12:17:59
 @author naflashDev
-@project CyberMind
 """
 
 import json

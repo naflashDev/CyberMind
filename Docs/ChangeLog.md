@@ -55,8 +55,13 @@
 - La cobertura de `src/app/services/spacy/text_processor.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
 - La cobertura de `src/app/services/llm/script_auto.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
 # [Unreleased] - 2026-01-25
+### Added
+- Se ha añadido `pytest-cov` a `dev-requirements.txt` para garantizar la correcta ejecución del workflow de cobertura en CI/CD.
+
+### Fixed
+- Se ha corregido el fallo en el workflow de GitHub Actions que impedía la generación de informes de cobertura, asegurando la instalación de `pytest-cov` en el entorno de CI.
 ### Changed
-- Se han añadido tests para cubrir excepciones y ramas no cubiertas en `src/app/controllers/routes/llm_controller.py`, asegurando cobertura >80%.
+- Se han añadido tests para cubrir excepciones y ramas no cubiertas en `src/app/controllers/routes/llm_controller.py`, `src/app/services/scraping/spider_factory.py`, `src/app/controllers/routes/network_analysis_controller.py` (y endpoints asociados) y `src/app/services/llm/script_auto.py`, asegurando cobertura >80% en estos módulos.
 ### Added
 - Se han creado tests unitarios para los siguientes módulos, elevando la cobertura total por encima del 80%:
 	- src/app/services/llm/finetune_dataset_builder.py
