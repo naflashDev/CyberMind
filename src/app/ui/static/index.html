@@ -26,6 +26,7 @@
       <button class="nav-button" data-view="tiny" id="btn-tiny"><span style="margin-right:6px;">📰</span>Noticias Tiny</button>
       <button class="nav-button" data-view="llm" id="btn-llm"><span style="margin-right:6px;">🤖</span>CyberSentinel IA</button>
       <button class="nav-button" data-view="docs" id="btn-docs"><span style="margin-right:6px;">📚</span>Documentación</button>
+      <button class="nav-button" data-view="coverage" id="btn-coverage"><span style="margin-right:6px;">🧪</span>Cobertura</button>
       <button class="nav-button" data-view="config" id="btn-config"><span style="margin-right:6px;">⚙️</span>Configuración</button>
     </div>
     <div style="text-align:center; margin-bottom:18px;">
@@ -35,6 +36,14 @@
       <div style="color:#b0b3b8; font-size:13px;">© CyberMind 2026</div>
     </div>
   </aside>
+      <!-- Vista: Cobertura de tests (coverage) -->
+      <div class="view" id="view-coverage" style="display:none;">
+        <div style="height:100%; width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+          <h2 style="color:#e5e7eb; margin-bottom:12px;">Cobertura de tests</h2>
+          <iframe id="coverage-iframe" src="/coverage/html" style="width:90vw; height:80vh; border:1px solid #222; background:#fff; border-radius:8px; box-shadow:0 2px 8px #0002;"></iframe>
+          <div style="color:#b0b3b8; font-size:13px; margin-top:8px;">El reporte se genera tras ejecutar los tests en CI o localmente.</div>
+        </div>
+      </div>
       <!-- Vista: Documentación del proyecto (en main-content, no en sidebar) -->
       <div class="view" id="view-docs">
         <div style="display:flex; height:100%;">

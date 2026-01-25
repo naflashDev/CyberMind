@@ -447,15 +447,11 @@ El endpoint <code>/config</code> es consultado por la UI para:
 En el archivo <code>src/cfg_services.ini</code> se ha añadido el parámetro <code>use_ollama</code> para controlar la instalación y uso de Ollama.
 
 **Funcionamiento actualizado (2026-01-24):**
-- El valor de <code>use_ollama</code> se lee correctamente en el arranque de la aplicación y se interpreta como booleano, permitiendo que los cambios realizados desde la UI se reflejen en el comportamiento del sistema.
-- El endpoint POST <code>/config</code> actualiza el fichero y la lógica de arranque toma el valor actualizado, asegurando sincronización entre la configuración y la infraestructura.
 
 **Ejemplo de línea de configuración:**
 <pre><code>distro_name=Ubuntu;dockers_name=install-updater-1,install-web-nginx-1,install-app-1,install-db-1,opensearch-dashboards,opensearch;use_ollama=true
 </code></pre>
 
-- Si <code>use_ollama=true</code>, el sistema intentará instalar/inicializar Ollama si el hardware es suficiente (mínimo 8GB RAM y 2 núcleos CPU).
-- Si <code>use_ollama=false</code>, Ollama no se instalará ni inicializará.
 
 Este parámetro puede modificarse manualmente para activar/desactivar el uso de Ollama según las necesidades del usuario y los recursos disponibles.
 

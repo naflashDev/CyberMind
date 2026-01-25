@@ -40,6 +40,7 @@ from app.controllers.routes import (
     worker_controller,
     network_analysis_controller,
     docs_controller,
+    coverage_controller
 )
 from app.utils.worker_control import load_worker_settings, save_worker_settings
 from app.controllers.routes.scrapy_news_controller import (
@@ -442,6 +443,7 @@ app.include_router(worker_controller.router)
 app.include_router(network_analysis_controller.router)
 app.include_router(docs_controller.router)
 app.include_router(config_controller)
+app.include_router(coverage_controller.router)
 
 # Serve UI static files (simple single-file UI under app/ui/static)
 STATIC_DIR = Path(__file__).resolve().parent / "app" / "ui" / "static"
@@ -453,7 +455,12 @@ if STATIC_DIR.exists():
     except Exception:
         # Fallback to logging if multiprocessing check fails for any reason
         logger.info(f"Mounting UI static files from {STATIC_DIR}")
+
     app.mount("/ui", StaticFiles(directory=str(STATIC_DIR)), name="ui")
+    # Montar htmlcov para servir recursos estáticos del coverage report
+    HTMLCOV_DIR = Path(__file__).resolve().parent.parent / "htmlcov"
+    if HTMLCOV_DIR.exists():
+        app.mount("/coverage", StaticFiles(directory=str(HTMLCOV_DIR)), name="coverage-static")
 
     @app.get("/", include_in_schema=False)
     async def root_index():

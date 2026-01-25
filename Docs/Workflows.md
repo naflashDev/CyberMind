@@ -20,23 +20,32 @@ Resumen de las mejoras y correcciones aplicadas a los workflows en `.github/work
 
 **Estructura:**
 
-| Stage | Descripción |
-|:---|:---|
-| `setup` | Preparación del entorno e instalación de dependencias |
-| `lint` | Análisis estático (`flake8`, `bandit`) y subida de reportes |
-| `security` | Ejecución de `pip-audit` y subida del resultado |
-| `unit-tests` | Tests unitarios (matrix Python 3.11/3.12) y subida de logs |
-| `integration-tests` | Tests de integración dependientes de los unitarios |
-| `cleanup` | Stage final que siempre se ejecuta (`if: always()`), limpia caches y artefactos temporales |
+| Stage              | Descripción                                                                 |
+|:-------------------|:--------------------------------------------------------------------------|
+| `setup`            | Preparación del entorno e instalación de dependencias                      |
+| `lint`             | Análisis estático (`flake8`, `bandit`) y subida de reportes                |
+| `security`         | Ejecución de `pip-audit` y subida del resultado                           |
+| `unit-tests`       | Tests unitarios (matrix Python 3.11/3.12) y subida de logs                |
+| `integration-tests`| Tests de integración dependientes de los unitarios                        |
+| `coverage`         | Ejecución de cobertura de tests con `pytest-cov` y subida de reportes     |
+| `cleanup`          | Stage final que siempre se ejecuta (`if: always()`), limpia caches y artefactos temporales |
+
+
+**Visualización de cobertura en la UI:**
+
+- La cobertura de tests puede consultarse visualmente desde la interfaz web, accediendo a la sección **Cobertura** (🧪) en la barra lateral.
+- El reporte HTML generado por `pytest-cov` se muestra embebido mediante un iframe, permitiendo navegar el detalle de la cobertura por archivo y línea.
+- El reporte se actualiza tras cada ejecución de tests en CI o localmente.
 
 **Artifacts y telemetría:**
-
 - `bandit_report.json` y `pip_audit.json` se suben como artifacts para su revisión
 - Los logs de tests también se suben
+- Los reportes de cobertura (`htmlcov/`, `coverage.xml`, `.coverage`) se suben como artifacts
 
 **Acciones realizadas:**
 
 - Añadido `.github/workflows/unified-ci.yml`
+- Añadido job `coverage` para medir y reportar cobertura de tests (falla si baja del 80%)
 - Eliminados los workflows individuales (si no se requiere mantenerlos en paralelo)
 
 ---

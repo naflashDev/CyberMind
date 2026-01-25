@@ -83,8 +83,16 @@ def tag_text(text):
     @return Tuple with the list of found entities [(text, type)] and the detected language (tuple).
     '''
     language = detect_language(text)
+    if not text:
+        # Si el texto está vacío, no hay entidades
+        return [], language
     model = _get_model(language)
+    if not model:
+        # Si el modelo no se carga, no hay entidades
+        return [], language
     doc = model(text)
+    if not hasattr(doc, 'ents') or doc.ents is None:
+        return [], language
     return [(ent.text, ent.label_) for ent in doc.ents], language
 
 def extract_texts(data):

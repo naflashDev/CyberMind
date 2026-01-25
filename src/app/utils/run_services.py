@@ -632,7 +632,7 @@ def ensure_infrastructure(parameters, use_ollama=True):
 
     logger.info("Ensuring infrastructure (OpenSearch, Dashboards, Tiny stack)...")
     # pass distro_arg (None for host Docker) and the container list
-    ensure_containers(parameters[1], distro_arg)
+    ensure_containers(dockers_arg, distro_arg)
     logger.info("Infrastructure check finished.")
     '''
     logger.info("Starting UI service in a separate console...")

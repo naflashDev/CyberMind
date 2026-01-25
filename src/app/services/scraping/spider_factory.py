@@ -174,7 +174,14 @@ def run_dynamic_spider(urls,parameters) -> None:
     logger.info("Urls scrapeadas")
 
 
-async def run_dynamic_spider_from_db(pool, stop_event=None, register_process=None) -> Coroutine[Any, Any, None]:
+async def run_dynamic_spider_from_db(
+    pool,
+    stop_event=None,
+    register_process=None,
+    total_sleep: int = 93600,
+    check_interval: int = 5,
+    max_laps: int = None
+) -> Coroutine[Any, Any, None]:
     '''
     @brief Continuously runs the dynamic Scrapy spider, polling URLs from the database and launching scraping processes.
 
@@ -186,7 +193,12 @@ async def run_dynamic_spider_from_db(pool, stop_event=None, register_process=Non
     @return None (asynchronous coroutine).
     '''
     number = 0
+    laps = 0
     while True:
+        # For testing: break after max_laps if set
+        if max_laps is not None and laps >= max_laps:
+            logger.info(f"Max laps ({max_laps}) reached; exiting run loop.")
+            break
         # Respect immediate stop requests
         if stop_event is not None and getattr(stop_event, 'is_set', lambda: False)():
             logger.info("Dynamic spider stop_event detected; exiting run loop.")
@@ -223,6 +235,7 @@ async def run_dynamic_spider_from_db(pool, stop_event=None, register_process=Non
                 else:
                     # Only increment and log when there is actual work
                     number += 1
+                    laps += 1
                     logger.info(f"Scraped lap {number}: {len(urls)} URLs to process")
                     # Obtain the parameters for the OpenSearch database
                     # Default parameters for OpenSearch connection
@@ -297,8 +310,6 @@ async def run_dynamic_spider_from_db(pool, stop_event=None, register_process=Non
 
         logger.debug("Waiting for next run...")
         # sleep in small increments so we can respond to stop_event quickly
-        total_sleep = 93600
-        check_interval = 5  # seconds
         slept = 0
         while slept < total_sleep:
             if stop_event is not None and getattr(stop_event, 'is_set', lambda: False)():

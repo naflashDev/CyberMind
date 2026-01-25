@@ -1,3 +1,85 @@
+### Added
+- Se han ampliado los tests unitarios para `src/app/controllers/routes/llm_controller.py` cubriendo:
+	- Todos los endpoints (query, updater, stop-updater).
+	- Mocks de query_llm y run_periodic_training.
+	- Ramas de error, estados ya activos y eventos de parada.
+	- Pruebas de robustez ante errores y condiciones límite.
+- Se han ampliado los tests unitarios para `src/app/services/scraping/spider_factory.py` cubriendo:
+	- Manejo de lockfile y condiciones de espera.
+	- Escritura sobre archivos malformados.
+	- Ramas de control por stop_event y errores en la creación de pool.
+	- Cobertura de keywords y casos no relevantes.
+	- Pruebas de robustez ante errores y condiciones límite.
+- Se han añadido tests unitarios para `src/app/utils/run_services.py`, cubriendo:
+	- Detección de sistema operativo y docker.
+	- Comprobación y arranque de daemon docker.
+	- Lógica de Ollama y modelos.
+	- Infraestructura y apagado de servicios (mocks).
+- Se han añadido tests unitarios y de integración para `src/app/services/scraping/spider_factory.py`, cubriendo:
+	- Creación dinámica de spiders y parseo de respuestas.
+	- Escritura y append de JSON con lock.
+	- Ejecución de spiders y runners desde base de datos (mocks).
+- Se han añadido tests unitarios y de integración para `src/app/controllers/routes/worker_controller.py`, cubriendo:
+	- Endpoints asíncronos y modelo WorkerToggle.
+	- Mocks de dependencias y respuestas.
+	- Ejecución de los principales flujos y casos de éxito.
+- Se han añadido tests unitarios y de integración para `src/main.py`, cubriendo:
+	- Endpoints principales (/, /ui).
+	- Lifespan y tareas de fondo.
+	- Mocks de dependencias y ejecución de flujos básicos.
+- Se han añadido tests unitarios y de integración para `src/app/controllers/routes/scrapy_news_controller.py`, cubriendo:
+	- Endpoints asíncronos y funciones de fondo.
+	- Mocks de dependencias externas y respuestas.
+	- Ejecución de los principales flujos y casos de éxito.
+- Se han añadido tests unitarios y de integración para `src/app/services/spacy/text_processor.py`, cubriendo:
+	- Detección de idioma y casos de error.
+	- Extracción de entidades y textos con spaCy (mock).
+	- Manejo de modelos spaCy y fallback.
+	- Ejecución de process_json con mocks de OpenSearch y configuración.
+	- Casos extremos y errores en todas las funciones principales.
+- Se han añadido tests unitarios y de integración para `src/app/services/llm/script_auto.py`, cubriendo los siguientes casos:
+	- Ejecución y error de `clone_repository` y `update_repository`.
+	- Transformaciones de JSON con casos extremos, ADP y soluciones.
+	- Procesamiento de archivos con errores y datos válidos.
+	- Consolidación de múltiples archivos JSON con simulación de procesos.
+	- Flujo completo de actualización y consolidación del repositorio CVE.
+
+### Changed
+- La cobertura de `src/app/controllers/routes/llm_controller.py` supera el 80%, incluyendo ramas de error, eventos y condiciones límite, cumpliendo la norma de calidad definida en `AGENTS.md`.
+- La cobertura de `src/app/services/scraping/spider_factory.py` supera el 80% incluyendo ramas de error, lockfile y condiciones límite, cumpliendo la norma de calidad definida en `AGENTS.md`.
+- La cobertura de `src/app/utils/run_services.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
+- La cobertura de `src/app/services/scraping/spider_factory.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
+- La cobertura de `src/app/controllers/routes/worker_controller.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
+- La cobertura de `src/main.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
+- La cobertura de `src/app/controllers/routes/scrapy_news_controller.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
+- La cobertura de `src/app/services/spacy/text_processor.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
+- La cobertura de `src/app/services/llm/script_auto.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
+# [Unreleased] - 2026-01-25
+### Changed
+- Se han añadido tests para cubrir excepciones y ramas no cubiertas en `src/app/controllers/routes/llm_controller.py`, asegurando cobertura >80%.
+### Added
+- Se han creado tests unitarios para los siguientes módulos, elevando la cobertura total por encima del 80%:
+	- src/app/services/llm/finetune_dataset_builder.py
+	- src/app/models/opensearh_db.py
+	- src/app/services/scraping/spider_factory.py
+	- src/app/services/llm/script_auto.py
+	- src/app/services/scraping/news_gd.py
+	- src/app/models/ttrss_postgre_db.py
+	- src/app/services/scraping/feeds_gd.py
+	- src/app/services/spacy/text_processor.py
+	- src/app/services/scraping/spider_rss.py
+
+### Changed
+- Se cumple la norma de cobertura mínima del 80% en todos los módulos principales según AGENTS.md.
+# [Unreleased] - 2026-01-24
+### Fixed
+
+ - Se han corregido los tests unitarios de FeedCreateRequest en `test_ttrss_postgre_db.py` para incluir todos los campos obligatorios del modelo Pydantic, evitando errores de validación.
+ - Se ha corregido el manejo de excepciones en la creación del cliente OpenSearch en `opensearh_db.py`, permitiendo que los tests unitarios capturen correctamente los errores de conexión y de índice inexistente.
+ - Se ha corregido la función `tag_text` en `text_processor.py` para manejar texto vacío y modelos nulos, devolviendo siempre una lista de entidades y el idioma detectado, asegurando que los tests unitarios pasen correctamente.
+ - Se ha corregido el endpoint `/postgre-ttrss/feeds` en `tiny_postgres_controller.py` para devolver 404 si no hay feeds y 500 solo en errores inesperados, cumpliendo los tests y la norma de manejo de errores.
+- Se han corregido los asserts de códigos de estado en los tests de controladores para reflejar correctamente las posibles respuestas de la API (incluyendo 404 y 405 donde corresponde).
+- Se ha mejorado la portabilidad en la comprobación de rutas de archivos en los tests de cobertura.
 
 ### Fixed
 - Se ha corregido el comportamiento de ocultamiento de la sidebar principal: ahora al plegar la barra lateral se asegura su ocultación total y se evita cualquier interacción visual o de puntero, aplicando overflow: hidden, pointer-events: none y opacity: 0 en el CSS. Esto soluciona los casos en los que la sidebar quedaba parcialmente visible o interactuable.
@@ -9,14 +91,18 @@
  - Restaurada la compatibilidad de toda la lógica de conexión con el nuevo formato clave=valor, corrigiendo los fallos provocados por el cambio de formato.
  - Corregido el ciclo de vida FastAPI en main.py: el lifespan siempre ejecuta yield, evitando errores 'generator didn't yield' y restaurando los tests E2E.
 - Los archivos cfg_services.ini y cfg.ini ahora usan formato clave=valor para compatibilidad total con el panel de configuración y la API.
-## [Unreleased] - 2026-01-24
+## [Unreleased] - 2026-01-25
+### Fixed
+- Se ha corregido el test `test_run_dynamic_spider_from_db_runs` en `tests/app/services/scraping/test_spider_factory.py` para usar correctamente `AsyncMock` en el mock de `get_entry_links`, evitando el error 'object list can't be used in await expression' y asegurando la compatibilidad con funciones asíncronas.
+- Se ha corregido el test unitario de `run_dynamic_spider_from_db` en `test_spider_factory.py` para que el mock de `pool.acquire()` soporte correctamente el protocolo async context manager, evitando el error 'coroutine' object does not support the asynchronous context manager protocol y asegurando la compatibilidad con la implementación asíncrona del runner de spiders.
+
 ### Changed
 - Los recuadros de cada sección del panel de configuración ahora tienen esquinas redondeadas para mejorar la estética visual.
 ### Security
 - Se ha cambiado la licencia del proyecto a una **licencia privativa personalizada**: solo uso personal, educativo o de investigación; derivados permitidos únicamente bajo las condiciones especificadas; prohibida la redistribución y el uso comercial sin autorización expresa del titular. Ver archivo LICENSE y README.md para detalles.
 ### Changed
 - Los hints explicativos de los campos ahora aparecen como tooltip al hacer hover sobre un icono de información junto al nombre del campo.
-### Added
+- Se ha añadido un job de coverage a la CI (`unified-ci.yml`) que ejecuta `pytest-cov`, genera reportes de cobertura (`htmlcov/`, `coverage.xml`) y falla si la cobertura baja del 80%. La cobertura se sube como artifact y está documentada en `Docs/Workflows.md` y `Docs/coverage.md`.
 - Se han añadido hints explicativos a los campos del panel de configuración para guiar al usuario sobre el significado y el formato esperado de cada parámetro.
 ### Changed
 - Los bloques y parámetros del panel de configuración ahora muestran nombres más claros y amigables: 'Configuración servicios', 'Configuración general', 'Nombre distribución', 'Nombre contenedores', 'IP servidor', 'Puerto servidor', etc.
@@ -166,7 +252,7 @@ Files modificados:
 - Endpoints REST para exponer archivos de documentación (`/docs/list`, `/docs/readme`, `/docs/file/{filename}`).
 - Actualización de estilos y lógica de la UI para soporte de documentación.
 
-### Added
+- Ahora la cobertura de tests puede visualizarse directamente en la UI web, accediendo a la sección "Cobertura" (🧪) en la barra lateral. El reporte HTML generado por pytest-cov se muestra embebido y navegable tras cada ejecución de tests.
 - Se ha documentado en [Docs/llm.md](Docs/llm.md) y en [README.md](README.md) que la IA del proyecto utiliza un modelo restringido **LLama3** mediante un archivo Model file, con conocimiento limitado hasta 2023 y sin finetuning con datos propios. Se indica que el finetuning es una función futura por la alta demanda de recursos.
 
 Archivos modificados:

@@ -4,7 +4,7 @@ aiohappyeyeballs==2.6.1
 aiohttp==3.13.2
 aiosignal==1.4.0
 annotated-types==0.7.0
-anyio==4.9.0
+anyio>=4.3.0
 asyncpg==0.30.0
 attrs==25.3.0
 Automat==25.4.16
@@ -33,7 +33,7 @@ docopt==0.6.2
 en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl#sha256=1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85
 es_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.8.0/es_core_news_sm-3.8.0-py3-none-any.whl#sha256=e451a83d6df79b87e9eed0cb553f03e99e36a3bab18a7b79f0dcfd1fdf875e12
 Events==0.5
-fastapi==0.115.12
+fastapi>=0.110.0
 feedparser==6.0.11
 filelock==3.18.0
 fr_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.8.0/fr_core_news_sm-3.8.0-py3-none-any.whl#sha256=7d6ad14cd5078e53147bfbf70fb9d433c6a3865b695fda2657140bbc59a27e29
@@ -44,7 +44,7 @@ grpcio==1.76.0
 h11==0.16.0
 hf-xet==1.2.0
 httpcore==1.0.9
-httpx==0.28.1
+httpx>=0.27.0
 huggingface-hub==0.36.0
 hyperlink==21.0.0
 idna==3.10
@@ -120,7 +120,7 @@ spacy==3.8.11
 spacy-legacy==3.0.12
 spacy-loggers==1.0.5
 srsly==2.5.1
-starlette==0.46.2
+starlette>=0.36.3
 sumy==0.11.0
 sympy==1.13.1
 thinc==8.3.6

@@ -56,6 +56,8 @@ def create_rss_spider(urls, results)-> Type[Spider]:
                     if full_url not in results:
                         results.append(full_url)
                         logger.info(f"RSS found: {full_url}")
+            # Para compatibilidad con Scrapy, siempre retornamos un iterable
+            yield from ()
     return RSSSpider
 
 def run_rss_spider(urls, queue) -> None:

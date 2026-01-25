@@ -49,15 +49,15 @@ def text_exists_in_opensearch(text: str, host: str, port: int, index_name: str =
     @param index_name Name of the index where documents are stored (str).
     @return True if at least one document with the same text already exists, False otherwise (bool).
     '''
-    client = OpenSearch(
-        hosts=[{"host": host, "port": port}],
-        http_compress=True,
-        use_ssl=False,
-        verify_certs=False,
-    )
-
-    # Exact search on the 'text.keyword' field (requires keyword subfield in the mapping)
     try:
+        # Try to create OpenSearch client
+        client = OpenSearch(
+            hosts=[{"host": host, "port": port}],
+            http_compress=True,
+            use_ssl=False,
+            verify_certs=False,
+        )
+        # Exact search on the 'text.keyword' field (requires keyword subfield in the mapping)
         query = {
             "query": {
                 "term": {
@@ -66,7 +66,6 @@ def text_exists_in_opensearch(text: str, host: str, port: int, index_name: str =
             },
             "size": 1
         }
-
         resp = client.search(index=index_name, body=query)
         hits_total = resp.get("hits", {}).get("total", {})
         # OpenSearch may return an int or a dict with 'value'
@@ -74,7 +73,7 @@ def text_exists_in_opensearch(text: str, host: str, port: int, index_name: str =
             return hits_total > 0
         return hits_total.get("value", 0) > 0
     except Exception as e:
-        logger.error(f"No existe el indice: {e}")
+        logger.error(f"No existe el indice o error de conexión: {e}")
         return False
 
 def ensure_index_exists(host: str, port: int, index_name: str = "spacy_documents") -> None:
@@ -88,14 +87,14 @@ def ensure_index_exists(host: str, port: int, index_name: str = "spacy_documents
     @param index_name Name of the index to check/create (str).
     @return None.
     '''
-    client = OpenSearch(
-        hosts=[{"host": host, "port": port}],
-        http_compress=True,
-        use_ssl=False,
-        verify_certs=False,
-    )
-
     try:
+        # Try to create OpenSearch client
+        client = OpenSearch(
+            hosts=[{"host": host, "port": port}],
+            http_compress=True,
+            use_ssl=False,
+            verify_certs=False,
+        )
         if not client.indices.exists(index=index_name):
             # Minimal mapping: text with keyword subfield so term query on text.keyword works
             body = {
@@ -110,13 +109,14 @@ def ensure_index_exists(host: str, port: int, index_name: str = "spacy_documents
                         "language": {"type": "keyword"},
                         "tags": {
                             "type": "keyword",
-                            "index": False  
+                            "index": False
                         },
-                        "relevance": {"type": "integer"},
+                        "relevance": {"type": "integer"}
                     }
                 }
             }
             client.indices.create(index=index_name, body=body)
             logger.info(f"Index '{index_name}' created in OpenSearch.")
-    except TransportError as e:
+    except Exception as e:
+        logger.error(f"Error checking/creating index '{index_name}': {e}")
         logger.error(f"Error checking/creating index '{index_name}': {e}")

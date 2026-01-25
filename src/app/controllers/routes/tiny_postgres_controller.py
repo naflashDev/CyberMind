@@ -212,7 +212,13 @@ async def list_feeds(
         async with request.app.state.pool.acquire() as conn:
             feeds = await get_feeds_from_db(conn, limit)
             logger.success("Successfully fetched {} feeds.", len(feeds))
+            if not feeds:
+                # Si no hay feeds, devolvemos 404
+                raise HTTPException(status_code=404, detail="No feeds found")
             return feeds
+    except HTTPException as he:
+        # Re-raise HTTPException para mantener el código
+        raise he
     except Exception as e:
         logger.error("Error fetching feeds: {}", str(e))
         raise HTTPException(

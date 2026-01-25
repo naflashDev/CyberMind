@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function () {
     llm: document.getElementById("view-llm"),
     status: document.getElementById("view-status"),
     docs: document.getElementById("view-docs"),
+    coverage: document.getElementById("view-coverage"),
     config: document.getElementById("view-config"),
   };
 

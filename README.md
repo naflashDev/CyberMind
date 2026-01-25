@@ -192,6 +192,12 @@ CyberMind/
 
 ---
 
+## 🚫 Despliegue
+
+Actualmente, **CyberMind** no se encuentra desplegada como servicio en la nube ni como plataforma pública. Esta decisión responde al objetivo principal del proyecto: ser una herramienta **open source** orientada a la ejecución y experimentación en entornos locales, facilitando la auditoría, el análisis y la automatización de tareas de ciberseguridad de forma autónoma y privada.
+
+El enfoque está en proveer una solución flexible y reutilizable que cada usuario pueda instalar, adaptar y ampliar según sus necesidades, sin depender de servicios externos ni de infraestructuras centralizadas.
+
 ## 👨‍💻 Sobre el Creador
 
 ### Ignacio Fernández
