@@ -136,13 +136,20 @@ def background_rss_process_loop(pool, file_path: str, loop: asyncio.AbstractEven
         # callback to surface errors when the coroutine ends.
         def _on_done_rss(fut):
             try:
+                if fut.cancelled():
+                    logger.warning("[RSS] extract_rss_and_save future was cancelled.")
+                    return
                 exc = fut.exception()
                 if exc:
                     logger.error(f"[RSS] extract_rss_and_save raised: {exc}")
                 else:
                     logger.success("[RSS] RSS feed extraction and saving completed.")
             except Exception as _e:
-                logger.error(f"[RSS] Error inspecting future: {_e}")
+                import traceback
+                logger.error(f"[RSS] Error inspecting future: {_e}\nTraceback: {traceback.format_exc()}")
+            finally:
+                # Nunca bloquear el hilo principal
+                pass
 
         try:
             future.add_done_callback(_on_done_rss)

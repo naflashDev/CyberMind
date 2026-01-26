@@ -151,24 +151,37 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
         threading.Thread(target=llm_controller.background_cve_and_finetune_loop, args=(evt,), daemon=True).start()
     elif name == "dynamic_spider":
         pool = getattr(request.app.state, "pool", None)
+        import os
+        from dotenv import load_dotenv
+        import asyncio
         # Try to create pool on-demand if not present (UI may trigger init asynchronously)
         if pool is None:
+            load_dotenv()
             try:
                 pool = await asyncpg.create_pool(
-                    user="postgres",
-                    password="password123",
-                    database="postgres",
-                    host="127.0.0.1",
-                    port=5432,
+                    user=os.getenv("POSTGRES_USER"),
+                    password=os.getenv("POSTGRES_PASSWORD"),
+                    database=os.getenv("POSTGRES_DB"),
+                    host=os.getenv("POSTGRES_HOST"),
+                    port=int(os.getenv("POSTGRES_PORT", 5432)),
                     min_size=1,
                     max_size=5,
                 )
                 request.app.state.pool = pool
-            except Exception:
-                raise HTTPException(status_code=503, detail="DB pool not available and on-demand creation failed")
-        import asyncio
-        # pass stop_event and register callback so UI can control the process
-        asyncio.create_task(scrapy_news_controller.run_dynamic_spider_from_db(pool, stop_event=evt, register_process=_register_timer))
+                logger.info("[dynamic_spider] PostgreSQL pool created on-demand successfully.")
+            except Exception as e:
+                logger.error(f"[dynamic_spider] Failed to create DB pool: {e}")
+                request.app.state.worker_status[name] = False
+                # Feedback explícito para la UI y logs
+                return {"message": "Worker dynamic_spider not enabled: DB pool unavailable.", "error": str(e)}
+        try:
+            # pass stop_event and register callback so UI can control the process
+            asyncio.create_task(scrapy_news_controller.run_dynamic_spider_from_db(pool, stop_event=evt, register_process=_register_timer))
+            logger.info("[dynamic_spider] Worker launched successfully.")
+        except Exception as e:
+            logger.error(f"[dynamic_spider] Failed to launch worker: {e}")
+            request.app.state.worker_status[name] = False
+            return {"message": "Worker dynamic_spider not enabled: error launching worker.", "error": str(e)}
     else:
         raise HTTPException(status_code=400, detail="Unsupported worker")
 

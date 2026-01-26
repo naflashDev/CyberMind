@@ -398,13 +398,20 @@ def background_scraping_news(loop: asyncio.AbstractEventLoop, stop_event=None, r
         future = asyncio.run_coroutine_threadsafe(run_news_search(), loop)
         def _on_done_news(fut):
             try:
+                if fut.cancelled():
+                    logger.warning("[Scraper] run_news_search future was cancelled.")
+                    return
                 exc = fut.exception()
                 if exc:
                     logger.error(f"[Scraper] run_news_search raised: {exc}")
                 else:
                     logger.success("[Scraper] Google Dorking tasks completed.")
             except Exception as _e:
-                logger.error(f"[Scraper] Error inspecting future: {_e}")
+                import traceback
+                logger.error(f"[Scraper] Error inspecting future: {_e}\nTraceback: {traceback.format_exc()}")
+            finally:
+                # Nunca bloquear el hilo principal
+                pass
 
         try:
             future.add_done_callback(_on_done_news)

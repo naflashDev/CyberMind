@@ -569,17 +569,9 @@ document.addEventListener('DOMContentLoaded', function () {
           if (!header) return;
           if (header.textContent && header.textContent.trim().startsWith('Network')) {
             sec.classList.remove('collapsed');
-            const icon = header.querySelector('.toggle-icon'); if (icon) icon.textContent = '▾';
-            // highlight the new scan_range op if present
-            const btn = sec.querySelector('.op-btn');
-            const rangeBtn = sec.querySelector('button.op-btn[data-op-id="network-scan-range"]');
-            if (!rangeBtn) {
-              // fallback: find by title text
-              const all = sec.querySelectorAll('button.op-btn');
-              all.forEach(b => { if (b.textContent && b.textContent.toLowerCase().includes('rango')) { b.style.boxShadow = '0 0 0 2px rgba(37,99,235,0.15)'; b.style.border = '1px solid #2563eb'; } });
-            } else {
-              rangeBtn.style.boxShadow = '0 0 0 2px rgba(37,99,235,0.15)'; rangeBtn.style.border = '1px solid #2563eb';
-            }
+            const icon = header.querySelector('.toggle-icon');
+            if (icon) icon.textContent = '▾';
+            // Ya no se fuerza remarco visual en ningún botón
           }
         });
       } catch (e) { console.log('renderControllers post-process error', e); }

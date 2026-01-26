@@ -367,6 +367,12 @@ curl -X POST http://127.0.0.1:8000/network/scan_range \
 
 ## 🧩 **Endpoints adicionales y utilidades**
 
+> ⚠️ **IMPORTANTE:**
+>
+> El correcto funcionamiento de los workers que acceden a la base de datos (por ejemplo, `dynamic_spider`) depende de la existencia del archivo `.env` con las credenciales válidas de PostgreSQL. Si el archivo `.env` falta, está corrupto o los tests lo eliminan temporalmente, el worker fallará con errores de autenticación o pool no disponible.
+>
+> **Solución:** Verifica siempre que el archivo `.env` esté presente y contenga los valores correctos antes de activar estos workers. Si usas tests automatizados, asegúrate de restaurar `.env` tras la ejecución.
+
 <details>
 <summary><b>🟣 SpaCy (`/start-spacy`)</b></summary>
 
@@ -391,6 +397,7 @@ curl -X POST http://127.0.0.1:8000/workers/rss_extractor -H "Content-Type: appli
 <details>
 <summary><strong>⚙️ Endpoints de configuración y parámetros</strong></summary>
 
+ 
 <div align="center">
   <img src="https://img.shields.io/badge/CONFIG-API%20Config-009688?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Ollama-Integraci%C3%B3n-7B68EE?style=for-the-badge" />

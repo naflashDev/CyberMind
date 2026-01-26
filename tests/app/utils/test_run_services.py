@@ -37,7 +37,10 @@ def test_shutdown_services_run_error(monkeypatch, tmp_path):
 
 def test_os_get_euid_windows(monkeypatch):
     # Simula entorno Windows sin geteuid
-    monkeypatch.setattr(run_services, "os", MagicMock())
+    import types
+    fake_os = types.SimpleNamespace()
+    # No tiene geteuid
+    monkeypatch.setattr(run_services, "os", fake_os)
     assert run_services.os_get_euid() == 0
 
 def test_try_install_ollama_no_installers(monkeypatch):
@@ -295,8 +298,8 @@ def test_ensure_ollama_model(mock_ollama):
 def test_ensure_infrastructure(mock_is_docker_daemon_running, mock_docker, mock_ollama):
     params = {"docker": True, "dockers_name": "test_container"}
     run_services.ensure_infrastructure(params)
-    assert mock_docker.called
-    assert mock_ollama.called
+    assert mock_docker.called is True
+    assert mock_ollama.called is True
 
 @patch("src.app.utils.run_services.subprocess.run")
 def test_shutdown_services_runs(mock_run):

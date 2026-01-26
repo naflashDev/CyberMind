@@ -47,6 +47,7 @@ def get_coverage_html():
             style.decompose()
         for link in soup.find_all('link', rel='icon'):
             link.decompose()
-        return HTMLResponse(str(soup))
+        # Siempre devolver como HTML
+        return HTMLResponse(str(soup), media_type='text/html')
     except Exception as e:
-        return Response(status_code=500, content=f'Error procesando el informe de cobertura: {e}')
+        return Response(status_code=500, content=f'Error procesando el informe de cobertura: {e}', media_type='text/html')
