@@ -531,12 +531,13 @@ def os_get_euid() -> int:
 
     @return int: The effective user ID or 0 if not available.
     '''
+    import platform
     import os
     try:
-        return os.geteuid()
-    except AttributeError:
-        # os.geteuid does not exist on Windows
-        return 0
+        if platform.system() == "Windows":
+            return 0
+        else:
+            return os.geteuid()
     except Exception:
         # Any other error, return 0 for safety
         return 0

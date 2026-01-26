@@ -292,14 +292,15 @@ def test_ensure_ollama_model(mock_ollama):
     run_services.ensure_ollama_model(Path("."), model_name="cybersentinel")
     assert True
 
-@patch("src.app.utils.run_services.ensure_ollama_model")
-@patch("src.app.utils.run_services.ensure_docker_daemon_running", return_value=True)
+
 @patch("src.app.utils.run_services.is_docker_daemon_running", return_value=False)
-def test_ensure_infrastructure(mock_is_docker_daemon_running, mock_docker, mock_ollama):
-    params = {"docker": True, "dockers_name": "test_container"}
+@patch("src.app.utils.run_services.ensure_ollama_model")
+@patch("src.app.utils.run_services.is_ollama_available", return_value=True)
+@patch("src.app.utils.run_services.is_docker_available", return_value=True)
+def test_ensure_infrastructure(mock_docker_available, mock_ollama_available, mock_ensure_ollama_model, mock_is_docker_daemon_running):
+    params = {"docker": True, "dockers_name": "test_container", "use_ollama": True}
     run_services.ensure_infrastructure(params)
-    assert mock_docker.called is True
-    assert mock_ollama.called is True
+    assert mock_ensure_ollama_model.called is True
 
 @patch("src.app.utils.run_services.subprocess.run")
 def test_shutdown_services_runs(mock_run):

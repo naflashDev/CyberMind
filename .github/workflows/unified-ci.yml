@@ -20,7 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.11
+          python-version: 3.12
 
       - name: Cache pip
         uses: actions/cache@v4
@@ -43,7 +43,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.11
+          python-version: 3.12
       - name: Install lint tools
         run: |
           python -m pip install --upgrade pip
@@ -67,7 +67,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.11
+          python-version: 3.12
       - name: Install pip-audit
         run: python -m pip install pip-audit
       - name: Run pip-audit
@@ -120,7 +120,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.11
+          python-version: 3.12
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip

@@ -173,7 +173,8 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
                 logger.error(f"[dynamic_spider] Failed to create DB pool: {e}")
                 request.app.state.worker_status[name] = False
                 # Feedback explícito para la UI y logs
-                return {"message": "Worker dynamic_spider not enabled: DB pool unavailable.", "error": str(e)}
+                from fastapi import Response
+                return Response(status_code=503, content="DB pool not available: {}".format(e))
         try:
             # pass stop_event and register callback so UI can control the process
             asyncio.create_task(scrapy_news_controller.run_dynamic_spider_from_db(pool, stop_event=evt, register_process=_register_timer))

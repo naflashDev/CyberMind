@@ -40,6 +40,8 @@ def test_coverage_html_exists(monkeypatch):
     '''
     # Ensure the file exists for this test
     monkeypatch.setattr(os.path, 'exists', lambda p: True)
+    fake_html = '<html><head><title>Coverage report</title></head><body>Coverage report</body></html>'
+    monkeypatch.setattr('builtins.open', lambda *a, **k: type('F', (), {'__enter__': lambda s: s, '__exit__': lambda s, *a: None, 'read': lambda s: fake_html})())
     response = client.get('/coverage/html')
     assert response.status_code == 200
     assert 'text/html' in response.headers['content-type']
