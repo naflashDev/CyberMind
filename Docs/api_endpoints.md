@@ -35,7 +35,15 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
 
 ---
 
-## 🏠 **Raíz y UI**
+
+## 📊 Cobertura
+
+### GET /coverage/html
+
+- Devuelve el informe HTML de cobertura generado por coverage.py, integrando el CSS global de la UI.
+- Si el informe no existe, responde 404.
+- Si falta la dependencia BeautifulSoup4, responde 500 con mensaje claro.
+- El endpoint es robusto ante errores de parsing y dependencias, y está cubierto por tests automatizados.
 
 <table>
   <thead>
@@ -178,10 +186,18 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
 <details>
 <summary><b>🧠 Endpoints de IA y consultas técnicas</b></summary>
 
+
+
 ### Descripción general
-El módulo LLM de CyberMind utiliza un modelo **LLama3** restringido, configurado mediante un archivo **Model file** que limita sus respuestas y comportamiento. Su base de conocimiento está limitada hasta el año **2023** y no incluye información posterior. El modelo responde únicamente sobre temas de ciberseguridad y CVE según las restricciones del Model file. El finetuning con datos propios está planificado como mejora futura, pero el archivo JSON para el finetuning **sí se genera** automáticamente (`outputs/finetune_data.jsonl`), aunque no se utiliza aún para entrenar el modelo.
+El módulo LLM de CyberMind utiliza un modelo **LLama3** restringido, configurado mediante un archivo **Model file** que limita sus respuestas y comportamiento. Su base de conocimiento está limitada hasta el año **2023** y no incluye información posterior. El modelo responde únicamente sobre temas de ciberseguridad y CVE según las restricciones del Model file.
+
+> 🗂️ **Obtención de datos CVE:** El worker <code>LLM Updater</code> clona automáticamente el repositorio oficial de CVE (https://github.com/CVEProject/cvelistV5) y utiliza los datos descargados para generar el archivo JSON de finetuning (<code>outputs/finetune_data.jsonl</code>). Este proceso permite actualizar la base de conocimiento del modelo con información técnica y descripciones de vulnerabilidades extraídas directamente de la fuente oficial.
+
+El finetuning con datos propios está planificado como mejora futura, pero el archivo JSON para el finetuning **sí se genera** automáticamente (`outputs/finetune_data.jsonl`), aunque no se utiliza aún para entrenar el modelo.
 
 > ⚠️ **Importante:** El modelo actual **NO ha sido finetuneado** con los datos extraídos por el sistema. La función de entrenamiento personalizado (finetuning) se implementará en el futuro, ya que el proceso es altamente demandante en recursos y tiempo.
+
+> 🚨 **Aviso de recursos:** Si tu máquina no es suficientemente potente (CPU/RAM limitados), **NO ejecutes el worker de LLM Updater** (`/llm/updater`). El proceso de actualización y entrenamiento consume muchos recursos y puede afectar gravemente el rendimiento del sistema o bloquear otros servicios.
 
 ### Endpoints disponibles
 

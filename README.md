@@ -6,6 +6,14 @@
 
 ---
 
+<div align="center">
+    <img src="Docs/images/CyberMindLogo-DEF.png" alt="Logo CyberMind" width="220"/>
+</div>
+
+---
+
+---
+
 [![Python](https://img.shields.io/badge/Python-3.12+-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://postgresql.org)
@@ -20,6 +28,16 @@
 **CyberMind** es una plataforma modular, automatizada y de código abierto para la auditoría, análisis, monitorización y automatización de tareas de ciberseguridad en entornos **IT** y **OT**. Va mucho más allá de la simple recolección de datos: permite realizar auditorías técnicas, análisis de vulnerabilidades, orquestación de flujos de trabajo, generación de dashboards, integración de IA y procesamiento avanzado de información.
 
 > 🎯 **Objetivo:** Proveer una solución integral y flexible para la gestión de inteligencia, auditoría y automatización en ciberseguridad, facilitando el acceso a datos estructurados y procesados, la correlación de eventos y la toma de decisiones informada. Promueve la transparencia, la colaboración abierta y el uso de metodologías de inteligencia y automatización.
+
+---
+
+## 🖼️ Arquitectura de la Plataforma
+
+<div align="center">
+    <img src="Docs/images/ArquitecturaCyberMind.png" alt="Arquitectura CyberMind" width="600"/>
+    <br/>
+    <em>Esquema general de la arquitectura de CyberMind</em>
+</div>
 
 ---
 

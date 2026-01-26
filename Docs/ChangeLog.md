@@ -1,43 +1,36 @@
 ## [Unreleased]
 ### Removed
 - Eliminada la sección de cobertura de la interfaz web. El informe HTML de coverage.py solo está disponible como archivo estático tras ejecutar los tests.
-### Changed
+- Se ha añadido un aviso destacado en la documentación de endpoints (`Docs/api_endpoints.md`) advirtiendo que no se debe ejecutar el worker de LLM Updater en máquinas poco potentes, debido a su alto consumo de recursos.
 - El informe de cobertura HTML ahora se sirve con el CSS global de la UI, eliminando el CSS propio generado por coverage.py. Esto unifica la experiencia visual en la sección Cobertura, aunque puede modificar el aspecto original del informe.
 - La sección de cobertura de la UI ahora muestra un mensaje claro cuando no existe informe de cobertura generado, indicando al usuario que debe ejecutar los tests para crearlo.
 - El apartado de cobertura utiliza los estilos globales de la plataforma, eliminando el CSS propio del iframe para mantener coherencia visual.
-### Changed
+- Se ha actualizado la documentación de endpoints (`Docs/api_endpoints.md`) para indicar que el worker LLM Updater clona el repositorio oficial de CVE y utiliza esos datos para generar el archivo JSON de finetuning.
 - Refactorización y alineación de los tests de los módulos de utilidades (worker_control, utils, run_services) según las normas de estructura, imports y buenas prácticas. Todos los tests temporales se generan dentro de la carpeta de tests.
-# [Unreleased] - 2026-01-26
 ### Changed
-- Limpiados y estandarizados los tests de la capa services/llm y services/spacy: cada servicio tiene un único archivo de test, sin fragmentación ni duplicados, con imports ordenados y cabecera documental.
-- Limpiados y estandarizados los tests de la capa services/scraping: cada servicio tiene un único archivo de test, sin fragmentación ni duplicados, con imports ordenados y cabecera documental.
-- Limpiados y estandarizados los tests de la capa controllers/routes: cada controlador tiene un único archivo de test, sin fragmentación ni duplicados, con imports ordenados y cabecera documental.
-- Unificados todos los tests de la capa models en un solo archivo `test_models.py`.
-- Eliminados los archivos fragmentados `test_opensearh_db.py` y `test_ttrss_postgre_db.py`.
-- Refactorizados y unificados todos los tests de run_services en un único archivo bajo tests/app/utils/test_run_services.py.
-- Eliminados archivos duplicados y fragmentados de tests de run_services.
-- Estructura de tests alineada con la del módulo y cumplimiento de buenas prácticas de imports y ubicación.
 ### Added
-- Se han ampliado los tests unitarios para `src/app/controllers/routes/llm_controller.py` cubriendo:
 	- Todos los endpoints (query, updater, stop-updater).
 	- Mocks de query_llm y run_periodic_training.
 	- Ramas de error, estados ya activos y eventos de parada.
 	- Pruebas de robustez ante errores y condiciones límite.
-- Se han ampliado los tests unitarios para `src/app/services/scraping/spider_factory.py` cubriendo:
 	- Manejo de lockfile y condiciones de espera.
 	- Escritura sobre archivos malformados.
 	- Ramas de control por stop_event y errores en la creación de pool.
 	- Cobertura de keywords y casos no relevantes.
 	- Pruebas de robustez ante errores y condiciones límite.
-- Se han añadido tests unitarios para `src/app/utils/run_services.py`, cubriendo:
 	- Detección de sistema operativo y docker.
 	- Comprobación y arranque de daemon docker.
 	- Lógica de Ollama y modelos.
 	- Infraestructura y apagado de servicios (mocks).
-- Se han añadido tests unitarios y de integración para `src/app/services/scraping/spider_factory.py`, cubriendo:
 	- Creación dinámica de spiders y parseo de respuestas.
 	- Escritura y append de JSON con lock.
 	- Ejecución de spiders y runners desde base de datos (mocks).
+### Fixed
+- Todos los tests unitarios y de integración pasan correctamente en CI (>80% cobertura).
+- Se corrige la función os_get_euid y sus tests para soportar correctamente entornos Windows y POSIX, y permitir monkeypatching multiplataforma.
+- Se corrige el test de infraestructura para asegurar mocks y asserts robustos.
+- Se corrige el endpoint /coverage/html para manejar la ausencia de BeautifulSoup y mejorar el mensaje de error.
+- Se añade fixture pytest que crea y elimina automáticamente el archivo .env durante los tests unitarios, evitando fallos por ausencia de variables de entorno.
 - Se han añadido tests unitarios y de integración para `src/app/controllers/routes/worker_controller.py`, cubriendo:
 	- Endpoints asíncronos y modelo WorkerToggle.
 	- Mocks de dependencias y respuestas.

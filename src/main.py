@@ -459,6 +459,14 @@ if STATIC_DIR.exists():
     if HTMLCOV_DIR.exists():
         app.mount("/coverage", StaticFiles(directory=str(HTMLCOV_DIR)), name="coverage-static")
 
+    # Montar Docs/images para servir imágenes en README y web
+    DOCS_IMAGES_DIR = Path(__file__).resolve().parent.parent / "Docs" / "images"
+    if DOCS_IMAGES_DIR.exists():
+        app.mount("/Docs/images", StaticFiles(directory=str(DOCS_IMAGES_DIR)), name="docs-images")
+        logger.info(f"Mounted Docs/images static files from {DOCS_IMAGES_DIR}")
+    else:
+        logger.warning(f"Docs/images directory not found at {DOCS_IMAGES_DIR}; images will not be served.")
+
     @app.get("/", include_in_schema=False)
     async def root_index():
         index_path = STATIC_DIR / "index.html"

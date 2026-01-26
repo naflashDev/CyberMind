@@ -31,20 +31,20 @@ def get_coverage_html():
     try:
         with open(COVERAGE_HTML_INDEX, encoding='utf-8') as f:
             html = f.read()
+        try:
+            from bs4 import BeautifulSoup
+        except ImportError:
+            return Response(status_code=500, content='BeautifulSoup4 no está instalado. Añádelo a requirements.txt.')
         # Modificar el HTML: eliminar <link rel="stylesheet"> y añadir el de la UI
         soup = BeautifulSoup(html, 'html.parser')
-        # Eliminar todos los <link rel="stylesheet">
         for link in soup.find_all('link', rel='stylesheet'):
             link.decompose()
-        # Añadir el CSS de la UI
         head = soup.head
         if head:
             ui_css = soup.new_tag('link', rel='stylesheet', href='/ui/styles.css')
             head.append(ui_css)
-        # Opcional: eliminar estilos <style> embebidos del coverage
         for style in soup.find_all('style'):
             style.decompose()
-        # Opcional: eliminar favicon del coverage
         for link in soup.find_all('link', rel='icon'):
             link.decompose()
         return HTMLResponse(str(soup))

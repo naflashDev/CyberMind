@@ -15,7 +15,10 @@
 
 ## Visualización en la interfaz web
 
-**Nota:** La sección de cobertura ha sido eliminada de la interfaz web. El informe HTML generado por coverage.py solo está disponible como archivo estático en `htmlcov/` tras ejecutar los tests.
+**Nota:**
+- La sección de cobertura ha sido eliminada de la interfaz web. El informe HTML generado por coverage.py solo está disponible como archivo estático en `htmlcov/` tras ejecutar los tests.
+- Los tests unitarios gestionan automáticamente la creación y borrado del archivo `.env` durante la ejecución, garantizando que las variables de entorno críticas estén presentes y evitando residuos en el entorno de desarrollo o CI.
+- Todos los tests críticos de infraestructura, servicios y utilidades están mockeados y son multiplataforma.
 
 ---
 

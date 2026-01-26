@@ -524,9 +524,21 @@ def ensure_ollama_model(project_root: Path, model_name: str = "cybersentinel") -
 
 def os_get_euid() -> int:
     """Return effective uid on POSIX, or 0 on non-POSIX systems."""
+    '''
+    @brief Returns the effective user ID (EUID) on POSIX systems, or 0 on non-POSIX systems.
+
+    Attempts to retrieve the EUID using os.geteuid(). If not available (e.g., on Windows), returns 0.
+
+    @return int: The effective user ID or 0 if not available.
+    '''
+    import os
     try:
-        return getattr(__import__('os'), 'geteuid')()
+        return os.geteuid()
+    except AttributeError:
+        # os.geteuid does not exist on Windows
+        return 0
     except Exception:
+        # Any other error, return 0 for safety
         return 0
 
 

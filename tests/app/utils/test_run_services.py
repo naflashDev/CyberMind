@@ -457,9 +457,19 @@ def test_os_get_euid_success():
     assert isinstance(run_services.os_get_euid(), int)
 
 def test_os_get_euid_error():
+    import os
     from unittest.mock import patch
-    with patch("builtins.__import__", side_effect=Exception("fail")):
-        assert run_services.os_get_euid() == 0
+    # Ensure os.geteuid exists for patching
+    remove_after = False
+    if not hasattr(os, "geteuid"):
+        os.geteuid = lambda: 1001
+        remove_after = True
+    try:
+        with patch.object(os, "geteuid", side_effect=Exception("fail")):
+            assert run_services.os_get_euid() == 0
+    finally:
+        if remove_after:
+            del os.geteuid
 
 # --- ensure_containers: éxito, error, varios intentos ---
 @patch("src.app.utils.run_services.wsl_docker_is_running", side_effect=[False, True])
