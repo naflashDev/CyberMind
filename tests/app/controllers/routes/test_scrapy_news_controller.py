@@ -1,9 +1,15 @@
 """
 @file test_scrapy_news_controller.py
-@author GitHub Copilot
-@brief Tests for scrapy_news_controller.py
-@details Unit and integration tests for endpoints and background tasks. External dependencies and async calls are mocked.
+@author naflashDev
+@brief Tests para el controlador de noticias Scrapy (scrapy_news_controller).
+@details Tests unitarios y de integración para endpoints y tareas de fondo. Se mockean dependencias externas y llamadas asíncronas.
 """
+
+import pytest
+from unittest.mock import patch, MagicMock
+import threading
+from fastapi.testclient import TestClient
+from main import app
 
 import threading
 import logging

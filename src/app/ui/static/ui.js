@@ -12,7 +12,6 @@ document.addEventListener('DOMContentLoaded', function () {
     llm: document.getElementById("view-llm"),
     status: document.getElementById("view-status"),
     docs: document.getElementById("view-docs"),
-    coverage: document.getElementById("view-coverage"),
     config: document.getElementById("view-config"),
   };
 
@@ -438,7 +437,8 @@ document.addEventListener('DOMContentLoaded', function () {
     btnToggle.innerHTML = hidden ? "☰" : "«";
   });
 
-  activateView("fastapi");
+  // Forzar que la vista de FastAPI esté activa al cargar
+  setTimeout(() => activateView("fastapi"), 0);
 
   // --- FastAPI operations panel ---
   // Handles rendering and interaction for API operation controls

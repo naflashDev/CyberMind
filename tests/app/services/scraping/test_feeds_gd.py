@@ -9,6 +9,7 @@ import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock
 from src.app.services.scraping import feeds_gd
 
+
 @pytest.mark.asyncio
 async def test_search_async_returns_results(monkeypatch):
     '''

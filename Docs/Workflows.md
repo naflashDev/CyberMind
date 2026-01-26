@@ -1,3 +1,31 @@
+## Refactorización de tests de servicios LLM y spaCy (enero 2026)
+
+Se han limpiado y estandarizado los tests de la capa services/llm y services/spacy. Cada servicio cuenta ahora con un único archivo de test (por ejemplo, `test_finetune_dataset_builder.py`, `test_script_auto.py`, `test_text_processor.py`), sin fragmentación ni duplicados, con imports ordenados y cabecera documental según las normas del proyecto.
+Todos los artefactos de test se generan únicamente en la carpeta `tests/`.
+## Refactorización de tests de servicios de scraping (enero 2026)
+
+Se han limpiado y estandarizado los tests de la capa services/scraping. Cada servicio cuenta ahora con un único archivo de test (por ejemplo, `test_feeds_gd.py`, `test_news_gd.py`, etc.), sin fragmentación ni duplicados, con imports ordenados y cabecera documental según las normas del proyecto.
+Todos los artefactos de test se generan únicamente en la carpeta `tests/`.
+## Refactorización de tests de controladores (enero 2026)
+
+Se han limpiado y estandarizado los tests de la capa controllers/routes. Cada controlador cuenta ahora con un único archivo de test (por ejemplo, `test_network_analysis_controller.py`, `test_scrapy_news_controller.py`, etc.), sin fragmentación ni duplicados, con imports ordenados y cabecera documental según las normas del proyecto.
+Todos los artefactos de test se generan únicamente en la carpeta `tests/`.
+## Refactorización de tests de utilidades (enero 2026)
+
+
+Se ha completado la refactorización de los tests de los módulos de utilidades:
+
+- Todos los tests de worker_control, utils y run_services están correctamente agrupados y alineados con la estructura del proyecto.
+- Los imports están ordenados y situados al inicio de cada archivo.
+- Los tests temporales solo crean archivos dentro de la carpeta de tests.
+- Se eliminaron fragmentaciones y duplicados.
+
+Esta mejora facilita el mantenimiento, la trazabilidad y el cumplimiento de las normas de calidad del proyecto.
+
+## Refactorización de tests de modelos (enero 2026)
+
+Se han unificado todos los tests de la capa models en el archivo `test_models.py`, eliminando los archivos fragmentados `test_opensearh_db.py` y `test_ttrss_postgre_db.py`. Todos los tests de modelos ahora están centralizados, con mocks para dependencias externas y generación de artefactos solo en la carpeta `tests/`.
+Esta mejora refuerza la mantenibilidad, la trazabilidad y el cumplimiento de las normas de calidad y estructura definidas en `AGENTS.md`.
 # ⚙️ Cambios en los Workflows de GitHub Actions
 
 Resumen de las mejoras y correcciones aplicadas a los workflows en `.github/workflows/`.
@@ -33,9 +61,7 @@ Resumen de las mejoras y correcciones aplicadas a los workflows en `.github/work
 
 **Visualización de cobertura en la UI:**
 
-- La cobertura de tests puede consultarse visualmente desde la interfaz web, accediendo a la sección **Cobertura** (🧪) en la barra lateral.
-- El reporte HTML generado por `pytest-cov` se muestra embebido mediante un iframe, permitiendo navegar el detalle de la cobertura por archivo y línea.
-- El reporte se actualiza tras cada ejecución de tests en CI o localmente.
+**Nota:** La sección de cobertura ha sido eliminada de la interfaz web. El informe HTML generado por `pytest-cov` solo está disponible como archivo estático en `htmlcov/` tras ejecutar los tests.
 
 **Artifacts y telemetría:**
 - `bandit_report.json` y `pip_audit.json` se suben como artifacts para su revisión

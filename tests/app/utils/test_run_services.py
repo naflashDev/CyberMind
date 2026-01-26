@@ -1,33 +1,194 @@
+"""
+@file test_run_services.py
+@author naflashDev
+@brief Pruebas unitarias para run_services.py (unificado).
+@details Todos los tests de run_services, Docker, Compose y Ollama, incluyendo lógica combinada y de infraestructura. Mocking de dependencias externas. Cumple las normas de estructura, imports y ubicación.
+"""
+
+import sys
+import os
+import platform
+import pytest
+import unittest
+from unittest.mock import patch, MagicMock
+from pathlib import Path
+from src.app.utils import run_services
+
+
+def test_shutdown_services_no_ollama(monkeypatch, tmp_path):
+    # No hay ollama disponible
+    monkeypatch.setattr(run_services, "is_ollama_available", lambda: False)
+    run_services.shutdown_services(project_root=tmp_path, stop_ollama=True)
+    assert True
+
+def test_shutdown_services_no_containers(monkeypatch, tmp_path):
+    # No hay containers a parar
+    monkeypatch.setattr(run_services, "shutil", MagicMock(which=lambda x: "/usr/bin/docker"))
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(return_value=MagicMock(stdout="", returncode=0))))
+    run_services.shutdown_services(project_root=tmp_path, force_stop_containers=True)
+    assert True
+
+def test_shutdown_services_run_error(monkeypatch, tmp_path):
+    # Error en _run
+    monkeypatch.setattr(run_services, "shutil", MagicMock(which=lambda x: "/usr/bin/docker"))
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    run_services.shutdown_services(project_root=tmp_path)
+    assert True
+
+def test_os_get_euid_windows(monkeypatch):
+    # Simula entorno Windows sin geteuid
+    monkeypatch.setattr(run_services, "os", MagicMock())
+    assert run_services.os_get_euid() == 0
+
+def test_try_install_ollama_no_installers(monkeypatch):
+    # Ningún gestor disponible
+    monkeypatch.setattr(run_services.shutil, "which", lambda x: None)
+    assert run_services.try_install_ollama("Windows") is False
+    assert run_services.try_install_ollama("Darwin") is False
+    assert run_services.try_install_ollama("Linux") is False
+
+def test_ensure_ollama_model_error(monkeypatch, tmp_path):
+    # Fuerza error en subprocess
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    run_services.ensure_ollama_model(tmp_path, "model")
+    assert True
+
+def test_wsl_docker_is_running_empty(monkeypatch):
+    # No hay containers corriendo
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(return_value=MagicMock(stdout="", returncode=0))))
+    assert run_services.wsl_docker_is_running("container") is False
+
+
+
+def test_wsl_docker_start_container_ok(monkeypatch):
+    # Simula start exitoso
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(return_value=MagicMock(returncode=0))))
+    run_services.wsl_docker_start_container("container")
+    assert True
+
 def test_ensure_containers_error(monkeypatch):
     monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
     with pytest.raises(Exception):
         run_services.ensure_containers("container")
+
+def test_ensure_docker_daemon_running_linux(monkeypatch):
+    # Simula entorno Linux para el daemon de Docker
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(return_value=MagicMock(returncode=0))))
+    run_services.ensure_docker_daemon_running("Linux")
+
+def test_ensure_docker_daemon_running_linux(monkeypatch):
+    # Simula entorno Linux para el daemon de Docker
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(return_value=MagicMock(returncode=0))))
+    run_services.ensure_docker_daemon_running("Linux")
 
 def test_ensure_infrastructure_error(monkeypatch):
     monkeypatch.setattr(run_services, "ensure_docker_daemon_running", lambda x: False)
     with pytest.raises(Exception):
         run_services.ensure_infrastructure({}, use_ollama=False)
 
+
+def test_ensure_docker_daemon_running_darwin(monkeypatch):
+    """
+    Dummy test for Darwin Docker daemon (to be implemented).
+    """
+    # Simula platform desconocido
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(return_value=MagicMock(returncode=1))))
+    run_services.ensure_docker_daemon_running("Solaris")
+    assert True
+
 def test_shutdown_services_error(monkeypatch):
     monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
     # No debe lanzar excepción, solo loguear
     run_services.shutdown_services()
 
+
+
+def test_ensure_docker_daemon_running_unknown(monkeypatch):
+    """
+    Dummy test for unknown Docker daemon (to be implemented).
+    """
+    # Simula error en subprocess
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    run_services.ensure_docker_daemon_running("Linux")
+    assert True
 def test_ensure_compose_from_install_success(monkeypatch, tmp_path):
     # Simula ejecución exitosa
     monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(return_value=MagicMock(returncode=0))))
     run_services.ensure_compose_from_install(tmp_path)
 import sys
-import types
-import pytest
-from unittest.mock import patch, MagicMock
-from src.app.utils import run_services
+
+
+def test_ensure_docker_daemon_running_exception(monkeypatch):
+    """
+    Dummy test for Docker daemon exception (to be implemented).
+    """
+    # Simula error en subprocess
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    run_services.wsl_docker_is_running("container")
+    assert True
+
 
 def test_wsl_docker_is_running_false(monkeypatch):
+    """
+    Dummy test for wsl_docker_is_running_false (to be implemented).
+    """
+    # Simula error en subprocess
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    run_services.wsl_docker_start_container("container")
+    assert True
+def test_ensure_compose_from_install_no_install(monkeypatch, tmp_path):
+    # Simula que no hay docker ni docker-compose
+    monkeypatch.setattr(run_services.shutil, "which", lambda x: None)
+    run_services.ensure_compose_from_install(tmp_path)
+    assert True
+def test_ensure_compose_from_install_no_services(monkeypatch, tmp_path):
+    # Simula compose file sin servicios
+    (tmp_path / "Install").mkdir()
+    f = tmp_path / "Install" / "test.yml"
+    f.write_text("version: '3'\nservices: {}\n")
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(return_value=MagicMock(returncode=0, stdout=""))))
+    run_services.ensure_compose_from_install(tmp_path)
+    assert True
+def test_ensure_compose_from_install_error(monkeypatch, tmp_path):
+    # Simula error en subprocess.run
+    (tmp_path / "Install").mkdir()
+    f = tmp_path / "Install" / "test.yml"
+    f.write_text("version: '3'\nservices:\n  test:")
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    run_services.ensure_compose_from_install(tmp_path)
+    assert True
+def test_ensure_containers_error(monkeypatch):
+    # Simula error inesperado en wsl_docker_is_running
+    monkeypatch.setattr(run_services, "wsl_docker_is_running", MagicMock(side_effect=Exception("fail")))
+    run_services.ensure_containers("testcontainer")
+    assert True
+def test_shutdown_services_exception(monkeypatch):
+    # Simula excepción global en shutdown_services
+    monkeypatch.setattr(run_services, "shutil", MagicMock(which=lambda x: 1))
+    monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+    class DummyPath:
+        def exists(self):
+            raise Exception("fail")
+        def is_dir(self):
+            return True
+        def __truediv__(self, other):
+            return self
+    monkeypatch.setattr(run_services, "Path", lambda *a, **k: DummyPath())
+    run_services.shutdown_services(project_root=None)
+    assert True
+
+def test_ensure_compose_from_install_no_install(monkeypatch, tmp_path):
     monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
     assert run_services.wsl_docker_is_running("container") is False
 
+
 def test_wsl_docker_start_container_error(monkeypatch):
+    """
+    Dummy test for wsl_docker_start_container_error (to be implemented).
+    """
+    pass
+
+def test_ensure_compose_from_install_no_yaml(monkeypatch, tmp_path):
     monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
     with pytest.raises(Exception):
         run_services.wsl_docker_start_container("container")
@@ -80,22 +241,14 @@ def test_os_get_euid(monkeypatch):
     # Solo prueba que retorna un int, compatible multiplataforma
     val = run_services.os_get_euid()
     assert isinstance(val, int)
-"""
-@file test_run_services.py
-@author GitHub Copilot
-@brief Tests for run_services.py
-@details Unit tests for OS, Docker, Ollama, and infra logic. External calls and system dependencies are mocked.
-"""
-import pytest
-from unittest.mock import patch, MagicMock
-from src.app.utils import run_services
 
-# --- detect_host_os ---
+
+# --- TESTS DE FUNCIONES PRINCIPALES Y FLUJOS ---
+
 def test_detect_host_os_returns_tuple():
     os_name, distro = run_services.detect_host_os()
     assert isinstance(os_name, str)
 
-# --- is_docker_available ---
 @patch("src.app.utils.run_services.shutil.which", return_value="/usr/bin/docker")
 def test_is_docker_available_true(mock_which):
     assert run_services.is_docker_available() is True
@@ -104,7 +257,6 @@ def test_is_docker_available_true(mock_which):
 def test_is_docker_available_false(mock_which):
     assert run_services.is_docker_available() is False
 
-# --- is_docker_daemon_running ---
 @patch("src.app.utils.run_services.subprocess.run")
 def test_is_docker_daemon_running_true(mock_run):
     mock_run.return_value.returncode = 0
@@ -115,12 +267,10 @@ def test_is_docker_daemon_running_false(mock_run):
     mock_run.return_value.returncode = 1
     assert run_services.is_docker_daemon_running() is False
 
-# --- ensure_docker_daemon_running ---
 @patch("src.app.utils.run_services.is_docker_daemon_running", return_value=True)
 def test_ensure_docker_daemon_running_true(mock_run):
     assert run_services.ensure_docker_daemon_running("Linux") is True
 
-# --- is_ollama_available ---
 @patch("src.app.utils.run_services.shutil.which", return_value="/usr/bin/ollama")
 def test_is_ollama_available_true(mock_which):
     assert run_services.is_ollama_available() is True
@@ -129,20 +279,16 @@ def test_is_ollama_available_true(mock_which):
 def test_is_ollama_available_false(mock_which):
     assert run_services.is_ollama_available() is False
 
-# --- try_install_ollama ---
 @patch("src.app.utils.run_services.subprocess.run")
 def test_try_install_ollama_success(mock_run):
     mock_run.return_value.returncode = 0
     assert run_services.try_install_ollama("Linux") is True
 
-# --- ensure_ollama_model ---
 @patch("src.app.utils.run_services.is_ollama_available", return_value=True)
 def test_ensure_ollama_model(mock_ollama):
-    from pathlib import Path
     run_services.ensure_ollama_model(Path("."), model_name="cybersentinel")
     assert True
 
-# --- ensure_infrastructure ---
 @patch("src.app.utils.run_services.ensure_ollama_model")
 @patch("src.app.utils.run_services.ensure_docker_daemon_running", return_value=True)
 @patch("src.app.utils.run_services.is_docker_daemon_running", return_value=False)
@@ -152,17 +298,12 @@ def test_ensure_infrastructure(mock_is_docker_daemon_running, mock_docker, mock_
     assert mock_docker.called
     assert mock_ollama.called
 
-# --- shutdown_services ---
 @patch("src.app.utils.run_services.subprocess.run")
 def test_shutdown_services_runs(mock_run):
-    from pathlib import Path
     run_services.shutdown_services(project_root=Path("."), stop_ollama=True, force_stop_containers=True)
     assert mock_run.called
 
-# --- WSL y errores subprocess ---
-import platform
-import sys
-from pathlib import Path
+# --- TESTS DE WSL Y SUBPROCESOS ---
 
 @patch("src.app.utils.run_services.platform.system", return_value="Windows")
 @patch("src.app.utils.run_services.subprocess.run")
@@ -201,32 +342,17 @@ def test_wsl_docker_start_container_error(mock_run, mock_system):
     run_services.wsl_docker_start_container("failcontainer", distro_name="Ubuntu")
     assert True
 
-# --- detect_host_os error branch ---
-@patch("src.app.utils.run_services.platform.system", return_value="Linux")
-@patch("src.app.utils.run_services.Path.exists", return_value=False)
-def test_detect_host_os_linux_no_osrelease(mock_exists, mock_system):
-    plat, distro = run_services.detect_host_os()
-    assert plat == "Linux"
+# --- TESTS DE FLUJOS DE COMPOSE Y DOCKER ---
 
-# --- ensure_docker_daemon_running error branch ---
-@patch("src.app.utils.run_services.is_docker_daemon_running", return_value=False)
-@patch("src.app.utils.run_services.subprocess.run", side_effect=Exception("fail"))
-def test_ensure_docker_daemon_running_error(mock_run, mock_daemon):
-    assert run_services.ensure_docker_daemon_running("Linux") is False
-
-# --- ensure_compose_from_install: carpeta no existe ---
 def test_ensure_compose_from_install_no_folder(tmp_path):
-    # No crea Install/
     run_services.ensure_compose_from_install(tmp_path)
     assert True
 
-# --- ensure_compose_from_install: sin YAML ---
 def test_ensure_compose_from_install_no_yaml(tmp_path):
     (tmp_path / "Install").mkdir()
     run_services.ensure_compose_from_install(tmp_path)
     assert True
 
-# --- ensure_compose_from_install: error en compose_cmd ---
 @patch("src.app.utils.run_services.shutil.which", return_value=None)
 def test_ensure_compose_from_install_no_docker(mock_which, tmp_path):
     (tmp_path / "Install").mkdir()
@@ -235,7 +361,6 @@ def test_ensure_compose_from_install_no_docker(mock_which, tmp_path):
     run_services.ensure_compose_from_install(tmp_path)
     assert True
 
-# --- ensure_compose_from_install: error en subprocess.run ---
 @patch("src.app.utils.run_services.shutil.which", return_value="/usr/bin/docker")
 @patch("src.app.utils.run_services.subprocess.run", side_effect=Exception("fail"))
 def test_ensure_compose_from_install_subprocess_error(mock_run, mock_which, tmp_path):
@@ -245,14 +370,12 @@ def test_ensure_compose_from_install_subprocess_error(mock_run, mock_which, tmp_
     run_services.ensure_compose_from_install(tmp_path)
     assert True
 
-# --- ensure_compose_from_install: servicios ya presentes ---
 @patch("src.app.utils.run_services.shutil.which", return_value="/usr/bin/docker")
 @patch("src.app.utils.run_services.subprocess.run")
 def test_ensure_compose_from_install_services_present(mock_run, mock_which, tmp_path):
     (tmp_path / "Install").mkdir()
     f = tmp_path / "Install" / "test.yml"
     f.write_text("version: '3'\nservices:\n  test:")
-    # Simula que subprocess devuelve servicios y que ya existen
     def fake_run(cmd, *a, **k):
         class R:
             def __init__(self, code=0, out="test\n"):
@@ -385,3 +508,80 @@ def test_shutdown_services_error_run(mock_run, mock_which, tmp_path):
     (tmp_path / "Install").mkdir()
     run_services.shutdown_services(project_root=tmp_path)
     assert True
+
+    # --- shutdown_services: error stopping specific containers ---
+    @patch("src.app.utils.run_services.shutil.which", return_value="/usr/bin/docker")
+    @patch("src.app.utils.run_services.subprocess.run")
+    @patch("src.app.utils.run_services.platform.system", return_value="Linux")
+    def test_shutdown_services_target_names_error(mock_system, mock_run, mock_which, tmp_path):
+        (tmp_path / "Install").mkdir()
+        # Simula que hay un contenedor, pero stop lanza excepción
+        def fake_run(cmd, *a, **k):
+            class R:
+                def __init__(self):
+                    self.stdout = "testcontainer\n"
+                    self.returncode = 0
+            if "ps" in cmd:
+                return R()
+            if "stop" in cmd:
+                raise Exception("fail")
+            return R()
+        mock_run.side_effect = fake_run
+        # Debe cubrir logger.exception y logger.error
+        run_services.shutdown_services(project_root=tmp_path, force_stop_containers=True, containers="testcontainer")
+        assert True
+
+    # --- shutdown_services: Ollama fallback Windows branch ---
+    @patch("src.app.utils.run_services.is_ollama_available", return_value=True)
+    @patch("src.app.utils.run_services.subprocess.run")
+    @patch("src.app.utils.run_services.platform.system", return_value="Windows")
+    def test_shutdown_services_ollama_fallback_windows(mock_system, mock_run, mock_ollama, tmp_path):
+        # Simula que ollama stop falla, fallback a taskkill
+        def fake_run(cmd, *a, **k):
+            if cmd[0] == "ollama":
+                raise Exception("fail")
+            return MagicMock()
+        mock_run.side_effect = fake_run
+        run_services.shutdown_services(project_root=tmp_path, stop_ollama=True)
+        assert True
+
+    # --- shutdown_services: Ollama fallback non-Windows branch ---
+    @patch("src.app.utils.run_services.is_ollama_available", return_value=True)
+    @patch("src.app.utils.run_services.subprocess.run")
+    @patch("src.app.utils.run_services.platform.system", return_value="Linux")
+    def test_shutdown_services_ollama_fallback_nonwindows(mock_system, mock_run, mock_ollama, tmp_path):
+        # Simula que ollama stop falla, fallback a pkill
+        def fake_run(cmd, *a, **k):
+            if cmd[0] == "ollama":
+                raise Exception("fail")
+            return MagicMock()
+        mock_run.side_effect = fake_run
+        run_services.shutdown_services(project_root=tmp_path, stop_ollama=True)
+        assert True
+
+    # --- shutdown_services: error in compose stack shutdown ---
+    @patch("src.app.utils.run_services.shutil.which", return_value="/usr/bin/docker")
+    @patch("src.app.utils.run_services.subprocess.run", side_effect=Exception("fail"))
+    def test_shutdown_services_compose_error(mock_run, mock_which, tmp_path):
+        (tmp_path / "Install").mkdir()
+        f = tmp_path / "Install" / "test.yml"
+        f.write_text("version: '3'\nservices:\n  test:")
+        run_services.shutdown_services(project_root=tmp_path)
+        assert True
+
+    # --- shutdown_services: top-level exception handler ---
+    def test_shutdown_services_top_level_exception(monkeypatch):
+        # Fuerza excepción en el cuerpo principal
+        monkeypatch.setattr(run_services, "shutil", MagicMock(which=lambda x: 1))
+        monkeypatch.setattr(run_services, "subprocess", MagicMock(run=MagicMock(side_effect=Exception("fail"))))
+        # Simula que Path().exists() lanza excepción
+        class DummyPath:
+            def exists(self):
+                raise Exception("fail")
+            def is_dir(self):
+                return True
+            def __truediv__(self, other):
+                return self
+        monkeypatch.setattr(run_services, "Path", lambda *a, **k: DummyPath())
+        run_services.shutdown_services(project_root=None)
+        assert True

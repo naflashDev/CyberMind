@@ -9,6 +9,83 @@ import pytest
 from src.app.utils import utils
 import tempfile
 import os
+import builtins
+def test_read_file_permission_error(monkeypatch, tmp_path):
+    # Simula PermissionError
+    def fake_open(*a, **k):
+        raise PermissionError
+    monkeypatch.setattr(builtins, "open", fake_open)
+    result = utils.read_file("file.txt")
+    assert result[0] == 2 or "permissions" in str(result[1])
+
+def test_read_file_os_error(monkeypatch, tmp_path):
+    # Simula OSError
+    def fake_open(*a, **k):
+        raise OSError
+    monkeypatch.setattr(builtins, "open", fake_open)
+    result = utils.read_file("file.txt")
+    assert result[0] == 3 or "OS error" in str(result[1])
+
+def test_read_file_unknown_error(monkeypatch, tmp_path):
+    # Simula Exception genérica
+    def fake_open(*a, **k):
+        raise Exception("fail")
+    monkeypatch.setattr(builtins, "open", fake_open)
+    result = utils.read_file("file.txt")
+    assert result[0] == 4 or "Unknown error" in str(result[1])
+
+def test_write_file_permission_error(monkeypatch, tmp_path):
+    # Simula PermissionError
+    def fake_open(*a, **k):
+        raise PermissionError
+    monkeypatch.setattr(builtins, "open", fake_open)
+    result = utils.write_file("file.txt", ["a"])
+    assert result[0] == 2 or "permissions" in str(result[1])
+
+def test_write_file_os_error(monkeypatch, tmp_path):
+    # Simula OSError
+    def fake_open(*a, **k):
+        raise OSError
+    monkeypatch.setattr(builtins, "open", fake_open)
+    result = utils.write_file("file.txt", ["a"])
+    assert result[0] == 3 or "OS error" in str(result[1])
+
+def test_write_file_unknown_error(monkeypatch, tmp_path):
+    # Simula Exception genérica
+    def fake_open(*a, **k):
+        raise Exception("fail")
+    monkeypatch.setattr(builtins, "open", fake_open)
+    result = utils.write_file("file.txt", ["a"])
+    assert result[0] == 4 or "Unknown error" in str(result[1])
+
+def test_get_connection_parameters_invalid(tmp_path):
+    # Archivo con varias líneas válidas
+    f = tmp_path / "params.txt"
+    f.write_text("server_ip=1.2.3.4;server_port=1234\nserver_ip=2.2.2.2;server_port=2222\n")
+    result = utils.get_connection_parameters(str(f))
+    assert result[0] == 2 or "Incorrect number" in str(result[1])
+    # Archivo sin parámetros requeridos
+    f.write_text("foo=bar\n")
+    result = utils.get_connection_parameters(str(f))
+    assert result[0] == 3 or "Missing" in str(result[1])
+
+def test_get_connection_service_parameters_invalid(tmp_path):
+    # Archivo con varias líneas válidas
+    f = tmp_path / "params2.txt"
+    f.write_text("distro_name=ubuntu;dockers_name=main\ndistro_name=debian;dockers_name=other\n")
+    result = utils.get_connection_service_parameters(str(f))
+    assert result[0] == 2 or "Incorrect number" in str(result[1])
+    # Archivo sin parámetros requeridos
+    f.write_text("foo=bar\n")
+    result = utils.get_connection_service_parameters(str(f))
+    assert result[0] == 3 or "Missing" in str(result[1])
+
+def test_create_config_file_error(monkeypatch):
+    # Simula error en write_file
+    monkeypatch.setattr(utils, "write_file", lambda *a, **k: (1, "fail"))
+    result = utils.create_config_file("file.txt", ["a"])
+    assert result[0] == 1 or "Error recreating" in str(result[1])
+
 
 
 def test_read_file_success():
@@ -79,3 +156,39 @@ def test_create_config_file(tmp_path):
     assert "successfully" in str(result[1])
     # El archivo tendrá una sola línea concatenada
     assert f.read_text().splitlines() == [''.join(content)]
+
+
+def test_read_file_invalid_params():
+    # lines_to_escape no es lista
+    result = utils.read_file(123, None)
+    assert result[0] == 5 or 'Incorrect' in str(result[1])
+    # lines_to_escape contiene elementos no str
+    result = utils.read_file("file.txt", [1, 2])
+    assert result[0] == 5 or 'Incorrect' in str(result[1])
+
+
+def test_write_file_invalid_params():
+    # filename no es str
+    result = utils.write_file(123, ["a"])
+    assert result[0] == 5 or 'Incorrect' in str(result[1])
+    # content no es lista
+    result = utils.write_file("file.txt", "no_lista")
+    assert result[0] == 5 or 'Incorrect' in str(result[1])
+    # mode no es str
+    result = utils.write_file("file.txt", ["a"], 123)
+    assert result[0] == 5 or 'Incorrect' in str(result[1])
+    # content contiene elementos no str
+    result = utils.write_file("file.txt", [1, 2])
+    assert result[0] == 5 or 'Incorrect' in str(result[1])
+
+
+def test_create_config_file_invalid_params():
+    # file_name no es str
+    result = utils.create_config_file(123, ["a"])
+    assert result[0] == 2 or 'Invalid' in str(result[1])
+    # content no es lista
+    result = utils.create_config_file("file.txt", "no_lista")
+    assert result[0] == 2 or 'Invalid' in str(result[1])
+    # content contiene elementos no str
+    result = utils.create_config_file("file.txt", [1, 2])
+    assert result[0] == 2 or 'Invalid' in str(result[1])

@@ -65,6 +65,10 @@ def test_create_dynamic_spider_yields_data():
 def test_create_dynamic_spider_discards_irrelevant():
     '''
     @brief Should not yield data for irrelevant URLs.
+        import pytest
+        from unittest.mock import patch, MagicMock, AsyncMock
+        from src.app.services.scraping import spider_factory
+
     '''
     urls = ["http://irrelevante.com"]
     params = ("localhost", 9200)

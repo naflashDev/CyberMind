@@ -115,9 +115,9 @@ def test_consolidate_json_error(monkeypatch, tmp_path):
         assert mock_logger.error.called
 """
 @file test_script_auto.py
-@author GitHub Copilot
-@brief Unit tests for script_auto.py
-@details Tests for repository management, file processing, and transformation utilities (mocks, no real git or multiprocessing).
+@author naflashDev
+@brief Tests para script_auto.py (gestión de repositorios y procesamiento de archivos para LLM).
+@details Tests unitarios para gestión de repositorios, procesamiento de archivos y utilidades de transformación. Se mockean operaciones de E/S, git y multiprocessing.
 """
 import os
 import json

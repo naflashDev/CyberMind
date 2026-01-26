@@ -1,8 +1,8 @@
 """
 @file test_finetune_dataset_builder.py
 @author naflashDev
-@brief Unit tests for finetune_dataset_builder.py
-@details Tests for dataset building utilities for LLM fine-tuning.
+@brief Tests para finetune_dataset_builder.py (utilidades de datasets para LLM).
+@details Tests unitarios para utilidades de construcción de datasets de fine-tuning. Se mockean operaciones de E/S y archivos temporales.
 """
 import os
 import json

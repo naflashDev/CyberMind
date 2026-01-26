@@ -1,8 +1,8 @@
 """
 @file test_text_processor.py
-@author GitHub Copilot
-@brief Unit tests for text_processor.py
-@details Tests for language detection, entity tagging, and JSON processing (mocks, no real spaCy or OpenSearch).
+@author naflashDev
+@brief Tests para text_processor.py (procesamiento de texto y entidades con spaCy).
+@details Tests unitarios para detección de idioma, extracción de entidades y procesamiento de JSON. Se mockean spaCy y OpenSearch.
 """
 import pytest
 import json

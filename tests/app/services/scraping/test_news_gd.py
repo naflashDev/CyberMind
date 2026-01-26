@@ -45,6 +45,7 @@ async def test_extract_news_structure_relevant(monkeypatch):
 @pytest.mark.asyncio
 async def test_extract_news_structure_irrelevant(monkeypatch):
     '''
+    import json
     @brief Should return None if not relevant.
     '''
     html = "<html><head><title>Test</title></head><body><p>sin clave</p></body></html>"

@@ -1,8 +1,22 @@
+
+"""
+@file test_tiny_postgres_controller.py
+@author naflashDev
+@brief Tests para el controlador TinyTinyRSS PostgreSQL (tiny_postgres_controller).
+@details Tests unitarios y de integración para endpoints y lógica de feeds. Se mockean dependencias externas y llamadas asíncronas.
+"""
+
 import os
 import threading
 import asyncio
-from fastapi import Request
-from unittest.mock import AsyncMock, MagicMock
+import pytest
+from fastapi import FastAPI, Request
+from fastapi.testclient import TestClient
+from unittest.mock import AsyncMock, MagicMock, patch
+from src.app.controllers.routes.tiny_postgres_controller import router as tiny_router
+
+app = FastAPI()
+app.include_router(tiny_router)
 
 def test_search_and_insert_rss_success(monkeypatch):
     class DummyPool: pass

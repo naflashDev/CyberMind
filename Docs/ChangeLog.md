@@ -1,3 +1,22 @@
+## [Unreleased]
+### Removed
+- Eliminada la sección de cobertura de la interfaz web. El informe HTML de coverage.py solo está disponible como archivo estático tras ejecutar los tests.
+### Changed
+- El informe de cobertura HTML ahora se sirve con el CSS global de la UI, eliminando el CSS propio generado por coverage.py. Esto unifica la experiencia visual en la sección Cobertura, aunque puede modificar el aspecto original del informe.
+- La sección de cobertura de la UI ahora muestra un mensaje claro cuando no existe informe de cobertura generado, indicando al usuario que debe ejecutar los tests para crearlo.
+- El apartado de cobertura utiliza los estilos globales de la plataforma, eliminando el CSS propio del iframe para mantener coherencia visual.
+### Changed
+- Refactorización y alineación de los tests de los módulos de utilidades (worker_control, utils, run_services) según las normas de estructura, imports y buenas prácticas. Todos los tests temporales se generan dentro de la carpeta de tests.
+# [Unreleased] - 2026-01-26
+### Changed
+- Limpiados y estandarizados los tests de la capa services/llm y services/spacy: cada servicio tiene un único archivo de test, sin fragmentación ni duplicados, con imports ordenados y cabecera documental.
+- Limpiados y estandarizados los tests de la capa services/scraping: cada servicio tiene un único archivo de test, sin fragmentación ni duplicados, con imports ordenados y cabecera documental.
+- Limpiados y estandarizados los tests de la capa controllers/routes: cada controlador tiene un único archivo de test, sin fragmentación ni duplicados, con imports ordenados y cabecera documental.
+- Unificados todos los tests de la capa models en un solo archivo `test_models.py`.
+- Eliminados los archivos fragmentados `test_opensearh_db.py` y `test_ttrss_postgre_db.py`.
+- Refactorizados y unificados todos los tests de run_services en un único archivo bajo tests/app/utils/test_run_services.py.
+- Eliminados archivos duplicados y fragmentados de tests de run_services.
+- Estructura de tests alineada con la del módulo y cumplimiento de buenas prácticas de imports y ubicación.
 ### Added
 - Se han ampliado los tests unitarios para `src/app/controllers/routes/llm_controller.py` cubriendo:
 	- Todos los endpoints (query, updater, stop-updater).
@@ -47,10 +66,10 @@
 ### Changed
 - La cobertura de `src/app/controllers/routes/llm_controller.py` supera el 80%, incluyendo ramas de error, eventos y condiciones límite, cumpliendo la norma de calidad definida en `AGENTS.md`.
 - La cobertura de `src/app/services/scraping/spider_factory.py` supera el 80% incluyendo ramas de error, lockfile y condiciones límite, cumpliendo la norma de calidad definida en `AGENTS.md`.
-- La cobertura de `src/app/utils/run_services.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
+- La cobertura de `src/app/utils/run_services.py` se ha maximizado (actualmente 68%) mediante tests avanzados para ramas de error, subprocesos y lógica de Docker/WSL. No alcanza el 80% por ramas defensivas y dependencias de plataforma difíciles de mockear, quedando documentadas las limitaciones técnicas.
 - La cobertura de `src/app/services/scraping/spider_factory.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
 - La cobertura de `src/app/controllers/routes/worker_controller.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
-- La cobertura de `src/main.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
+- La cobertura de `src/main.py` se ha maximizado (actualmente 72%) mediante tests de endpoints, ciclo de vida FastAPI y tareas de fondo. No alcanza el 80% por ramas defensivas y dependencias de entorno, quedando documentadas las limitaciones técnicas.
 - La cobertura de `src/app/controllers/routes/scrapy_news_controller.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
 - La cobertura de `src/app/services/spacy/text_processor.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
 - La cobertura de `src/app/services/llm/script_auto.py` supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.

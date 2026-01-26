@@ -1,13 +1,13 @@
+
 """
 @file test_worker_control.py
 @author naflashDev
 @brief Tests para worker_control.py
 @details Cobertura de defaults, carga, guardado y errores de settings de workers.
 """
+
 import os
 import json
-import tempfile
-import shutil
 import pytest
 from unittest import mock
 from src.app.utils import worker_control

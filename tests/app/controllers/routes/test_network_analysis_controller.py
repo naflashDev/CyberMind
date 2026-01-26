@@ -1,3 +1,20 @@
+"""
+    @file test_network_analysis_controller.py
+    @author naflashDev
+    @brief Tests para el controlador de análisis de red (network_analysis_controller).
+    @details Tests unitarios y de integración para los endpoints y lógica de análisis de red. Se mockean dependencias externas y llamadas asíncronas.
+"""
+
+import asyncio
+import errno
+import socket
+import types
+from unittest.mock import patch
+import pytest
+from fastapi.testclient import TestClient
+from main import app
+from pydantic import ValidationError
+from src.app.services.network_analysis import network_analysis
 import pytest
 
 @pytest.mark.asyncio
@@ -31,6 +48,8 @@ async def test_scan_range_concurrency(monkeypatch):
 @pytest.mark.asyncio
 async def test_scan_range_asyncio_errors(monkeypatch):
     # Simula error en asyncio.to_thread
+
+
     async def fake_to_thread(func, *a, **kw):
         raise Exception("fail to_thread")
     monkeypatch.setattr("asyncio.to_thread", fake_to_thread)

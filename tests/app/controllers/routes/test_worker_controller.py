@@ -1,3 +1,16 @@
+"""
+@file test_worker_controller.py
+@author GitHub Copilot
+@brief Tests for worker_controller.py
+@details Unit and integration tests for endpoints and background logic. External dependencies and async calls are mocked.
+"""
+
+import threading
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from src.app.controllers.routes.worker_controller import router as worker_router, WorkerToggle
+import os
+
 def test_toggle_worker_rss_extractor_file_missing(monkeypatch):
     monkeypatch.setattr(os.path, "exists", lambda path: False)
     app.state = type("State", (), {})()
@@ -149,11 +162,7 @@ def test_toggle_worker_dynamic_spider_pool_fail(monkeypatch):
     resp = client.post("/workers/dynamic_spider", json={"enabled": True})
     assert resp.status_code == 503
     assert "DB pool not available" in resp.text
-import threading
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from src.app.controllers.routes.worker_controller import router as worker_router, WorkerToggle
-import os
+
 
 app = FastAPI()
 app.include_router(worker_router)
@@ -197,12 +206,7 @@ def test_toggle_worker_disable_success(monkeypatch):
     resp = client.post("/workers/google_alerts", json={"enabled": False})
     assert resp.status_code == 200
     assert "disabled" in resp.text
-"""
-@file test_worker_controller.py
-@author GitHub Copilot
-@brief Tests for worker_controller.py
-@details Unit and integration tests for endpoints and background logic. External dependencies and async calls are mocked.
-"""
+
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from src.app.controllers.routes import worker_controller

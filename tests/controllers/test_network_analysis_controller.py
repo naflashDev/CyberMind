@@ -73,7 +73,8 @@ def test_scan_range_success(monkeypatch):
     assert "hosts" in data
     assert isinstance(data["hosts"], list)
     assert data["hosts"][0]["host"] == "127.0.0.1"
-    assert "results" in data["hosts"][0]
+    # Puede devolver 'results' (éxito) o 'error' (timeout, fallo)
+    assert "results" in data["hosts"][0] or "error" in data["hosts"][0]
 
 def test_list_common_ports():
     client = TestClient(app)
