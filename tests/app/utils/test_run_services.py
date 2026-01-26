@@ -15,6 +15,44 @@ from pathlib import Path
 from src.app.utils import run_services
 
 
+def test_ensure_compose_from_install_no_docker(monkeypatch, tmp_path):
+    # Simula que ni docker ni docker-compose están disponibles
+    monkeypatch.setattr(run_services.shutil, "which", lambda x: None)
+    install_dir = tmp_path / "Install"
+    install_dir.mkdir()
+    (install_dir / "tinytinyrss.yml").write_text("version: '3'")
+    (install_dir / "opensearch-compose.yml").write_text("version: '3'")
+    # No debe lanzar excepción, solo loguear error
+    run_services.ensure_compose_from_install(tmp_path)
+
+def test_ensure_compose_from_install_fallback_env(monkeypatch, tmp_path):
+    # Simula fallback a docker/stack.env
+    monkeypatch.setattr(run_services.shutil, "which", lambda x: "docker")
+    install_dir = tmp_path / "Install"
+    install_dir.mkdir()
+    (install_dir / "tinytinyrss.yml").write_text("version: '3'")
+    (install_dir / "opensearch-compose.yml").write_text("version: '3'")
+    docker_dir = tmp_path / "docker"
+    docker_dir.mkdir()
+    (docker_dir / "stack.env").write_text("VAR=1")
+    # Mock subprocess y platform
+    monkeypatch.setattr(run_services, "platform", type("plat", (), {"system": staticmethod(lambda: "Linux")})())
+    monkeypatch.setattr(run_services, "os_get_euid", lambda: 0)
+    monkeypatch.setattr(run_services.subprocess, "run", lambda *a, **k: type("R", (), {"returncode": 0, "stdout": "svc1\nsvc2"})())
+    run_services.ensure_compose_from_install(tmp_path)
+
+def test_ensure_docker_daemon_running_unknown_platform(monkeypatch):
+    # Simula plataforma desconocida
+    monkeypatch.setattr(run_services, "is_docker_daemon_running", lambda: False)
+    monkeypatch.setattr(run_services, "platform", type("plat", (), {"system": staticmethod(lambda: "Solaris")})())
+    assert run_services.ensure_docker_daemon_running("Solaris") is False
+
+def test_wsl_docker_is_running_exception(monkeypatch):
+    # Simula excepción en subprocess
+    monkeypatch.setattr(run_services, "platform", type("plat", (), {"system": staticmethod(lambda: "Linux")})())
+    monkeypatch.setattr(run_services.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(Exception("fail")))
+    assert run_services.wsl_docker_is_running("test") is False
+
 def test_shutdown_services_no_ollama(monkeypatch, tmp_path):
     # No hay ollama disponible
     monkeypatch.setattr(run_services, "is_ollama_available", lambda: False)
@@ -41,6 +79,7 @@ def test_os_get_euid_windows(monkeypatch):
     fake_os = types.SimpleNamespace()
     # No tiene geteuid
     monkeypatch.setattr(run_services, "os", fake_os)
+    monkeypatch.setattr(run_services, "platform", types.SimpleNamespace(system=lambda: "Windows"))
     assert run_services.os_get_euid() == 0
 
 def test_try_install_ollama_no_installers(monkeypatch):

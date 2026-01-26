@@ -25,6 +25,7 @@
 	- Creación dinámica de spiders y parseo de respuestas.
 	- Escritura y append de JSON con lock.
 	- Ejecución de spiders y runners desde base de datos (mocks).
+	- Ampliados los tests unitarios de `src/app/utils/run_services.py` para cubrir ramas de error, condiciones límite y casos multiplataforma, alcanzando ≥80% de cobertura en el módulo.
 ### Fixed
 - Todos los tests unitarios y de integración pasan correctamente en CI (>80% cobertura).
 - Se corrige la función os_get_euid y sus tests para soportar correctamente entornos Windows y POSIX, y permitir monkeypatching multiplataforma.

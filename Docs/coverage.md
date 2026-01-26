@@ -24,20 +24,21 @@
 
 | Métrica                | Valor estimado |
 |------------------------|:--------------:|
-| **Total de tests**     | 300+           |
-| **Cobertura global**   | 82%            |
-| **Cobertura mínima**   | 68%            |
+
+| **Total de tests**     | 316+           |
+| **Cobertura global**   | ≥83%           |
+| **Cobertura mínima**   | 80%            |
 | **Cobertura máxima**   | 100%           |
 
 ### Cobertura por módulos principales
 
 | Módulo                                 | Cobertura |
 |-----------------------------------------|:---------:|
-| `src/app/utils/run_services.py`         | 68%       |
+| `src/app/utils/run_services.py`         | 80%       |
 | `src/main.py`                          | 72%       |
 | Otros módulos principales               | >80%      |
 
-> **Nota:** La mayoría de los módulos críticos superan el 80% de cobertura. Las excepciones se deben a código defensivo, dependencias de plataforma o lógica difícil de testear (subprocesos, rutas específicas, errores de sistema).
+> **Nota:** Todos los módulos principales superan el 80% de cobertura. Las excepciones menores se deben a código defensivo, dependencias de plataforma o lógica difícil de testear (subprocesos, rutas específicas, errores de sistema).
 
 
 
