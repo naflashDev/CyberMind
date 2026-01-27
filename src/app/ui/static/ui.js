@@ -644,10 +644,23 @@ document.addEventListener('DOMContentLoaded', function () {
             parts.push('<div style="margin-bottom:6px;"><strong>Workers</strong></div>');
             parts.push('<div id="workers-control-list" style="display:flex;flex-direction:column;gap:8px;">');
             for (const [name, val] of Object.entries(workers)) {
+              // Diccionario de nombres amigables y descripciones para cada worker
+              const WORKER_FRIENDLY = {
+                google_alerts: { name: 'Google Alerts', info: 'Recolecta alertas de Google configuradas y las procesa periódicamente.' },
+                rss_extractor: { name: 'Extractor RSS', info: 'Extrae y normaliza feeds RSS de ciberseguridad desde fuentes configuradas.' },
+                scraping_feeds: { name: 'Scraping Feeds', info: 'Rastrea y actualiza feeds de noticias de ciberseguridad.' },
+                scraping_news: { name: 'Scraping News', info: 'Extrae artículos y noticias de fuentes externas para su análisis.' },
+                spacy_nlp: { name: 'NLP (spaCy)', info: 'Procesa y etiqueta entidades en textos usando spaCy cada 24h.' },
+                llm_updater: { name: 'LLM Updater', info: 'Actualiza el modelo LLM y el dataset de CVEs cada 7 días.' },
+                dynamic_spider: { name: 'Spider Dinámico', info: 'Ejecuta spiders Scrapy configurados dinámicamente desde la base de datos.' }
+              };
+              const friendly = WORKER_FRIENDLY[name] || { name, info: '' };
               const status = val ? '<span style="color:#86efac">running</span>' : '<span style="color:#fca5a5">stopped</span>';
               const btnStyle = val ? 'background:#ef4444;color:#fff' : 'background:#10b981;color:#fff';
               const btnText = val ? 'Stop' : 'Activate';
-              parts.push(`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><div style="display:flex;flex-direction:column;"><div style="font-weight:600">${name}</div><div style="font-size:12px;color:#9aa6b2">Status: ${status}</div></div><div><button data-worker-toggle="${name}" data-enabled="${val}" style="padding:8px 10px;border-radius:6px;border:none;cursor:pointer;${btnStyle}">${btnText}</button></div></div>`);
+              // Icono de info con tooltip
+              const infoIcon = friendly.info ? `<span style="cursor:pointer;color:#60a5fa;font-size:16px;vertical-align:middle;margin-left:6px;" title="${friendly.info.replace(/"/g, '&quot;')}">ℹ️</span>` : '';
+              parts.push(`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><div style="display:flex;flex-direction:column;"><div style="font-weight:600">${friendly.name}${infoIcon}</div><div style="font-size:12px;color:#9aa6b2">Status: ${status}</div></div><div><button data-worker-toggle="${name}" data-enabled="${val}" style="padding:8px 10px;border-radius:6px;border:none;cursor:pointer;${btnStyle}">${btnText}</button></div></div>`);
             }
             parts.push('</div>');
             document.getElementById('op-status-box').innerHTML = parts.join('');

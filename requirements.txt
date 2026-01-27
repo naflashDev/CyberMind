@@ -162,3 +162,4 @@ pip-requirements-parser==32.0.1
 python-dotenv==1.0.0
 stevedore==5.6.0
 pytest==7.4.2
+pytest-xdist

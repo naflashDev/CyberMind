@@ -84,3 +84,30 @@ Puedes clonar e instalar localmente o adaptar la plataforma para nuevos fines.
 - Visualización y reporting: dashboards, informes, paneles interactivos.
 
 > 💡 *CyberMind apuesta por una tecnología transparente, abierta, colaborativa y orientada a la automatización y la auditoría avanzada en ciberseguridad.*
+
+---
+
+## 🖥️ Mejora de usabilidad en System Status (UI)
+
+Se ha mejorado la sección "System Status" de la interfaz de usuario añadiendo los siguientes cambios:
+
+- **Nombres amigables para los workers:** Ahora los nombres de los workers se muestran de forma legible y coherente con los botones de la UI.
+- **Icono de información:** Se ha añadido un icono ℹ️ junto a cada worker. Al hacer hover, se muestra una breve descripción de la función de cada worker.
+
+**Beneficios:**
+- Mayor claridad para el usuario sobre el propósito de cada worker.
+- Experiencia de usuario más intuitiva y profesional.
+
+**Ejemplo:**
+
+| Worker           | Nombre mostrado      | Tooltip (descripción)                                      |
+|------------------|---------------------|------------------------------------------------------------|
+| google_alerts    | Google Alerts       | Recolecta alertas de Google configuradas y las procesa periódicamente. |
+| rss_extractor    | Extractor RSS       | Extrae y normaliza feeds RSS de ciberseguridad desde fuentes configuradas. |
+| scraping_feeds   | Scraping Feeds      | Rastrea y actualiza feeds de noticias de ciberseguridad.    |
+| scraping_news    | Scraping News       | Extrae artículos y noticias de fuentes externas para su análisis. |
+| spacy_nlp        | NLP (spaCy)         | Procesa y etiqueta entidades en textos usando spaCy cada 24h. |
+| llm_updater      | LLM Updater         | Actualiza el modelo LLM y el dataset de CVEs cada 7 días.   |
+| dynamic_spider   | Spider Dinámico     | Ejecuta spiders Scrapy configurados dinámicamente desde la base de datos. |
+
+*Última actualización: 27/01/2026*
