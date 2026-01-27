@@ -1,3 +1,4 @@
+
 ## 🔑 Variables de entorno y credenciales
 
 CyberMind utiliza un archivo `.env` en la raíz del proyecto para gestionar credenciales y parámetros sensibles (por ejemplo, acceso a bases de datos). **Nunca subas tu `.env` a repositorios públicos.**
@@ -21,6 +22,45 @@ cp .env.example .env
 El backend carga automáticamente estas variables usando [python-dotenv](https://pypi.org/project/python-dotenv/). Si alguna variable no está definida, la aplicación no podrá conectarse a la base de datos.
 
 > ⚠️ **Seguridad:** Nunca dejes credenciales hardcoded en el código fuente. Usa siempre variables de entorno.
+
+---
+
+## 🧪 Aislamiento de entorno para tests automáticos
+
+Para evitar que los tests modifiquen o lean el archivo `.env` de desarrollo, la suite de tests utiliza un archivo **`.env.test`** dedicado. Este archivo se crea y elimina automáticamente durante la ejecución de los tests, garantizando que:
+
+- Los tests nunca sobrescriben ni leen el `.env` real.
+- Las variables de entorno de los tests son independientes y seguras.
+- El código de carga de variables (incluyendo `load_dotenv`) prioriza `.env.test` si existe.
+
+Ejemplo de `.env.test`:
+
+```env
+POSTGRES_USER=test_user
+POSTGRES_PASSWORD=test_pass
+POSTGRES_DB=test_db
+POSTGRES_HOST=127.0.0.1
+POSTGRES_PORT=5432
+```
+
+
+**No es necesario crear manualmente `.env.test`: el fixture de tests lo gestiona automáticamente.**
+
+---
+
+## ▶️ Ejecución de la suite de tests
+
+Para lanzar todos los tests con cobertura y obtener el informe HTML, ejecuta:
+
+```sh
+/CyberMind/env/Scripts/python.exe -m pytest --maxfail=3 --durations=20 --tb=short --cov=src --cov-report=html
+```
+
+Esto:
+- Limita a 3 los fallos antes de detener la ejecución.
+- Muestra los 20 tests más lentos.
+- Usa un traceback corto para errores.
+- Genera un informe de cobertura HTML en `htmlcov/index.html`.
 
 # 🐍 Configuración del Entorno de Desarrollo Python
 

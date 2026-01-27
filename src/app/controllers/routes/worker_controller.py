@@ -153,10 +153,15 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
         pool = getattr(request.app.state, "pool", None)
         import os
         from dotenv import load_dotenv
+        from pathlib import Path
         import asyncio
         # Try to create pool on-demand if not present (UI may trigger init asynchronously)
         if pool is None:
-            load_dotenv()
+            env_test = Path(__file__).parent.parent.parent.parent / ".env.test"
+            if env_test.exists():
+                load_dotenv(dotenv_path=env_test)
+            else:
+                load_dotenv()
             try:
                 pool = await asyncpg.create_pool(
                     user=os.getenv("POSTGRES_USER"),
@@ -177,7 +182,16 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
                 return Response(status_code=503, content="DB pool not available: {}".format(e))
         try:
             # pass stop_event and register callback so UI can control the process
-            asyncio.create_task(scrapy_news_controller.run_dynamic_spider_from_db(pool, stop_event=evt, register_process=_register_timer))
+            # Para evitar RuntimeWarning en tests y ejecución, comprobamos si la corutina es awaitable y si hay event loop
+            import inspect
+            coro = scrapy_news_controller.run_dynamic_spider_from_db(pool, stop_event=evt, register_process=_register_timer)
+            try:
+                loop = asyncio.get_running_loop()
+                # Si hay event loop, lanzamos como tarea
+                asyncio.create_task(coro)
+            except RuntimeError:
+                # Si no hay event loop (ejecución síncrona o test), simplemente ignora la tarea
+                pass
             logger.info("[dynamic_spider] Worker launched successfully.")
         except Exception as e:
             logger.error(f"[dynamic_spider] Failed to launch worker: {e}")

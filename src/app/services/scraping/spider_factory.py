@@ -1,6 +1,3 @@
-import os
-from dotenv import load_dotenv
-load_dotenv()
 """
 @file spider_factory.py
 @brief Dynamic Scrapy spider factory and runner.
@@ -22,7 +19,15 @@ import logging
 from scrapy.utils.log import configure_logging
 from typing import Type, Coroutine, Any
 from loguru import logger
-
+import os
+from dotenv import load_dotenv
+from pathlib import Path
+# Always prefer .env.test if present (test isolation)
+env_test = Path(__file__).parent.parent.parent.parent / ".env.test"
+if env_test.exists():
+    load_dotenv(dotenv_path=env_test)
+else:
+    load_dotenv()
 # Lock file name to manage concurrent write access to JSON output
 LOCKFILE = "result.json.lock"
 # Output JSON file name

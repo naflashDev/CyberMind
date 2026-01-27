@@ -1,4 +1,7 @@
 ## [Unreleased]
+### Fixed
+ - Corregido error de PermissionError en el fixture de tests unitarios (`conftest.py`) usando reintentos y manejo seguro de archivos en Windows.
+ - Solucionados los RuntimeWarning de corutinas no awaitadas en los módulos de scraping (`feeds_gd.py`) y análisis de red (`network_analysis.py`), asegurando que los métodos logger.* se awaitan correctamente cuando son AsyncMock en tests.
 ### Removed
 - Eliminada la sección de cobertura de la interfaz web. El informe HTML de coverage.py solo está disponible como archivo estático tras ejecutar los tests.
 - Se ha añadido un aviso destacado en la documentación de endpoints (`Docs/api_endpoints.md`) advirtiendo que no se debe ejecutar el worker de LLM Updater en máquinas poco potentes, debido a su alto consumo de recursos.
@@ -9,6 +12,12 @@
 - Refactorización y alineación de los tests de los módulos de utilidades (worker_control, utils, run_services) según las normas de estructura, imports y buenas prácticas. Todos los tests temporales se generan dentro de la carpeta de tests.
 ### Changed
 ### Added
+
+- Aislamiento completo del entorno de tests mediante `.env.test`:
+    - Los tests nunca leen ni modifican el `.env` de desarrollo.
+    - El fixture de tests crea y elimina automáticamente `.env.test`.
+    - Toda la carga de variables de entorno (incluyendo `load_dotenv`) prioriza `.env.test` si existe.
+    - Documentado el procedimiento en `Docs/instalacion_dependencias.md`.
 	- Todos los endpoints (query, updater, stop-updater).
 	- Mocks de query_llm y run_periodic_training.
 	- Ramas de error, estados ya activos y eventos de parada.

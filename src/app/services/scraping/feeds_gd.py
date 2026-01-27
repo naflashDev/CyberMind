@@ -62,7 +62,11 @@ async def run_dork_search_feed():
 
     @return None. The function writes output to a file and logs progress.
     '''
-    logger.info("Starting search for cybersecurity-related URLs...")
+    # Await logger if it's a coroutine (for test AsyncMock compatibility)
+    if asyncio.iscoroutinefunction(getattr(logger, "info", None)):
+        await logger.info("Starting search for cybersecurity-related URLs...")
+    else:
+        logger.info("Starting search for cybersecurity-related URLs...")
 
     existing_urls = set()
     if OUTPUT_FILE.exists():
@@ -70,7 +74,10 @@ async def run_dork_search_feed():
             existing_urls = {line.strip() for line in f if line.strip()}
 
     for dork in DORKS:
-        logger.info(f"🔎 Searching with dork: {dork}")
+        if asyncio.iscoroutinefunction(getattr(logger, "info", None)):
+            await logger.info(f"🔎 Searching with dork: {dork}")
+        else:
+            logger.info(f"🔎 Searching with dork: {dork}")
         try:
             results = await search_async(dork, num_results=15)
             for url in results:
@@ -78,22 +85,29 @@ async def run_dork_search_feed():
                     continue
                 if url in existing_urls:
                     continue
-
-                logger.success(f"Found URL: {url}")
+                if asyncio.iscoroutinefunction(getattr(logger, "success", None)):
+                    await logger.success(f"Found URL: {url}")
+                else:
+                    logger.success(f"Found URL: {url}")
                 with OUTPUT_FILE.open("a", encoding="utf-8") as f:
                     f.write(url + "\n")
-
                 existing_urls.add(url)
-
                 await asyncio.sleep(random.uniform(1, 2))
-
         except Exception as e:
-            logger.error(f"Error while searching with dork '{dork}': {e}")
-
+            if asyncio.iscoroutinefunction(getattr(logger, "error", None)):
+                await logger.error(f"Error while searching with dork '{dork}': {e}")
+            else:
+                logger.error(f"Error while searching with dork '{dork}': {e}")
         sleep_time = random.uniform(
             MIN_SECONDS_BETWEEN_SEARCHES * 0.8, MIN_SECONDS_BETWEEN_SEARCHES * 1.5
         )
-        logger.info(f"Waiting {sleep_time:.2f} seconds before next search...")
+        if asyncio.iscoroutinefunction(getattr(logger, "info", None)):
+            await logger.info(f"Waiting {sleep_time:.2f} seconds before next search...")
+        else:
+            logger.info(f"Waiting {sleep_time:.2f} seconds before next search...")
         await asyncio.sleep(sleep_time)
 
-    logger.info("Finished all dork searches.")
+    if asyncio.iscoroutinefunction(getattr(logger, "info", None)):
+        await logger.info("Finished all dork searches.")
+    else:
+        logger.info("Finished all dork searches.")

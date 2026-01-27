@@ -143,11 +143,15 @@ def test_toggle_worker_dynamic_spider_success(monkeypatch):
     app.state.worker_status = {}
     app.state.pool = object()
     import asyncio
+    from unittest.mock import AsyncMock, patch
+    # Mockea create_task para no ejecutar la corutina real
     monkeypatch.setattr(asyncio, "create_task", lambda coro: None)
-    client = TestClient(app)
-    resp = client.post("/workers/dynamic_spider", json={"enabled": True})
-    assert resp.status_code == 200
-    assert "enabled" in resp.text
+    # Refuerza el mock: parchea el import en el router para que cualquier llamada use AsyncMock
+    with patch("src.app.controllers.routes.worker_controller.scrapy_news_controller.run_dynamic_spider_from_db", new=AsyncMock()):
+        client = TestClient(app)
+        resp = client.post("/workers/dynamic_spider", json={"enabled": True})
+        assert resp.status_code == 200
+        assert "enabled" in resp.text
 
 def test_toggle_worker_dynamic_spider_pool_fail(monkeypatch):
     monkeypatch.setattr(os.path, "exists", lambda path: True)

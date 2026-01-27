@@ -5,7 +5,8 @@
 @details Provides endpoints for network scanning, port analysis, and integration with the network_analysis service. Handles requests for scanning ranges, running nmap, and returning port/service metadata.
 """
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, root_validator
+from pydantic import BaseModel
+from pydantic import model_validator
 from typing import List, Optional, Any, Dict
 import subprocess
 import time
@@ -29,7 +30,7 @@ class ScanRequest(BaseModel):
     timeout: Optional[float] = 0.5
     use_nmap: Optional[bool] = True
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
     def normalize_ports(cls, values: Dict[str, Any]):
         # Accept ports as comma-separated string or empty string from clients
         ports = values.get('ports', None)
@@ -58,7 +59,7 @@ class RangeScanRequest(BaseModel):
     use_nmap: Optional[bool] = True
     concurrency: Optional[int] = 20
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
     def normalize_ports(cls, values: Dict[str, Any]):
         ports = values.get('ports', None)
         if isinstance(ports, str):
@@ -73,7 +74,7 @@ class RangeScanRequest(BaseModel):
                     pass
         return values
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
     def normalize_fields(cls, values: Dict[str, Any]):
         # Normalize empty strings to None for cidr/start/end and trim whitespace
         for k in ('cidr', 'start', 'end'):

@@ -26,17 +26,22 @@ class TestIntegrationSpacyFlow(unittest.TestCase):
         app.include_router(spacy_router)
         self.client = TestClient(app)
 
+
     def test_start_and_process_flow(self):
-        # patch file exists check for scheduler
+        '''
+        @brief Happy Path: spaCy endpoint and processing integration (mocked).
+        Mocks file existence, threading, and spaCy processing to validate integration logic.
+        '''
+        # Arrange & Act
         with mock.patch('os.path.exists', return_value=True):
             with mock.patch('app.controllers.routes.spacy_controller.threading.Thread') as ThreadMock:
                 resp = self.client.get('/start-spacy')
+                # Assert
                 self.assertEqual(resp.status_code, 200)
                 ThreadMock.assert_called()
 
-        # patch the service function that does the processing to avoid heavy spacy model
+        # Act & Assert (mock IA)
         with mock.patch('app.services.spacy.text_processor.tag_text', return_value=([], 'en')):
-            # there is no direct endpoint for tagging in controller; call internal function as an integration step
             from app.services.spacy import text_processor as tp
             tags, lang = tp.tag_text('Sample text for integration')
             self.assertEqual(lang, 'en')

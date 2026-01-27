@@ -1,3 +1,32 @@
+## 🧪 Generación y ejecución de tests automatizados
+
+La suite de tests debe generarse y ejecutarse siguiendo la Pirámide de Testing y las siguientes directrices:
+
+- **Generación de tests:**
+  - Los tests unitarios se ubican en `tests/unit/`, los de integración en `tests/integration/` y los E2E en `tests/e2e/`.
+  - Cada test debe incluir comentarios indicando el caso cubierto (Happy Path, Edge Case, Error Handling).
+  - Se debe cubrir el 100% de las funciones y al menos el 80% de las líneas de código.
+  - Utiliza `pytest` para backend y `playwright` para E2E.
+
+- **Ejecución de la suite:**
+  - Para ejecutar todos los tests y medir cobertura:
+    ```bash
+    pytest --cov=src --cov-report=html
+    ```
+  - Para ejecutar solo los tests unitarios o de integración:
+    ```bash
+    pytest tests/unit
+    pytest tests/integration
+    ```
+  - Para los tests E2E (Playwright):
+    ```bash
+    pytest tests/e2e
+    # o bien
+    playwright test tests/e2e
+    ```
+  - El reporte de cobertura HTML se genera en `htmlcov/index.html`.
+
+Consulta el archivo `tests/README.md` para detalles y ejemplos.
 # Agents.md
 
 ## 📌 Objetivo

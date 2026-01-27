@@ -100,7 +100,7 @@ jobs:
       - name: Run pytest (unit)
         run: |
           mkdir -p reports
-          pytest -q tests/unit --junitxml=reports/unit-${{ matrix.python-version }}.xml || true
+          pytest -q -n 16 tests/unit --junitxml=reports/unit-${{ matrix.python-version }}.xml || true
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -130,10 +130,10 @@ jobs:
         run: |
           mkdir -p reports
           # Ejecutar específicamente los nuevos tests E2E añadidos y generar reportes
-          pytest -q tests/integration/test_e2e_basic_pipeline.py --junitxml=reports/integration-basic.xml
-          pytest -q tests/integration/test_e2e_pipelines.py --junitxml=reports/integration-pipelines.xml
+          pytest -q -n 16 tests/integration/test_e2e_basic_pipeline.py --junitxml=reports/integration-basic.xml
+          pytest -q -n 16 tests/integration/test_e2e_pipelines.py --junitxml=reports/integration-pipelines.xml
           # Ejecutar el conjunto completo de integración (falla si hay errores)
-          pytest -q tests/integration --junitxml=reports/integration.xml
+          pytest -q -n 16 tests/integration --junitxml=reports/integration.xml
       - name: Upload integration results
         if: always()
         uses: actions/upload-artifact@v4
@@ -161,7 +161,7 @@ jobs:
           if [ -f dev-requirements.txt ]; then pip install -r dev-requirements.txt; fi
       - name: Run coverage (pytest-cov)
         run: |
-          pytest --cov=src --cov-report=term-missing --cov-report=xml --cov-report=html --cov-fail-under=80
+          pytest -n 16 --cov=src --cov-report=term-missing --cov-report=xml --cov-report=html --cov-fail-under=80
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
         with:

@@ -11,24 +11,54 @@
 
 ## Resumen de cobertura (2026-01-26)
 
----
 
 ## Visualización en la interfaz web
 
 **Nota:**
-- La sección de cobertura ha sido eliminada de la interfaz web. El informe HTML generado por coverage.py solo está disponible como archivo estático en `htmlcov/` tras ejecutar los tests.
-- Los tests unitarios gestionan automáticamente la creación y borrado del archivo `.env` durante la ejecución, garantizando que las variables de entorno críticas estén presentes y evitando residuos en el entorno de desarrollo o CI.
-- Todos los tests críticos de infraestructura, servicios y utilidades están mockeados y son multiplataforma.
 
----
 
-| Métrica                | Valor estimado |
-|------------------------|:--------------:|
+# Cobertura de tests
 
-| **Total de tests**     | 316+           |
-| **Cobertura global**   | ≥83%           |
-| **Cobertura mínima**   | 80%            |
-| **Cobertura máxima**   | 100%           |
+## Estrategia de optimización de tests (2026-01-27)
+
+  - Los tests unitarios tardan <10ms.
+  - Los tests de integración tardan <500ms.
+  - Los tests E2E solo cubren flujos críticos y se mantienen <10s.
+
+
+## Estrategia
+ Se sigue la Pirámide de Testing: predominan los tests unitarios (60-70%), seguidos de integración (20-30%) y un subconjunto crítico de E2E (5-10%).
+ Se exige:
+  - **Cobertura mínima:** 80% de líneas y 100% de funciones.
+  - **Cobertura incremental:** Ningún cambio puede reducir la cobertura.
+
+## Ejecución recomendada de la suite de tests
+
+Para ejecutar todos los tests con cobertura y obtener el informe HTML, utiliza el siguiente comando (ajustado para el entorno virtual del proyecto):
+
+```sh
+/CyberMind/env/Scripts/python.exe -m pytest --maxfail=3 --durations=20 --tb=short --cov=src --cov-report=html
+```
+
+Esto:
+- Limita a 3 los fallos antes de detener la ejecución.
+- Muestra los 20 tests más lentos.
+- Usa un traceback corto para errores.
+- Genera un informe de cobertura HTML en `htmlcov/index.html`.
+
+## Estado actual
+
+- La suite cubre todos los módulos principales de lógica, validación, scraping, análisis de red, procesamiento de texto y modelos de datos.
+- Los tests incluyen casos Happy Path, Edge Cases y manejo de errores.
+- Cada test está documentado y separado por nivel (unit, integration, e2e).
+- Se ha corregido el fixture de entorno para evitar errores de acceso concurrente al archivo `.env` en Windows.
+- Se han eliminado los RuntimeWarning de corutinas no awaitadas en los tests de scraping y análisis de red, garantizando compatibilidad total con AsyncMock y ejecución paralela.
+
+## Reglas
+
+- Todo nuevo código debe incluir tests y mantener/incrementar la cobertura.
+- Los tests deben ser rápidos, deterministas y no depender de servicios externos reales.
+- La cobertura se revisa en cada pipeline de CI.
 
 ### Cobertura por módulos principales
 

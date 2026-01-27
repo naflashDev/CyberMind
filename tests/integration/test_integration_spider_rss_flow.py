@@ -32,8 +32,13 @@ class DummyPool:
 
 
 class TestIntegrationSpiderRSSFlow(unittest.TestCase):
+
     def test_extract_and_save_end_to_end(self):
-        # Patch external feedparser and DB insert
+        '''
+        @brief Happy Path: End-to-end RSS extraction and DB save (mocked).
+        Mocks feedparser and DB insert, validates integration logic without tocar servicios reales.
+        '''
+        # Arrange
         fake_feed = mock.Mock()
         fake_feed.entries = [1]
         fake_feed.feed = {'title': 'IntFeed', 'link': 'https://site.example'}
@@ -41,6 +46,7 @@ class TestIntegrationSpiderRSSFlow(unittest.TestCase):
         async def fake_insert(conn, feed_data):
             return
 
+        # Act & Assert
         with mock.patch('app.services.scraping.spider_rss.feedparser.parse', return_value=fake_feed):
             with mock.patch('app.models.ttrss_postgre_db.insert_feed_to_db', side_effect=fake_insert):
                 pool = DummyPool()

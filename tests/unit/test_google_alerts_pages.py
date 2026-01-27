@@ -1,29 +1,57 @@
-import os
-from pathlib import Path
-import io
+
 import app.services.scraping.google_alerts_pages as gaps
 
-
-def test_clean_google_redirect_url():
+def test_clean_google_redirect_url_happy_path():
+    '''
+    @brief Happy Path: Extract real URL from Google redirect.
+    Verifies that a standard Google redirect URL is correctly cleaned.
+    '''
+    # Arrange
     src = "https://www.google.com/url?sa=t&url=https%3A%2F%2Fexample.com%2Fpage&usg=ABC"
+    # Act
     out = gaps.clean_google_redirect_url(src)
+    # Assert
     assert out == "https://example.com/page"
+
+def test_clean_google_redirect_url_no_url_param():
+    '''
+    @brief Edge Case: No 'url' param in query string.
+    Verifies that the original URL is returned if no 'url' param exists.
+    '''
+    # Arrange
+    src = "https://www.google.com/url?sa=t&usg=ABC"
+    # Act
+    out = gaps.clean_google_redirect_url(src)
+    # Assert
+    assert out == src
+
+def test_clean_google_redirect_url_empty():
+    '''
+    @brief Error Handling: Empty string input.
+    Verifies that an empty string returns an empty string.
+    '''
+    # Arrange
+    src = ""
+    # Act
+    out = gaps.clean_google_redirect_url(src)
+    # Assert
+    assert out == ""
+
 
 
 def test_fetch_and_save_alert_urls_dedupes(tmp_path, monkeypatch):
-    # prepare fake feeds file
+    '''
+    @brief Happy Path + Dedupe: Only new unique URLs are appended.
+    Simulates feeds and output files, mocks feedparser, and checks deduplication logic.
+    '''
+    # Arrange
     feeds_file = tmp_path / "feeds.txt"
     feeds_file.write_text("http://feed1.example/rss\n")
-
-    # prepare output urls file with an existing URL
     urls_file = tmp_path / "urls.txt"
     urls_file.write_text("https://existing.example/\n")
-
-    # monkeypatch module paths
     monkeypatch.setattr(gaps, "FEEDS_FILE_PATH", str(feeds_file))
     monkeypatch.setattr(gaps, "URLS_FILE_PATH", str(urls_file))
 
-    # fake feedparser.parse to return entries with duplicate links
     class FakeFeed:
         def __init__(self, entries):
             self.entries = entries
@@ -33,12 +61,11 @@ def test_fetch_and_save_alert_urls_dedupes(tmp_path, monkeypatch):
 
     monkeypatch.setattr(gaps, "feedparser", type("m", (), {"parse": staticmethod(fake_parse)})())
 
-    # run
+    # Act
     gaps.fetch_and_save_alert_urls()
 
-    # verify urls_file contains only the new unique url appended
+    # Assert
     content = urls_file.read_text().splitlines()
-    assert "https://existing.example/" in content
-    assert "https://new.example/" in content
-    # new.example only once
-    assert content.count("https://new.example/") == 1
+    assert "https://existing.example/" in content  # Existing URL remains
+    assert "https://new.example/" in content       # New URL added
+    assert content.count("https://new.example/") == 1  # No duplicates

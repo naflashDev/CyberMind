@@ -294,17 +294,26 @@ async def scan_range(cidr: Optional[str] = None,
                     try:
                         results, raw = await asyncio.to_thread(run_nmap_scan, host, ports, timeout_sec)
                     except FileNotFoundError:
-                        logger.warning("nmap not found; fallback TCP scan for host={}", host)
+                        if asyncio.iscoroutinefunction(getattr(logger, "warning", None)):
+                            await logger.warning("nmap not found; fallback TCP scan for host={}", host)
+                        else:
+                            logger.warning("nmap not found; fallback TCP scan for host={}", host)
                         results = await asyncio.to_thread(scan_ports, host, ports, timeout or 0.5)
                         raw = None
                     except subprocess.TimeoutExpired:
-                        logger.error("nmap timed out for host={}", host)
+                        if asyncio.iscoroutinefunction(getattr(logger, "error", None)):
+                            await logger.error("nmap timed out for host={}", host)
+                        else:
+                            logger.error("nmap timed out for host={}", host)
                         return {"host": host, "error": f"nmap timeout after {timeout_sec}s"}
                 else:
                     results = await asyncio.to_thread(scan_ports, host, ports, timeout or 0.5)
                     raw = None
             except Exception as e:
-                logger.exception("scan_host failed for {}: {}", host, e)
+                if asyncio.iscoroutinefunction(getattr(logger, "exception", None)):
+                    await logger.exception("scan_host failed for {}: {}", host, e)
+                else:
+                    logger.exception("scan_host failed for {}: {}", host, e)
                 return {"host": host, "error": str(e)}
             duration = time.monotonic() - start
             return {"host": host, "results": results, "raw": raw, "duration_seconds": round(duration, 2)}

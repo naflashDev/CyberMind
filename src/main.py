@@ -11,7 +11,13 @@ from PostgreSQL using asyncpg.
 
 import os
 from dotenv import load_dotenv
-load_dotenv()
+from pathlib import Path
+# Always prefer .env.test if present (test isolation)
+env_test = Path(__file__).parent.parent / ".env.test"
+if env_test.exists():
+    load_dotenv(dotenv_path=env_test)
+else:
+    load_dotenv()
 import asyncio
 import threading
 from contextlib import asynccontextmanager

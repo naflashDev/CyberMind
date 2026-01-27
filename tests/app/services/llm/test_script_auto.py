@@ -1,3 +1,17 @@
+"""
+@file test_script_auto.py
+@author naflashDev
+@brief Tests para script_auto.py (gestión de repositorios y procesamiento de archivos para LLM).
+@details Tests unitarios para gestión de repositorios, procesamiento de archivos y utilidades de transformación. Se mockean operaciones de E/S, git y multiprocessing.
+"""
+import os
+import json
+import tempfile
+import pytest
+from pathlib import Path
+from unittest.mock import patch, MagicMock
+from src.app.services.llm import script_auto
+
 def test_consolidate_json_stop_event(monkeypatch, tmp_path):
     d = tmp_path / "repo3"
     d.mkdir()
@@ -59,10 +73,12 @@ def test_consolidate_json_warning_partial(monkeypatch, tmp_path):
         assert mock_logger.warning.called
 def test_clone_repository_git_error(tmp_path):
     repo_dir = tmp_path / "repo3"
-    with patch("src.app.services.llm.script_auto.subprocess.check_call", side_effect=Exception("fail")), \
-         patch("src.app.services.llm.script_auto.logger") as mock_logger:
+        # Simula error en git sin ejecutar nada real
+    with patch("src.app.services.llm.script_auto.subprocess.check_call", side_effect=Exception("fail")) as mock_call, \
+            patch("src.app.services.llm.script_auto.logger") as mock_logger:
         with pytest.raises(Exception):
             script_auto.clone_repository("url", str(repo_dir))
+        mock_call.assert_called_once()  # Verifica que solo se simula
         assert mock_logger.error.called
 
 def test_update_repository_git_error(tmp_path):
@@ -113,19 +129,7 @@ def test_consolidate_json_error(monkeypatch, tmp_path):
         with pytest.raises(Exception):
             script_auto.consolidate_json(str(d), str(tmp_path / "out2.json"))
         assert mock_logger.error.called
-"""
-@file test_script_auto.py
-@author naflashDev
-@brief Tests para script_auto.py (gestión de repositorios y procesamiento de archivos para LLM).
-@details Tests unitarios para gestión de repositorios, procesamiento de archivos y utilidades de transformación. Se mockean operaciones de E/S, git y multiprocessing.
-"""
-import os
-import json
-import tempfile
-import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-from src.app.services.llm import script_auto
+
 
 def test_clone_repository_skips_if_exists(tmp_path):
     '''
@@ -133,20 +137,24 @@ def test_clone_repository_skips_if_exists(tmp_path):
     '''
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir()
-    with patch("src.app.services.llm.script_auto.logger") as mock_logger:
-        script_auto.clone_repository("url", str(repo_dir))
-        mock_logger.info.assert_any_call(f"Repository already exists at {repo_dir}, skipping clone.")
+        # Mock subprocess para asegurar que nunca se ejecuta git
+    with patch("src.app.services.llm.script_auto.subprocess.check_call") as mock_call, \
+        patch("src.app.services.llm.script_auto.logger") as mock_logger:
+            script_auto.clone_repository("url", str(repo_dir))
+            mock_call.assert_not_called()
+            mock_logger.info.assert_any_call(f"Repository already exists at {repo_dir}, skipping clone.")
 
 def test_clone_repository_runs_git_clone(tmp_path):
     '''
     @brief Should call git clone if directory does not exist.
     '''
     repo_dir = tmp_path / "repo2"
+        # Mock subprocess para simular git clone sin descargar
     with patch("src.app.services.llm.script_auto.subprocess.check_call") as mock_call, \
-         patch("src.app.services.llm.script_auto.logger") as mock_logger:
-        script_auto.clone_repository("url", str(repo_dir))
-        mock_call.assert_called_once()
-        assert mock_logger.success.called
+        patch("src.app.services.llm.script_auto.logger") as mock_logger:
+           script_auto.clone_repository("url", str(repo_dir))
+           mock_call.assert_called_once()
+           assert mock_logger.success.called
 
 def test_update_repository_skips_if_missing(tmp_path):
     '''
