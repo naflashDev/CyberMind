@@ -41,7 +41,13 @@ def test_coverage_html_exists(monkeypatch):
     # Ensure the file exists for this test
     monkeypatch.setattr(os.path, 'exists', lambda p: True)
     fake_html = '<html><head><title>Coverage report</title></head><body>Coverage report</body></html>'
-    monkeypatch.setattr('builtins.open', lambda *a, **k: type('F', (), {'__enter__': lambda s: s, '__exit__': lambda s, *a: None, 'read': lambda s: fake_html})())
+    import builtins
+    from unittest.mock import mock_open, patch
+    m = mock_open(read_data=fake_html)
+    # El mock debe aceptar el argumento encoding
+    def open_mock(file, mode='r', *args, **kwargs):
+        return m(file, mode, *args, **kwargs)
+    monkeypatch.setattr(builtins, 'open', open_mock)
     response = client.get('/coverage/html')
     assert response.status_code == 200
     assert 'text/html' in response.headers['content-type']

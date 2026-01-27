@@ -23,6 +23,24 @@ def test_feeds_endpoint(monkeypatch):
         'app.controllers.routes.tiny_postgres_controller.get_feeds_from_db',
         mock.AsyncMock(return_value=[mock.Mock(id=1, title='t', feed_url='u', site_url='s', owner_uid=1, cat_id=0)])
     )
+    # Mock app.state.pool to avoid real DB connection if accessed
+    class FakeConn:
+        async def fetch(self, *args, **kwargs):
+            return []
+        async def fetchrow(self, *args, **kwargs):
+            return None
+
+    class FakeAcquire:
+        async def __aenter__(self):
+            return FakeConn()
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+    class FakePool:
+        def acquire(self):
+            return FakeAcquire()
+    app.state.pool = FakePool()
+
     # The endpoint may return 200 (success), 404 (no feeds), or 503 (DB pool error)
     resp = client.get('/postgre-ttrss/feeds')
     assert resp.status_code in (200, 404, 503)

@@ -1,4 +1,9 @@
-
+"""
+            @file test_google_alerts_pages.py
+            @author naflashDev
+            @brief Tests for google_alerts_pages module.
+            @details Este archivo contiene pruebas unitarias para las funciones del módulo google_alerts_pages, cubriendo casos de extracción y deduplicación de URLs en el contexto de feeds de Google Alerts.
+"""
 import app.services.scraping.google_alerts_pages as gaps
 
 def test_clean_google_redirect_url_happy_path():
@@ -54,6 +59,7 @@ def test_fetch_and_save_alert_urls_dedupes(tmp_path, monkeypatch):
 
     class FakeFeed:
         def __init__(self, entries):
+           
             self.entries = entries
 
     def fake_parse(url):
