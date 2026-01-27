@@ -110,7 +110,7 @@ def test_list_feeds_db_error(monkeypatch):
     assert "Error retrieving feeds" in resp.text
 """
 @file test_tiny_postgres_controller.py
-@author GitHub Copilot
+@author naflashDev
 @brief Tests for tiny_postgres_controller.py
 @details Unit and integration tests for endpoints and error cases. External dependencies are mocked.
 """

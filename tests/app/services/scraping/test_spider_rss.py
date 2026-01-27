@@ -1,6 +1,6 @@
 """
 @file test_spider_rss.py
-@author GitHub Copilot
+@author naflashDev
 @brief Unit tests for spider_rss.py
 @details Tests for reading URLs and spider creation (mocks, no real Scrapy or multiprocessing).
 """

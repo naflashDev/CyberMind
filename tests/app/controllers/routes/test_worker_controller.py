@@ -1,6 +1,6 @@
 """
 @file test_worker_controller.py
-@author GitHub Copilot
+@author naflashDev
 @brief Tests for worker_controller.py
 @details Unit and integration tests for endpoints and background logic. External dependencies and async calls are mocked.
 """

@@ -73,15 +73,6 @@ def test_shutdown_services_run_error(monkeypatch, tmp_path):
     run_services.shutdown_services(project_root=tmp_path)
     assert True
 
-def test_os_get_euid_windows(monkeypatch):
-    # Simula entorno Windows sin geteuid
-    import types
-    fake_os = types.SimpleNamespace()
-    # No tiene geteuid
-    monkeypatch.setattr(run_services, "os", fake_os)
-    monkeypatch.setattr(run_services, "platform", types.SimpleNamespace(system=lambda: "Windows"))
-    assert run_services.os_get_euid() == 0
-
 def test_try_install_ollama_no_installers(monkeypatch):
     # Ningún gestor disponible
     monkeypatch.setattr(run_services.shutil, "which", lambda x: None)

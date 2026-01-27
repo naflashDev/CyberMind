@@ -132,7 +132,7 @@ def test_ui_index(monkeypatch):
         assert r.status_code == 200 or r.status_code == 404
 """
 @file test_main.py
-@author GitHub Copilot
+@author naflashDev
 @brief Tests for main.py
 @details Unit and integration tests for FastAPI app, endpoints, and background tasks. External dependencies and async calls are mocked.
 """

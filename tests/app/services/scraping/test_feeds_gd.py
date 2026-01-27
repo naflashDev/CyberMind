@@ -1,6 +1,6 @@
 """
 @file test_feeds_gd.py
-@author GitHub Copilot
+@author naflashDev
 @brief Unit tests for feeds_gd.py
 @details Tests for async search and file writing (mocks, no real Google search).
 """

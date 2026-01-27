@@ -1,6 +1,6 @@
 """
 @file test_ttrss_postgre_db.py
-@author GitHub Copilot
+@author naflashDev
 @brief Unit tests for ttrss_postgre_db.py
 @details Tests for feed retrieval, insertion, and entry marking (mocks, no real DB).
 """

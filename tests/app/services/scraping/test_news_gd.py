@@ -1,6 +1,6 @@
 """
 @file test_news_gd.py
-@author GitHub Copilot
+@author naflashDev
 @brief Unit tests for news_gd.py
 @details Tests for news extraction, relevance, and file operations (mocks, no real HTTP or Google search).
 """
