@@ -37,7 +37,8 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
 
 
 ## 📊 Cobertura
-
+<details>
+<summary><b>📊 Ver endpoints de cobertura</b></summary>
 ### GET /coverage/html
 
 - Devuelve el informe HTML de cobertura generado por coverage.py, integrando el CSS global de la UI.
@@ -66,6 +67,7 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
     </tr>
   </tbody>
 </table>
+</details>
 
 ---
 
@@ -286,10 +288,17 @@ Cada subsección expande su listado de operaciones (botones) que ejecutan llamad
 </details>
 
 ---
+
 ## 🌐 **Network (`/network`)**
 
 <details>
 <summary><b>🔎 Endpoints de escaneo y análisis de red</b></summary>
+
+---
+
+> ⚠️ **Requisito para escaneo de red:** Para obtener todas las capacidades de análisis de red (detección de servicios, estados de puertos, fingerprinting), es imprescindible tener instalado **nmap** en el sistema operativo. Si nmap no está presente, CyberMind usará un método alternativo con menor nivel de detalle.
+
+> 👉 Puedes descargar **nmap** desde su sitio oficial: [https://nmap.org/download.html](https://nmap.org/download.html)
 
 <ul>
 <li><b>POST /network/scan</b> — Escanea puertos TCP del host indicado y devuelve una lista de puertos con indicador <code>open</code> y una etiqueta heurística de servicio.<br>

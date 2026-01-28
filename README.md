@@ -6,6 +6,7 @@
 
 ---
 
+
 <div align="center">
     <img src="Docs/images/CyberMindLogo-DEF.png" alt="Logo CyberMind" width="220"/>
 </div>

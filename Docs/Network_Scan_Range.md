@@ -5,6 +5,10 @@ Guía de uso del endpoint `POST /network/scan_range` y su integración en la UI.
 
 ---
 
+> ⚠️ **Nota importante:** Para disponer de la funcionalidad completa de escaneo de red (detección avanzada de servicios y estados de puertos), es necesario tener instalado **nmap** en el sistema. Si nmap no está disponible, la API utilizará un método alternativo (TCP fallback) con capacidades limitadas.
+
+> 👉 Puedes descargar **nmap** desde su sitio oficial: [https://nmap.org/download.html](https://nmap.org/download.html)
+
 ## 📝 Descripción
 
 Escanea un bloque **CIDR** o un rango `start`/`end` y devuelve, por host, la lista de puertos analizados con estados y metadatos.
