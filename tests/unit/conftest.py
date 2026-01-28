@@ -27,6 +27,9 @@ def manage_env_file():
             if os.path.exists(ENV_PATH):
                 os.remove(ENV_PATH)
             break
+        except FileNotFoundError:
+            # File already deleted, nothing to do
+            break
         except PermissionError:
             time.sleep(0.5)
     else:

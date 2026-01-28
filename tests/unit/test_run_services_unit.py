@@ -26,10 +26,24 @@ def test_wsl_docker_is_running_false(monkeypatch):
 def test_detect_host_os(monkeypatch):
     """
     Happy Path: Returns platform and version.
+    Test is robust to run both in Windows and Linux CI runners.
     """
+    # Simulate Windows
     monkeypatch.setattr(run_services.platform, "system", lambda: "Windows")
-    monkeypatch.setattr(run_services.platform, "release", lambda: "10.0.26200")
+    monkeypatch.setattr(run_services.platform, "version", lambda: "10.0.26200")
     assert run_services.detect_host_os() == ("Windows", "10.0.26200")
+
+    # Simulate Linux with PRETTY_NAME
+    monkeypatch.setattr(run_services.platform, "system", lambda: "Linux")
+    # Simular que /etc/os-release no existe, así que distro será None
+    from pathlib import Path
+    monkeypatch.setattr(Path, "exists", lambda self: False)
+    assert run_services.detect_host_os() == ("Linux", None)
+
+    # Simulate Darwin
+    monkeypatch.setattr(run_services.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(run_services.platform, "mac_ver", lambda: ("12.6.1", ("", "", ""), ""))
+    assert run_services.detect_host_os() == ("Darwin", "12.6.1")
 
 def test_is_docker_available(monkeypatch):
     """
