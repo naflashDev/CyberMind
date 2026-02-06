@@ -133,9 +133,10 @@ async def scrape_news_articles(request: Request) -> dict[str, str]:
         return {"status": "News processing started"}
     except Exception as e:
         logger.error(f"Scraping failed: {e}")
+        # Generic error message for UI, no internal details
         raise HTTPException(
             status_code=500,
-            detail=f"Scraping failed: {str(e)}"
+            detail="Ha ocurrido un error interno. Por favor, contacte con el administrador."
         )
 
 
@@ -322,9 +323,8 @@ def background_scraping_feeds(loop: asyncio.AbstractEventLoop, stop_event=None, 
                     logger.error(f"[Scraper] run_dork_search_feed raised: {exc}")
                 else:
                     logger.success("[Scraper] Google Dorking tasks completed.")
-            except Exception as _e:
-                logger.error(f"[Scraper] Error inspecting future: {_e}")
-
+            except Exception as e:
+                logger.error(f"[Scraper] Error inspecting future in _on_done: {e}")
         try:
             future.add_done_callback(_on_done)
         except Exception:

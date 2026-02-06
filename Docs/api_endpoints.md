@@ -1,4 +1,8 @@
 # 🚀 **Endpoints de la API CyberMind**
+
+> ⚠️ **Seguridad en manejo de errores:**
+>
+> Todos los endpoints de la API devuelven, en caso de error, un mensaje genérico: "Ha ocurrido un error interno. Por favor, contacte con el administrador." Nunca se exponen detalles internos ni información sensible en las respuestas de error. Los detalles completos solo quedan registrados en los logs del backend. Esta política cumple las normas de seguridad definidas en `AGENTS.md`.
 <div align="center">
   <img src="https://img.shields.io/badge/API-RESTful-009688?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Seguridad-By%20Design-4ECDC4?style=for-the-badge" />
@@ -85,26 +89,18 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
       <th>Ruta</th>
       <th>Descripción</th>
       <th>Body/Parámetros</th>
-      <th>Respuesta</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td><b>POST</b></td>
-      <td><code>/newsSpider/save-feed-google-alerts</code></td>
-      <td>Añade y valida un feed RSS</td>
       <td><code>{ "feed_url": "https://..." }</code></td>
       <td><code>SaveLinkResponse</code> (título y link)</td>
-    </tr>
-    <tr>
       <td><b>GET</b></td>
       <td><code>/newsSpider/scrape-news</code></td>
-      <td>Lanza scraping de noticias (background)</td>
       <td>—</td>
       <td>—</td>
-    </tr>
     <tr>
-      <td><b>GET</b></td>
       <td><code>/newsSpider/start-google-alerts</code></td>
       <td>Inicia el programador periódico para feeds de <code>data/google_alert_rss.txt</code></td>
       <td>—</td>
@@ -117,20 +113,20 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
       <td>—</td>
       <td>—</td>
     </tr>
-    <tr>
       <td><b>GET</b></td>
       <td><code>/newsSpider/scrapy/google-dk/news</code></td>
       <td>Scraping de noticias con Google Dorking (cada 24h)</td>
       <td>—</td>
       <td>—</td>
     </tr>
-  </tbody>
-</table>
 
 <blockquote>
 <b>Ejemplo de uso (curl):</b>
 
 <pre><code>curl -X POST http://127.0.0.1:8000/newsSpider/save-feed-google-alerts -H "Content-Type: application/json" -d '{"feed_url":"https://example.com/rss"}'
+</code></pre>
+
+<pre><code>curl -X POST http://127.0.0.1:8000/hashed/unhash -H "Content-Type: application/json" -d '{"hashed_value":"...","algorithm":"SHA256"}'
 </code></pre>
 </blockquote>
 
@@ -138,7 +134,24 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
 
 ---
 
+### Actualización: creación automática de tablas de hashes
+A partir del 06/02/2026, la creación de las tablas de hashes (MD5, SHA256, SHA512) en SQLite es automática al arrancar la aplicación. No es necesario ejecutar scripts manuales para inicializar la base de datos.
 
+**¿Cómo funciona?**
+- Al iniciar el backend, se ejecuta automáticamente la creación de las tablas si no existen.
+- Esto garantiza que la API siempre pueda operar sobre la base de datos de hashes sin pasos manuales.
+
+**Impacto:**
+- Mejora la robustez y despliegue automático.
+- Elimina el riesgo de errores por ausencia de tablas.
+
+**Archivo afectado:**
+- src/main.py
+
+**Script eliminado:**
+- create_hash_tables.py
+
+---
 
 ## 📰 **TinyRSS/Postgres** <code>(/postgre-ttrss)</code>
 

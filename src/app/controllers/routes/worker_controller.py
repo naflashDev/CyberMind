@@ -177,9 +177,9 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
             except Exception as e:
                 logger.error(f"[dynamic_spider] Failed to create DB pool: {e}")
                 request.app.state.worker_status[name] = False
-                # Feedback explícito para la UI y logs
                 from fastapi import Response
-                return Response(status_code=503, content="DB pool not available: {}".format(e))
+                # Generic error message for UI, no internal details
+                return Response(status_code=503, content="Ha ocurrido un error interno. Por favor, contacte con el administrador.")
         try:
             # pass stop_event and register callback so UI can control the process
             # Para evitar RuntimeWarning en tests y ejecución, comprobamos si la corutina es awaitable y si hay event loop
@@ -196,7 +196,8 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
         except Exception as e:
             logger.error(f"[dynamic_spider] Failed to launch worker: {e}")
             request.app.state.worker_status[name] = False
-            return {"message": "Worker dynamic_spider not enabled: error launching worker.", "error": str(e)}
+            # Generic error message for UI, no internal details
+            return {"message": "Ha ocurrido un error interno. Por favor, contacte con el administrador."}
     else:
         raise HTTPException(status_code=400, detail="Unsupported worker")
 

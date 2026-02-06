@@ -446,6 +446,16 @@ document.addEventListener('DOMContentLoaded', function () {
     const API_BASE = window.__CYBERMIND_API_BASE__ || "http://127.0.0.1:8000";
 
     const controllers = {
+            "Hashed": [
+              { id: "hash-phrase", title: "Hashear frase", method: "POST", path: "/hashed/hash", params: [
+                {name: "phrase", type: "text", placeholder: "Texto a hashear"},
+                {name: "algorithm", type: "enum", options: ["MD5", "SHA256", "SHA512"], default: "SHA256", label: "Algoritmo"}
+              ], desc: "Genera el hash de una frase usando el algoritmo seleccionado (MD5, SHA256, SHA512)." },
+              { id: "unhash-phrase", title: "Deshashear (buscar original)", method: "POST", path: "/hashed/unhash", params: [
+                {name: "hashed_value", type: "text", placeholder: "Hash a buscar"},
+                {name: "algorithm", type: "enum", options: ["MD5", "SHA256", "SHA512"], default: "SHA256", label: "Algoritmo"}
+              ], desc: "Busca la frase original a partir de un hash y algoritmo (si está almacenada)." }
+            ],
       "Scrapy": [
         { id: "scrape-news", title: "Scrape News", method: "GET", path: "/newsSpider/scrape-news", params: [], desc: "Extrae noticias desde las fuentes configuradas y las normaliza." },
         { id: "start-google-alerts", title: "Start Google Alerts", method: "GET", path: "/newsSpider/start-google-alerts", params: [], desc: "Inicia la recolección de alertas de Google configuradas." },
@@ -621,7 +631,70 @@ document.addEventListener('DOMContentLoaded', function () {
       const form = document.createElement("form");
       form.onsubmit = async (e) => { e.preventDefault(); await submitOperation(op, new FormData(form)); };
 
-      if (op.path === "/status") {
+      // Render custom fields for Hashed endpoints (no duplicated text boxes, improved style)
+      if (op.id === "hash-phrase" || op.id === "unhash-phrase") {
+        // Only render the custom fields, skip default param rendering
+        const rendered = new Set();
+        op.params.forEach(param => {
+          if (rendered.has(param.name)) return;
+          rendered.add(param.name);
+          const row = document.createElement('div');
+          row.style.display = 'flex';
+          row.style.alignItems = 'center';
+          row.style.gap = '12px';
+          row.style.marginBottom = '14px';
+          row.style.background = '#f3f4f6';
+          row.style.borderRadius = '6px';
+          row.style.padding = '8px 12px';
+          const label = document.createElement('label');
+          label.textContent = param.label || param.name;
+          label.style.fontWeight = '600';
+          label.style.minWidth = '90px';
+          label.style.margin = '0 8px 0 0';
+          row.appendChild(label);
+          if (param.type === 'enum') {
+            const select = document.createElement('select');
+            select.name = param.name;
+            select.style.padding = '6px 10px';
+            select.style.borderRadius = '4px';
+            select.style.border = '1px solid #cbd5e1';
+            param.options.forEach(opt => {
+              const option = document.createElement('option');
+              option.value = opt;
+              option.textContent = opt;
+              if (param.default && param.default === opt) option.selected = true;
+              select.appendChild(option);
+            });
+            row.appendChild(select);
+          } else {
+            const input = document.createElement('input');
+            input.type = param.type || 'text';
+            input.name = param.name;
+            input.placeholder = param.placeholder || '';
+            input.required = true;
+            input.style.flex = '1';
+            input.style.padding = '6px 10px';
+            input.style.borderRadius = '4px';
+            input.style.border = '1px solid #cbd5e1';
+            row.appendChild(input);
+          }
+          form.appendChild(row);
+        });
+        // Only custom fields, do not render anything else for these endpoints
+        const submit = document.createElement("button");
+        submit.textContent = "Ejecutar";
+        submit.type = "submit";
+        submit.className = "exec-btn";
+        submit.style.padding = "8px 12px";
+        submit.style.background = "#2563eb";
+        submit.style.color = "#fff";
+        submit.style.border = "none";
+        submit.style.borderRadius = "6px";
+        submit.style.cursor = "pointer";
+        form.appendChild(submit);
+        opForm.appendChild(form);
+        return;
+      } else if (op.path === "/status") {
         const panel = document.createElement('div');
         panel.style.display = 'flex'; panel.style.flexDirection = 'column'; panel.style.gap = '8px';
         const row = document.createElement('div'); row.style.display = 'flex'; row.style.alignItems = 'center'; row.style.gap = '8px';

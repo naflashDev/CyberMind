@@ -29,6 +29,7 @@ def list_docs_files():
         files = [f for f in os.listdir(DOCS_DIR) if os.path.isfile(os.path.join(DOCS_DIR, f)) and f.endswith('.md')]
         return files
     except Exception as e:
+        # No sensitive info to UI; return empty list
         return []
 
 

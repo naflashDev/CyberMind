@@ -165,7 +165,8 @@ def test_toggle_worker_dynamic_spider_pool_fail(monkeypatch):
     client = TestClient(app)
     resp = client.post("/workers/dynamic_spider", json={"enabled": True})
     assert resp.status_code == 503
-    assert "DB pool not available" in resp.text
+    # Security policy: error message must be genérico
+    assert "Ha ocurrido un error interno. Por favor, contacte con el administrador." in resp.text
 
 
 app = FastAPI()

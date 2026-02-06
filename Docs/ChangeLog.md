@@ -1,4 +1,17 @@
+## [2026-02-06]
+### Added
+- El servicio de hash ahora calcula el hash, lo muestra al usuario y lo almacena en la base de datos solo si no existe ya guardado. El endpoint es idempotente y nunca genera duplicados.
+- Actualizada la documentación de endpoints (`Docs/api_endpoints.md`) para reflejar el nuevo comportamiento del servicio hash.
+### Fixed
+- Tests unitarios, integración y cobertura verificados tras el cambio en el servicio hash.
+### Security
+- El nuevo flujo evita duplicidad de hashes y refuerza la integridad de la base de datos.
 ## [Unreleased]
+### Security
+- Todos los endpoints de los controladores han sido actualizados para que, en caso de error, devuelvan siempre un mensaje genérico a la UI: "Ha ocurrido un error interno. Por favor, contacte con el administrador.". Nunca se exponen detalles internos ni información sensible en los mensajes de error enviados al cliente. Los detalles completos solo quedan registrados en los logs del backend. Cumple la política de seguridad definida en `AGENTS.md`.
+
+### Fixed
+- Unificado el manejo de errores en todos los controllers para evitar la filtración de información interna o sensible a través de los mensajes de error de la API. Se han adaptado los tests afectados para reflejar el nuevo comportamiento.
 ### Fixed
  - Corregido error de PermissionError en el fixture de tests unitarios (`conftest.py`) usando reintentos y manejo seguro de archivos en Windows.
  - Solucionados los RuntimeWarning de corutinas no awaitadas en los módulos de scraping (`feeds_gd.py`) y análisis de red (`network_analysis.py`), asegurando que los métodos logger.* se awaitan correctamente cuando son AsyncMock en tests.
@@ -11,7 +24,10 @@
 - Se ha actualizado la documentación de endpoints (`Docs/api_endpoints.md`) para indicar que el worker LLM Updater clona el repositorio oficial de CVE y utiliza esos datos para generar el archivo JSON de finetuning.
 - Refactorización y alineación de los tests de los módulos de utilidades (worker_control, utils, run_services) según las normas de estructura, imports y buenas prácticas. Todos los tests temporales se generan dentro de la carpeta de tests.
 ### Changed
+
 ### Added
+- Se ha añadido la sección "Hashed" en la UI (Swagger/FastAPI) con endpoints para hashear y deshashear frases, permitiendo seleccionar el algoritmo (MD5, SHA256, SHA512) desde la interfaz.
+- Documentados los endpoints `/hashed/hash` y `/hashed/unhash` en `Docs/api_endpoints.md`, incluyendo ejemplos de uso y parámetros.
 
 - Aislamiento completo del entorno de tests mediante `.env.test`:
     - Los tests nunca leen ni modifican el `.env` de desarrollo.

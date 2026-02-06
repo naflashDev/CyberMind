@@ -29,7 +29,9 @@ class HashService:
 
     def hash_phrase(self, phrase: str, algorithm: HashAlgorithm) -> str:
         '''
-        @brief Hash a phrase and store it in the database.
+        @brief Hash a phrase, show it to the user, and store it in the database only if not already present.
+
+        Calculates the hash, checks if it exists in the DB, stores it if not, and returns the hash.
 
         @param phrase The phrase to hash.
         @param algorithm The hash algorithm to use.
@@ -44,8 +46,13 @@ class HashService:
             hashed = hashlib.sha512(phrase.encode()).hexdigest()
         else:
             raise ValueError("Unsupported algorithm")
-        # Store in DB
-        self.repo.save_hash(phrase, hashed, algorithm)
+
+        # Check if hash already exists in DB
+        existing = self.repo.get_original_by_hash(hashed, algorithm)
+        if existing is None:
+            # Store in DB only if not present
+            self.repo.save_hash(phrase, hashed, algorithm)
+        # Return hash to user
         return hashed
 
     def unhash(self, hashed_value: str, algorithm: HashAlgorithm) -> Optional[str]:

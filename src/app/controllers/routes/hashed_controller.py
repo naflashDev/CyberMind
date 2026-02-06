@@ -1,3 +1,4 @@
+__all__ = ["router"]
 """
 @file hashed_controller.py
 @author naflashDev
@@ -39,7 +40,8 @@ def hash_phrase(request: HashRequest, db: Session = Depends(get_db)):
         hashed = service.hash_phrase(request.phrase, HashAlgorithm(request.algorithm))
         return {"hashed_value": hashed}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Generic error message for UI, no internal details
+        raise HTTPException(status_code=400, detail="Ha ocurrido un error interno. Por favor, contacte con el administrador.")
 
 @router.post("/unhash", response_model=UnhashResponse)
 def unhash_phrase(request: UnhashRequest, db: Session = Depends(get_db)):

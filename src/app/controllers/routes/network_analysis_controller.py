@@ -142,7 +142,8 @@ async def scan(req: ScanRequest):
         raise
     except Exception as e:
         logger.exception("scan failed for host={}: {}", req.host, e)
-        raise HTTPException(status_code=500, detail=f"scan failed: {e}")
+        # Generic error message for UI, no internal details
+        raise HTTPException(status_code=500, detail="Ha ocurrido un error interno. Por favor, contacte con el administrador.")
 
     resp = {"host": req.host, "results": results, "raw": raw}
     try:
@@ -181,7 +182,8 @@ async def scan_range(req: RangeScanRequest, request: Request):
         raise
     except Exception as e:
         logger.exception("scan_range failed: {}", e)
-        raise HTTPException(status_code=500, detail=f"scan failed: {e}")
+        # Generic error message for UI, no internal details
+        raise HTTPException(status_code=500, detail="Ha ocurrido un error interno. Por favor, contacte con el administrador.")
 
     return result
 

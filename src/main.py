@@ -18,10 +18,11 @@ if env_test.exists():
     load_dotenv(dotenv_path=env_test)
 else:
     load_dotenv()
+
 import asyncio
 import threading
 from contextlib import asynccontextmanager
-from pathlib import Path 
+from pathlib import Path
 
 import asyncpg
 import uvicorn
@@ -43,10 +44,10 @@ from app.controllers.routes import (
     worker_controller,
     network_analysis_controller,
     docs_controller,
-    coverage_controller,
-    config_controller,
-    hashed_controller
+    coverage_controller
 )
+from app.controllers.routes.hashed_controller import router as hashed_router
+from app.controllers.routes.config_controller import router as config_controller_router
 from app.utils.worker_control import load_worker_settings, save_worker_settings
 from app.controllers.routes.scrapy_news_controller import (
     recurring_google_alert_scraper,
@@ -81,6 +82,15 @@ async def lifespan(app: FastAPI):
     On shutdown, it:
     - Closes the PostgreSQL connection pool
     """
+
+    # --- DB hash tables auto-creation (SQLite) ---
+    try:
+        from app.models.db import Base, engine
+        from app.models.hash_models import MD5Hash, SHA256Hash, SHA512Hash
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        logger.warning(f"[Startup] Could not auto-create hash tables: {e}")
+
     # --- cfg_services.ini config file recreation logic ---
     parameters: tuple = (
         'Ubuntu',
@@ -447,9 +457,9 @@ app.include_router(status_controller.router)
 app.include_router(worker_controller.router)
 app.include_router(network_analysis_controller.router)
 app.include_router(docs_controller.router)
-app.include_router(config_controller)
+app.include_router(config_controller_router)
 app.include_router(coverage_controller.router)
-app.include_router(hashed_controller.hashed_router)
+app.include_router(hashed_router)
 
 # Serve UI static files (simple single-file UI under app/ui/static)
 STATIC_DIR = Path(__file__).resolve().parent / "app" / "ui" / "static"

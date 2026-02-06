@@ -107,7 +107,7 @@ def test_list_feeds_db_error(monkeypatch):
     client = TestClient(app)
     resp = client.get("/postgre-ttrss/feeds?limit=1")
     assert resp.status_code == 500
-    assert "Error retrieving feeds" in resp.text
+    assert "Ha ocurrido un error interno. Por favor, contacte con el administrador." in resp.text
 """
 @file test_tiny_postgres_controller.py
 @author naflashDev
