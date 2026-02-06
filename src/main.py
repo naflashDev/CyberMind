@@ -43,7 +43,9 @@ from app.controllers.routes import (
     worker_controller,
     network_analysis_controller,
     docs_controller,
-    coverage_controller
+    coverage_controller,
+    config_controller,
+    hashed_controller
 )
 from app.utils.worker_control import load_worker_settings, save_worker_settings
 from app.controllers.routes.scrapy_news_controller import (
@@ -435,8 +437,8 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
-# Register route modules
-from app.controllers.routes.config_controller import router as config_controller
+
+
 app.include_router(scrapy_news_controller.router)
 app.include_router(spacy_controller.router)
 app.include_router(tiny_postgres_controller.router)
@@ -447,6 +449,7 @@ app.include_router(network_analysis_controller.router)
 app.include_router(docs_controller.router)
 app.include_router(config_controller)
 app.include_router(coverage_controller.router)
+app.include_router(hashed_controller.hashed_router)
 
 # Serve UI static files (simple single-file UI under app/ui/static)
 STATIC_DIR = Path(__file__).resolve().parent / "app" / "ui" / "static"

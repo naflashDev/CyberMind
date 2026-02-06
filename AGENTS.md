@@ -295,12 +295,22 @@ GitHub Copilot **NO DEBE**:
 
 ## ✅ Cumplimiento y autoridad
 
-Este archivo es la **fuente de verdad** para el comportamiento del agente de IA y el desarrollo del proyecto.
+[Este archivo es la **fuente de verdad** para el comportamiento del agente de IA y el desarrollo del proyecto.
+
+## 🚀 Normas de ramas y Pull Requests
+
+- **Toda funcionalidad nueva** debe desarrollarse en una rama llamada:
+  
+  `feature:<nombre_de_la_funcion>`
+
+- Para incorporar la funcionalidad a la rama `main`, **es obligatorio** generar una Pull Request.
+  - La Pull Request debe incluir la descripción técnica de la funcionalidad, los tests asociados y la documentación actualizada.
+  - No se permite el merge directo a `main`.
 
 Cualquier cambio que no cumpla estas normas:
 - Debe ser rechazado
 - Debe corregirse antes de ser aceptado
-
+]
 ---
 
 ## 📎 Notas finales
