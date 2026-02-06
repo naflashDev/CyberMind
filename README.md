@@ -179,12 +179,6 @@ CyberMind/
 │   ├── unit/
 │   ├── utils/
 │   └── ...
-├── tools/
-│   ├── audit_fstrings.py
-│   ├── scan_injection.py
-│   ├── outputs/
-│   ├── scripts/
-│   └── ...
 └── env/
     ├── Scripts/
     ├── Lib/
@@ -206,7 +200,6 @@ CyberMind/
 | src/app/                | Módulos de la aplicación: controladores, servicios, UI, utilidades              |
 | src/data/               | Datos, feeds, resultados de scraping y procesamiento                             |
 | tests/                  | Pruebas unitarias, de integración y de servicios                                |
-| tools/                  | Scripts y utilidades para auditoría, análisis y automatización                   |
 | env/                    | Entorno virtual Python para aislar dependencias                                 |
 
 ---

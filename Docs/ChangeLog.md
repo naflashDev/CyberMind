@@ -277,7 +277,6 @@ Files modificados:
 ### 2026-01-16
 
 - Añadido: Auditoría inicial y tests de seguridad mínimos.
-	- Archivo agregado: `tools/audit_fstrings.py` — genera `Docs/fstrings_audit.md`.
 	- Test agregado: `tests/services/test_run_services_minimal.py` — comprobación simple de invocación de subprocess sin shell.
 
 **Seguridad**: Se aplicaron correcciones en local al manejo de ejecución de comandos (sin `shell=True`) y se añadieron herramientas para auditar `f-strings`. Revisar y parchear manualmente las interpolaciones detectadas.
