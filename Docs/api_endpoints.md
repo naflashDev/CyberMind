@@ -1,8 +1,5 @@
-# 🚀 **Endpoints de la API CyberMind**
 
-> ⚠️ **Seguridad en manejo de errores:**
->
-> Todos los endpoints de la API devuelven, en caso de error, un mensaje genérico: "Ha ocurrido un error interno. Por favor, contacte con el administrador." Nunca se exponen detalles internos ni información sensible en las respuestas de error. Los detalles completos solo quedan registrados en los logs del backend. Esta política cumple las normas de seguridad definidas en `AGENTS.md`.
+# 🚀 **Endpoints de la API CyberMind**
 <div align="center">
   <img src="https://img.shields.io/badge/API-RESTful-009688?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Seguridad-By%20Design-4ECDC4?style=for-the-badge" />
@@ -89,18 +86,26 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
       <th>Ruta</th>
       <th>Descripción</th>
       <th>Body/Parámetros</th>
+      <th>Respuesta</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td><b>POST</b></td>
+      <td><code>/newsSpider/save-feed-google-alerts</code></td>
+      <td>Añade y valida un feed RSS</td>
       <td><code>{ "feed_url": "https://..." }</code></td>
       <td><code>SaveLinkResponse</code> (título y link)</td>
+    </tr>
+    <tr>
       <td><b>GET</b></td>
       <td><code>/newsSpider/scrape-news</code></td>
+      <td>Lanza scraping de noticias (background)</td>
       <td>—</td>
       <td>—</td>
+    </tr>
     <tr>
+      <td><b>GET</b></td>
       <td><code>/newsSpider/start-google-alerts</code></td>
       <td>Inicia el programador periódico para feeds de <code>data/google_alert_rss.txt</code></td>
       <td>—</td>
@@ -113,20 +118,20 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
       <td>—</td>
       <td>—</td>
     </tr>
+    <tr>
       <td><b>GET</b></td>
       <td><code>/newsSpider/scrapy/google-dk/news</code></td>
       <td>Scraping de noticias con Google Dorking (cada 24h)</td>
       <td>—</td>
       <td>—</td>
     </tr>
+  </tbody>
+</table>
 
 <blockquote>
 <b>Ejemplo de uso (curl):</b>
 
 <pre><code>curl -X POST http://127.0.0.1:8000/newsSpider/save-feed-google-alerts -H "Content-Type: application/json" -d '{"feed_url":"https://example.com/rss"}'
-</code></pre>
-
-<pre><code>curl -X POST http://127.0.0.1:8000/hashed/unhash -H "Content-Type: application/json" -d '{"hashed_value":"...","algorithm":"SHA256"}'
 </code></pre>
 </blockquote>
 
@@ -134,24 +139,7 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
 
 ---
 
-### Actualización: creación automática de tablas de hashes
-A partir del 06/02/2026, la creación de las tablas de hashes (MD5, SHA256, SHA512) en SQLite es automática al arrancar la aplicación. No es necesario ejecutar scripts manuales para inicializar la base de datos.
 
-**¿Cómo funciona?**
-- Al iniciar el backend, se ejecuta automáticamente la creación de las tablas si no existen.
-- Esto garantiza que la API siempre pueda operar sobre la base de datos de hashes sin pasos manuales.
-
-**Impacto:**
-- Mejora la robustez y despliegue automático.
-- Elimina el riesgo de errores por ausencia de tablas.
-
-**Archivo afectado:**
-- src/main.py
-
-**Script eliminado:**
-- create_hash_tables.py
-
----
 
 ## 📰 **TinyRSS/Postgres** <code>(/postgre-ttrss)</code>
 
@@ -396,6 +384,66 @@ curl -X POST http://127.0.0.1:8000/network/scan_range \
 > **Solución:** Verifica siempre que el archivo `.env` esté presente y contenga los valores correctos antes de activar estos workers. Si usas tests automatizados, asegúrate de restaurar `.env` tras la ejecución.
 
 <details>
+<summary><b>🟤 Hashing (`/hashed`)</b></summary>
+
+El servicio de hashing permite calcular, almacenar y consultar hashes de diferentes tipos de datos para tareas de verificación, deduplicación y trazabilidad en procesos de ciberseguridad.
+
+### Endpoints disponibles
+
+<table>
+  <thead>
+    <tr>
+      <th>Método</th>
+      <th>Ruta</th>
+      <th>Descripción</th>
+      <th>Body/Parámetros</th>
+      <th>Respuesta</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/hashed/calculate</code></td>
+      <td>Calcula el hash de un texto o archivo usando el algoritmo especificado (por defecto SHA-256).</td>
+      <td><code>{ "data": "texto o base64", "algorithm": "sha256|md5|..." }</code></td>
+      <td><code>{ "hash": "..." }</code></td>
+    </tr>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/hashed/store</code></td>
+      <td>Almacena un hash junto con metadatos opcionales para trazabilidad.</td>
+      <td><code>{ "hash": "...", "meta": { ... } }</code></td>
+      <td><code>{ "stored": true }</code></td>
+    </tr>
+    <tr>
+      <td><b>GET</b></td>
+      <td><code>/hashed/query?hash=...</code></td>
+      <td>Consulta si un hash existe en la base de datos y recupera sus metadatos.</td>
+      <td><code>hash</code> (query param)</td>
+      <td><code>{ "found": true, "meta": { ... } }</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<blockquote>
+<b>Ejemplo de uso (curl):</b>
+
+<pre><code>curl -X POST http://127.0.0.1:8000/hashed/calculate -H "Content-Type: application/json" -d '{"data":"hola mundo"}'
+</code></pre>
+</blockquote>
+
+<b>Casos de uso:</b>
+- Verificación de integridad de archivos y textos
+- Detección de duplicados en flujos de datos
+- Trazabilidad y auditoría de operaciones
+
+<b>Notas:</b>
+- El algoritmo por defecto es SHA-256, pero se pueden usar otros algoritmos estándar.
+- Los hashes almacenados pueden asociarse a metadatos personalizados para facilitar búsquedas y auditoría.
+
+</details>
+
+<details>
 <summary><b>🟣 SpaCy (`/start-spacy`)</b></summary>
 
 - <b>GET /start-spacy</b> — Inicia un proceso background que lee <code>outputs/result.json</code>, extrae entidades y escribe <code>outputs/labels_result.json</code>. Programado para ejecutarse cada 24 horas si se lanza desde la API.
@@ -503,5 +551,3 @@ Este parámetro puede modificarse manualmente para activar/desactivar el uso de 
 </details>
 
 ---
-
-
