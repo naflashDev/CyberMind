@@ -9,9 +9,9 @@ __all__ = ["router"]
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from typing import Literal
-from ...models.db import get_db
-from ...services.hashed.hash_service import HashService
-from ...services.hashed.hash_repository import HashAlgorithm
+from app.models.db import get_db
+from app.services.hashed.hash_service import HashService
+from app.services.hashed.hash_repository import HashAlgorithm
 from sqlalchemy.orm import Session
 
 class HashRequest(BaseModel):

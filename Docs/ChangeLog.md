@@ -1,3 +1,7 @@
+# [Unreleased] - 2026-02-11
+### Added
+- Limpieza automática de carpetas `outputs` y `data` en la raíz del proyecto tras la ejecución de tests (hook en `conftest.py`).
+
 ## [2026-02-06]
 ### Added
 - El servicio de hash ahora calcula el hash, lo muestra al usuario y lo almacena en la base de datos solo si no existe ya guardado. El endpoint es idempotente y nunca genera duplicados.
