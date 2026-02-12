@@ -19,7 +19,7 @@ from sqlalchemy.orm import sessionmaker
 from src.app.models.db import Base
 from src.app.models.hash_models import MD5Hash, SHA256Hash, SHA512Hash
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def setup_temp_sqlite_db():
     '''
     @brief Setup temporary SQLite DB file for hash tests.
@@ -55,11 +55,8 @@ def setup_temp_sqlite_db():
         app.dependency_overrides[db_module.get_db] = get_db_override
 
     yield
-    # Limpieza al final de la sesión de tests
+    # Limpieza al final de cada test
     Base.metadata.drop_all(bind=engine)
-    engine.dispose()
-    if os.path.exists(db_path):
-        os.remove(db_path)
 
 
 
