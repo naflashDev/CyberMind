@@ -150,7 +150,7 @@ thinc==8.3.6
 tldextract==5.3.0
 tokenizers==0.22.1
 tomli==2.4.0
-tomi_w==1.2.0
+tomli_w==1.2.0
 tqdm==4.67.1
 transformers==4.57.3
 tqdm==4.67.1
