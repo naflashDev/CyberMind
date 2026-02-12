@@ -27,6 +27,25 @@ def setup_in_memory_db():
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base.metadata.create_all(bind=engine)
+
+    # Sobrescribe la dependencia get_db para usar la sesión de memoria
+    from src.app.models import db as db_module
+    def get_db_override():
+        db = SessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+    # Busca la instancia de FastAPI usada en los tests
+    import sys
+    app = None
+    for obj in sys.modules.values():
+        if hasattr(obj, 'app') and isinstance(getattr(obj, 'app'), FastAPI):
+            app = getattr(obj, 'app')
+            break
+    if app:
+        app.dependency_overrides[db_module.get_db] = get_db_override
+
     yield
     Base.metadata.drop_all(bind=engine)
 
