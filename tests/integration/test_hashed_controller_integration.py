@@ -10,6 +10,26 @@ from src.app.controllers.routes.hashed_controller import router
 from fastapi import FastAPI
 import hashlib
 
+# Fixture para usar SQLite en memoria y crear tablas hash
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from src.app.models.db import Base
+from src.app.models.hash_models import MD5Hash, SHA256Hash, SHA512Hash
+
+@pytest.fixture(scope="function", autouse=True)
+def setup_in_memory_db():
+    '''
+    @brief Setup in-memory SQLite DB for hash tests.
+
+    Creates all hash tables in a fresh SQLite memory DB for each test.
+    '''
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
+
 
 
 from unittest.mock import MagicMock
