@@ -10,8 +10,16 @@ from src.app.controllers.routes.hashed_controller import router
 from fastapi import FastAPI
 import hashlib
 
+
+from unittest.mock import MagicMock
 app = FastAPI()
 app.include_router(router)
+
+# Mock global de la dependencia get_db para todos los endpoints
+def override_get_db():
+    yield MagicMock()
+from src.app.models import db as db_module
+app.dependency_overrides[db_module.get_db] = override_get_db
 
 def test_unhash_file_secuencial_timeout():
     '''
