@@ -6,7 +6,6 @@
 """
 import pytest
 from fastapi.testclient import TestClient
-from src.app.controllers.routes.hashed_controller import router
 from fastapi import FastAPI
 import hashlib
 
@@ -60,11 +59,6 @@ def setup_temp_sqlite_db():
 
 
 
-from unittest.mock import MagicMock
-app = FastAPI()
-app.include_router(router)
-
-from src.app.models import db as db_module
 
 
 from unittest.mock import MagicMock, patch
@@ -105,24 +99,55 @@ def patch_hash_repository_and_db():
         mock_db.flush.return_value = None
         def get_mock_db():
             yield mock_db
-        app.dependency_overrides[db_module.get_db] = get_mock_db
         # Mock fuerza bruta: simula que nunca encuentra el hash (timeout)
         mock_brute.return_value = {"original": None, "combinaciones": 0, "timeout": True}
         yield
 
 def test_unhash_file_secuencial_timeout():
+        from src.app.models import db as db_module
+        from unittest.mock import MagicMock
+
+def test_unhash_file_secuencial_timeout():
     '''
     @brief Happy Path, Edge Case y Error Handling: Procesa varios hashes reales de forma secuencial, comprobando timeout y resultado correcto.
+
+    Este test valida el endpoint /hashed/unhash-file usando FastAPI y TestClient, simulando hashes reales y casos de timeout.
     '''
-    client = TestClient(app)
-    h1 = hashlib.md5('A'.encode()).hexdigest()
-    h2 = 'ffffffffffffffffffffffffffffffff'  # No existe
-    file_content = f"{h1}\n{h2}\n".encode("utf-8")
-    response = client.post("/hashed/unhash-file", files={"file": ("hashes.txt", file_content, "text/plain")})
-    assert response.status_code == 200
-    results = response.json()["results"]
-    assert len(results) == 2
-    found = [r for r in results if r["original"] == 'A']
-    timeouts = [r for r in results if r["timeout"]]
-    assert found
-    assert timeouts
+    import os
+    from src.app.models import db as db_module
+    from src.app.models.db import Base
+    from unittest.mock import MagicMock
+    import tempfile
+    import os
+    from unittest.mock import patch
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_db:
+        db_url = f"sqlite:///{tmp_db.name}"
+    from src.app.models import db as db_module
+    db_module.set_db_url(db_url)
+    from src.app.models.db import Base
+    from src.app.models.hash_models import MD5Hash, SHA256Hash, SHA512Hash
+    engine = db_module.engine
+    Base.metadata.create_all(bind=engine)
+
+    with patch("src.app.services.hashed.bruteforce_utils.bruteforce_hash") as mock_brute:
+        mock_brute.return_value = {"original": None, "count": 0, "timeout": True}
+        from src.app.controllers.routes.hashed_controller import router
+        app = FastAPI()
+        app.include_router(router)
+        app.dependency_overrides[db_module.get_db] = db_module.get_db
+        client = TestClient(app, raise_server_exceptions=False)
+
+        h1 = hashlib.md5('A'.encode()).hexdigest()
+        h2 = 'ffffffffffffffffffffffffffffffff'  # No existe
+        file_content = f"{h1}\n{h2}\n".encode("utf-8")
+        response = client.post("/hashed/unhash-file", files={"file": ("hashes.txt", file_content, "text/plain")})
+        if response.status_code != 200:
+            print("Respuesta error:", response.text)
+        assert response.status_code == 200
+        results = response.json()["results"]
+        assert len(results) == 2
+        found = [r for r in results if r["original"] == 'A']
+        timeouts = [r for r in results if r["timeout"]]
+        assert found
+        assert timeouts
+    os.unlink(tmp_db.name)
