@@ -31,8 +31,10 @@ def setup_temp_sqlite_db():
     # Elimina el archivo si existe de antes
     if os.path.exists(db_path):
         os.remove(db_path)
-    engine = create_engine(db_url, connect_args={"check_same_thread": False})
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    from src.app.models import db as db_module
+    db_module.set_db_url(db_url)
+    engine = db_module.engine
+    SessionLocal = db_module.SessionLocal
     Base.metadata.create_all(bind=engine)
 
     # Sobrescribe la dependencia get_db para usar la sesión del archivo temporal
