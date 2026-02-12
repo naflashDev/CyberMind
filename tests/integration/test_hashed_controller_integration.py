@@ -11,24 +11,31 @@ from fastapi import FastAPI
 import hashlib
 
 # Fixture para usar SQLite en memoria y crear tablas hash
+
+import os
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from src.app.models.db import Base
 from src.app.models.hash_models import MD5Hash, SHA256Hash, SHA512Hash
 
-@pytest.fixture(scope="function", autouse=True)
-def setup_in_memory_db():
+@pytest.fixture(scope="session", autouse=True)
+def setup_temp_sqlite_db():
     '''
-    @brief Setup in-memory SQLite DB for hash tests.
+    @brief Setup temporary SQLite DB file for hash tests.
 
-    Creates all hash tables in a fresh SQLite memory DB for each test.
+    Creates all hash tables in a fresh SQLite DB file for all tests in the session.
     '''
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    db_path = "./test_temp.db"
+    db_url = f"sqlite:///{db_path}"
+    # Elimina el archivo si existe de antes
+    if os.path.exists(db_path):
+        os.remove(db_path)
+    engine = create_engine(db_url, connect_args={"check_same_thread": False})
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base.metadata.create_all(bind=engine)
 
-    # Sobrescribe la dependencia get_db para usar la sesión de memoria
+    # Sobrescribe la dependencia get_db para usar la sesión del archivo temporal
     from src.app.models import db as db_module
     def get_db_override():
         db = SessionLocal()
@@ -36,7 +43,6 @@ def setup_in_memory_db():
             yield db
         finally:
             db.close()
-    # Busca la instancia de FastAPI usada en los tests
     import sys
     app = None
     for obj in sys.modules.values():
@@ -47,7 +53,11 @@ def setup_in_memory_db():
         app.dependency_overrides[db_module.get_db] = get_db_override
 
     yield
+    # Limpieza al final de la sesión de tests
     Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+    if os.path.exists(db_path):
+        os.remove(db_path)
 
 
 
