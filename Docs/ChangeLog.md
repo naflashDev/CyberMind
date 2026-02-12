@@ -1,4 +1,26 @@
-# [Unreleased] - 2026-02-11
+
+
+# [Unreleased] - 2026-02-12
+
+### Added
+- Nuevo endpoint <code>/hashed/hash-file</code> que permite subir un archivo de texto donde cada línea es una palabra, seleccionar el algoritmo de hash (MD5, SHA256, SHA512) y obtener el hash de cada palabra en tarjetas visuales desde la UI (drag & drop). No almacena los hashes, solo los calcula y devuelve.
+- La UI ahora incluye un formulario para subir archivos de palabras y seleccionar el algoritmo de hash, mostrando el resultado en tarjetas visuales con la palabra, el hash y el algoritmo usado.
+- Documentación ampliada en <code>Docs/api_endpoints.md</code> para el nuevo endpoint, con ejemplos de uso y formato de respuesta.
+- Tests unitarios para <code>/hashed/hash-file</code> cubriendo casos Happy Path, Edge Case (archivo vacío) y Error Handling (algoritmo no soportado, excepción en hash).
+
+
+### Added
+- Nuevo endpoint <code>/hashed/upload-hash-file</code> que permite subir un archivo de texto con múltiples líneas, cada una con una palabra y su hash (separados por coma, espacio, tabulación o dos puntos). El sistema detecta automáticamente el tipo de hash y almacena cada entrada en la base de datos. Si el hash ya existe, lo indica de forma amigable. Ideal para cargas masivas mediante drag & drop en la UI.
+- Documentación ampliada y actualizada en <code>Docs/api_endpoints.md</code> para el endpoint de subida de hashes, incluyendo el nuevo formato de respuesta y ejemplos.
+- La UI ahora muestra el resultado de la subida de hashes con tarjetas visuales y mensajes claros: "Hash insertado correctamente", "Hash ya almacenado en el sistema" o errores de formato, sin exponer nunca información interna.
+### Security
+- El endpoint <code>/hashed/upload-hash-file</code> y la UI asociada han sido reforzados para no exponer nunca detalles internos de la base de datos ni trazas de error. Todos los mensajes devueltos al usuario son claros y seguros, cumpliendo la política de seguridad definida en <code>AGENTS.md</code>.
+ - El servicio de hash ahora incluye logs detallados usando loguru en todos los puntos clave: inicio y fin de operaciones, resultados de búsqueda en BBDD, intentos de fuerza bruta, errores y guardado de nuevos hashes. Esto mejora la trazabilidad y el diagnóstico de incidencias.
+ - La fuerza bruta para deshashear hashes ahora se detiene automáticamente tras 120 segundos, devolviendo el número de combinaciones probadas y un indicador de timeout en la respuesta. Si se encuentra el valor original, se almacena automáticamente en la base de datos para futuras consultas rápidas.
+- Nuevo endpoint <code>/hashed/unhash</code> para deshashear uno o varios hashes (multilínea, auto-detección de tipo, búsqueda en BBDD y fuerza bruta multiproceso hasta 20 caracteres, incluyendo caracteres especiales más usados).
+- Lógica de fuerza bruta y detección de tipo de hash implementada en el servicio de hashing, cumpliendo los requisitos de seguridad y rendimiento.
+- UI actualizada: el algoritmo de hash es ahora seleccionable mediante un desplegable en la sección de hasheo, mejorando la experiencia de usuario y evitando errores de entrada manual. La caja de texto multilinea para hashes y la visualización de resultados por hash en tarjetas se mantienen.
+- Documentación ampliada en <code>Docs/api_endpoints.md</code> y tests unitarios para la nueva funcionalidad.
 ### Added
 - Limpieza automática de carpetas `outputs` y `data` en la raíz del proyecto tras la ejecución de tests (hook en `conftest.py`).
 
@@ -7,6 +29,9 @@
 - El servicio de hash ahora calcula el hash, lo muestra al usuario y lo almacena en la base de datos solo si no existe ya guardado. El endpoint es idempotente y nunca genera duplicados.
 - Actualizada la documentación de endpoints (`Docs/api_endpoints.md`) para reflejar el nuevo comportamiento del servicio hash.
 ### Fixed
+- Corregidos los tests unitarios de `/hashed/unhash` para usar el formato de entrada correcto (`hashes` multilínea y `max_len`).
+- El mock de servicio en los tests ahora devuelve la estructura esperada por el endpoint (lista de objetos tipo MultiUnhashResponseItem).
+- Documentación del endpoint `/hashed/unhash` actualizada en `Docs/api_endpoints.md` para reflejar el formato real de entrada y respuesta, con ejemplo de uso.
 - Tests unitarios, integración y cobertura verificados tras el cambio en el servicio hash.
 ### Security
 - El nuevo flujo evita duplicidad de hashes y refuerza la integridad de la base de datos.
@@ -27,7 +52,9 @@
 - El apartado de cobertura utiliza los estilos globales de la plataforma, eliminando el CSS propio del iframe para mantener coherencia visual.
 - Se ha actualizado la documentación de endpoints (`Docs/api_endpoints.md`) para indicar que el worker LLM Updater clona el repositorio oficial de CVE y utiliza esos datos para generar el archivo JSON de finetuning.
 - Refactorización y alineación de los tests de los módulos de utilidades (worker_control, utils, run_services) según las normas de estructura, imports y buenas prácticas. Todos los tests temporales se generan dentro de la carpeta de tests.
+
 ### Changed
+- El endpoint `/hashed/unhash-file` ahora procesa los hashes de manera **secuencial** (no en paralelo) y aplica un **timeout máximo de 1 minuto (60 segundos) por hash**. Esto mejora la estabilidad y evita la sobrecarga de recursos en el servidor. La documentación en `Docs/api_endpoints.md` ha sido actualizada para reflejar este nuevo comportamiento.
 
 ### Added
 - Se ha añadido la sección "Hashed" en la UI (Swagger/FastAPI) con endpoints para hashear y deshashear frases, permitiendo seleccionar el algoritmo (MD5, SHA256, SHA512) desde la interfaz.

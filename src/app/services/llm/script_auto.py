@@ -88,14 +88,17 @@ def update_repository(repo_dir: str) -> None:
     @param repo_dir Local directory where the repository is stored.
     @details If the directory does not exist, this function returns without changes.
     """
-    try:
-        if not os.path.exists(repo_dir):
-            logger.warning(f"Repository directory {repo_dir} does not exist. Cannot run git pull.")
-            return
 
+    try:
         # Detect test environment and skip real git operations
         if os.environ.get("PYTEST_CURRENT_TEST") is not None:
+            if not os.path.exists(repo_dir):
+                logger.warning(f"Repository directory {repo_dir} does not exist. Cannot run git pull.")
             logger.info("[TEST] Skipping real git pull (detected test environment).")
+            return
+
+        if not os.path.exists(repo_dir):
+            logger.warning(f"Repository directory {repo_dir} does not exist. Cannot run git pull.")
             return
 
         logger.info(f"Updating repository in {repo_dir} ...")

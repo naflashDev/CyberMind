@@ -40,21 +40,32 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
 ## 📊 Cobertura
 <details>
 <summary><b>📊 Ver endpoints de cobertura</b></summary>
+
 ### GET /coverage/html
 
-- Devuelve el informe HTML de cobertura generado por coverage.py, integrando el CSS global de la UI.
-- Si el informe no existe, responde 404.
+**Descripción funcional:**
+Devuelve el informe HTML de cobertura generado por coverage.py, integrando el CSS global de la UI para una visualización unificada.
+
+**Parámetros de entrada:**
+- No requiere parámetros de entrada.
+
+**Respuestas posibles:**
+| Código | Descripción | Contenido |
+|--------|-------------|-----------|
+| 200    | Informe HTML de cobertura correctamente servido | HTML (coverage report con CSS de la UI) |
+| 404    | No existe el informe de cobertura | Texto plano: 'Coverage report not found.' |
+| 500    | Error interno (BeautifulSoup4 no instalado o error de parsing) | Texto plano: 'BeautifulSoup4 no está instalado. Añádelo a requirements.txt.' o 'Ha ocurrido un error interno. Por favor, contacte con el administrador.' |
+
+**Requisitos de autenticación y autorización:**
+- No requiere autenticación (público para la UI interna de administración).
+
+**Notas técnicas:**
+- El endpoint elimina el CSS original del reporte y añade el de la UI para mantener coherencia visual.
 - Si falta la dependencia BeautifulSoup4, responde 500 con mensaje claro.
-- El endpoint es robusto ante errores de parsing y dependencias, y está cubierto por tests automatizados.
+- Si ocurre cualquier otro error de parsing, responde 500 con mensaje genérico.
+- El endpoint está cubierto por tests automatizados.
 
 <table>
-  <thead>
-    <tr>
-      <th>Método</th>
-      <th>Ruta</th>
-      <th>Descripción</th>
-    </tr>
-  </thead>
   <tbody>
     <tr>
       <td><b>GET</b></td>
@@ -384,11 +395,8 @@ curl -X POST http://127.0.0.1:8000/network/scan_range \
 > **Solución:** Verifica siempre que el archivo `.env` esté presente y contenga los valores correctos antes de activar estos workers. Si usas tests automatizados, asegúrate de restaurar `.env` tras la ejecución.
 
 <details>
+
 <summary><b>🟤 Hashing (`/hashed`)</b></summary>
-
-El servicio de hashing permite calcular, almacenar y consultar hashes de diferentes tipos de datos para tareas de verificación, deduplicación y trazabilidad en procesos de ciberseguridad.
-
-### Endpoints disponibles
 
 <table>
   <thead>
@@ -403,24 +411,38 @@ El servicio de hashing permite calcular, almacenar y consultar hashes de diferen
   <tbody>
     <tr>
       <td><b>POST</b></td>
-      <td><code>/hashed/calculate</code></td>
-      <td>Calcula el hash de un texto o archivo usando el algoritmo especificado (por defecto SHA-256).</td>
-      <td><code>{ "data": "texto o base64", "algorithm": "sha256|md5|..." }</code></td>
-      <td><code>{ "hash": "..." }</code></td>
+      <td><code>/hashed/hash</code></td>
+      <td>Genera el hash de una frase usando el algoritmo especificado (<code>MD5</code>, <code>SHA256</code>, <code>SHA512</code>).</td>
+      <td><code>{ "phrase": "texto", "algorithm": "SHA256" }</code></td>
+      <td><code>{ "hashed_value": "..." }</code></td>
     </tr>
     <tr>
       <td><b>POST</b></td>
-      <td><code>/hashed/store</code></td>
-      <td>Almacena un hash junto con metadatos opcionales para trazabilidad.</td>
-      <td><code>{ "hash": "...", "meta": { ... } }</code></td>
-      <td><code>{ "stored": true }</code></td>
+      <td><code>/hashed/unhash</code></td>
+      <td>Intenta descifrar uno o varios hashes (multilínea, auto-detecta tipo, fuerza bruta limitada).</td>
+      <td><code>{ "hashes": "hash1\nhash2", "max_len": 20 }</code></td>
+      <td>Lista de objetos con <code>hash</code>, <code>original</code>, <code>type</code>, <code>found</code>, <code>method</code>.</td>
     </tr>
     <tr>
-      <td><b>GET</b></td>
-      <td><code>/hashed/query?hash=...</code></td>
-      <td>Consulta si un hash existe en la base de datos y recupera sus metadatos.</td>
-      <td><code>hash</code> (query param)</td>
-      <td><code>{ "found": true, "meta": { ... } }</code></td>
+      <td><b>POST</b></td>
+      <td><code>/hashed/hash-file</code></td>
+      <td>Sube un archivo de palabras (una por línea) y almacena sus hashes en la base de datos.</td>
+      <td>Archivo <code>.txt</code> (cada línea una palabra), parámetro <code>algorithm</code> (<code>MD5</code>, <code>SHA256</code>, <code>SHA512</code>).</td>
+      <td>Resumen de inserciones, existentes y errores.</td>
+    </tr>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/hashed/upload-hash-file</code></td>
+      <td>Sube un archivo con pares palabra-hash (separados por coma, tabulación, espacio o dos puntos) y los almacena.</td>
+      <td>Archivo <code>.txt</code> (cada línea: palabra,hash)</td>
+      <td>Resumen de líneas procesadas, tipo de hash detectado y errores.</td>
+    </tr>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/hashed/unhash-file</code></td>
+      <td>Sube un archivo con hashes (uno por línea) e intenta descifrarlos (fuerza bruta limitada, timeout por hash).</td>
+      <td>Archivo <code>.txt</code> (cada línea un hash)</td>
+      <td>Resultados por hash y archivo <code>hashes_encontrados.txt</code> en base64.</td>
     </tr>
   </tbody>
 </table>
@@ -428,21 +450,10 @@ El servicio de hashing permite calcular, almacenar y consultar hashes de diferen
 <blockquote>
 <b>Ejemplo de uso (curl):</b>
 
-<pre><code>curl -X POST http://127.0.0.1:8000/hashed/calculate -H "Content-Type: application/json" -d '{"data":"hola mundo"}'
+<pre><code>curl -X POST http://127.0.0.1:8000/hashed/hash -H "Content-Type: application/json" -d '{"phrase":"hola","algorithm":"SHA256"}'
 </code></pre>
 </blockquote>
-
-<b>Casos de uso:</b>
-- Verificación de integridad de archivos y textos
-- Detección de duplicados en flujos de datos
-- Trazabilidad y auditoría de operaciones
-
-<b>Notas:</b>
-- El algoritmo por defecto es SHA-256, pero se pueden usar otros algoritmos estándar.
-- Los hashes almacenados pueden asociarse a metadatos personalizados para facilitar búsquedas y auditoría.
-
 </details>
-
 <details>
 <summary><b>🟣 SpaCy (`/start-spacy`)</b></summary>
 

@@ -44,3 +44,11 @@ def pytest_sessionfinish(session, exitstatus):
         target = root / folder
         if target.exists() and target.is_dir():
             shutil.rmtree(target)
+
+    # Eliminar la base de datos hashed.db si existe en la raíz del proyecto
+    db_path = root / "hashed.db"
+    if db_path.exists() and db_path.is_file():
+        try:
+            db_path.unlink()
+        except Exception:
+            pass  # Ignorar errores de borrado para no romper el cierre de sesión

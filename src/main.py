@@ -482,7 +482,9 @@ if STATIC_DIR.exists():
     DOCS_IMAGES_DIR = Path(__file__).resolve().parent.parent / "Docs" / "images"
     if DOCS_IMAGES_DIR.exists():
         app.mount("/Docs/images", StaticFiles(directory=str(DOCS_IMAGES_DIR)), name="docs-images")
-        logger.info(f"Mounted Docs/images static files from {DOCS_IMAGES_DIR}")
+        # Only log mounting once from the main process to avoid duplicate messages
+        if multiprocessing.current_process().name == "MainProcess":
+            logger.info(f"Mounted Docs/images static files from {DOCS_IMAGES_DIR}")
     else:
         logger.warning(f"Docs/images directory not found at {DOCS_IMAGES_DIR}; images will not be served.")
 
