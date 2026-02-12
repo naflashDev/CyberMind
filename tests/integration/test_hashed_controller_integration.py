@@ -24,23 +24,42 @@ from unittest.mock import MagicMock, patch
 @pytest.fixture(autouse=True)
 def patch_hash_repository_and_db():
     '''
-    Fixture global para mockear HashRepository y la sesión de base de datos en todos los tests de este archivo.
-    Garantiza que nunca se accede a la base de datos real.
+    Fixture global para mockear HashRepository, modelos, la sesión de base de datos y la fuerza bruta en todos los tests de este archivo.
+    Garantiza que nunca se accede a la base de datos real ni a la metadata de SQLAlchemy.
+    Mockea cualquier instancia y método de HashRepository, incluso en threads, y la fuerza bruta para que los tests sean instantáneos.
     '''
     with patch("src.app.services.hashed.hash_service.HashRepository") as MockRepoService, \
          patch("src.app.services.hashed.hash_repository.HashRepository") as MockRepoRepo, \
          patch("src.app.services.hashed.hash_repository.MD5Hash"), \
          patch("src.app.services.hashed.hash_repository.SHA256Hash"), \
-         patch("src.app.services.hashed.hash_repository.SHA512Hash"):
-        mock_repo = MockRepoService.return_value
-        MockRepoRepo.return_value = mock_repo
+         patch("src.app.services.hashed.hash_repository.SHA512Hash"), \
+         patch("src.app.models.db.Base.metadata.create_all"), \
+         patch("src.app.models.db.Base.metadata.drop_all"), \
+         patch("sqlalchemy.orm.session.Session.query", autospec=True) as mock_query, \
+         patch("src.app.services.hashed.bruteforce_utils.bruteforce_hash") as mock_brute:
+        # Crea un mock global para HashRepository
+        mock_repo = MagicMock()
         mock_repo.save_hash.return_value = None
         mock_repo.get_original_by_hash.side_effect = lambda h, alg: 'A' if h == hashlib.md5('A'.encode()).hexdigest() else None
+        mock_repo.commit.return_value = None
+        mock_repo.add.return_value = None
+        mock_repo.flush.return_value = None
+        MockRepoService.return_value = mock_repo
+        MockRepoRepo.return_value = mock_repo
+        # Mock global para cualquier query
+        mock_query.return_value.filter_by.return_value.first.return_value = None
+        mock_query.return_value.filter.return_value.first.return_value = None
         mock_db = MagicMock()
         mock_db.query.return_value.filter_by.return_value.first.return_value = None
+        mock_db.query.return_value.filter.return_value.first.return_value = None
+        mock_db.commit.return_value = None
+        mock_db.add.return_value = None
+        mock_db.flush.return_value = None
         def get_mock_db():
             yield mock_db
         app.dependency_overrides[db_module.get_db] = get_mock_db
+        # Mock fuerza bruta: simula que nunca encuentra el hash (timeout)
+        mock_brute.return_value = {"original": None, "combinaciones": 0, "timeout": True}
         yield
 
 def test_unhash_file_secuencial_timeout():
