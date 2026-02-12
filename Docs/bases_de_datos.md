@@ -30,3 +30,18 @@ PostgreSQL se emplea para **almacenar la información procedente de TinyRSS**. E
 - Metadatos asociados a los artículos
 
 > 🗃️ **Ventaja:** Permite consultas estructuradas, relaciones y gestión eficiente de feeds y artículos.
+
+---
+
+## 🔑 SQLite (Servicio de Hashing)
+
+El servicio de hashing utiliza una base de datos **SQLite** para almacenar y gestionar los hashes generados y sus metadatos asociados. Esta base de datos ligera permite una gestión eficiente y local de los valores hash, facilitando operaciones rápidas y persistencia sin requerir un servidor de base de datos externo.
+
+**Se almacena información como:**
+
+- Hashes calculados a partir de contraseñas u otros valores
+- Salts y parámetros de generación
+- Tiempos de creación y uso
+- Estado de verificación o uso
+
+> 🔒 **Ventaja:** Al ser embebida, SQLite simplifica la gestión y despliegue del servicio de hashing, manteniendo la seguridad y la persistencia de los datos críticos sin dependencias externas.
