@@ -92,6 +92,7 @@ def background_process_every_24h(input_path: str, output_path: str, stop_event=N
         logger.success("[SpaCy] Entity labeling completed. Output saved to labels_result.json")
     except Exception as e:
         logger.error(f"[SpaCy] Error while labeling entities: {e}")
+        # No UI error here, but if hay endpoints que devuelven error, deben ser genéricos
 
     # Schedule next execution in 24 hours if not stopped
     try:

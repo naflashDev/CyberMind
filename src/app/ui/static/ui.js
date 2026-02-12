@@ -446,6 +446,26 @@ document.addEventListener('DOMContentLoaded', function () {
     const API_BASE = window.__CYBERMIND_API_BASE__ || "http://127.0.0.1:8000";
 
     const controllers = {
+            "Hashed": [
+              { id: "hash-phrase", title: "Hashear frase", method: "POST", path: "/hashed/hash", params: [
+                {name: "phrase", type: "text", placeholder: "Texto a hashear"},
+                {name: "algorithm", type: "enum", options: ["MD5", "SHA256", "SHA512"], default: "SHA256", label: "Algoritmo"}
+              ], desc: "Genera el hash de una frase usando el algoritmo seleccionado (MD5, SHA256, SHA512)." },
+              { id: "unhash", title: "Deshashear (auto, múltiple)", method: "POST", path: "/hashed/unhash", params: [
+                {name: "hashes", type: "textarea", placeholder: "Introduce uno o más hashes, uno por línea"},
+                {name: "max_len", type: "number", placeholder: "Longitud máxima fuerza bruta (default 20)", default: 20, label: "Long. máxima"}
+              ], desc: "Introduce uno o más hashes (uno por línea). Detecta tipo, busca en BBDD y fuerza bruta si no existe." },
+              { id: "unhash-file", title: "Deshashear archivo (drag & drop)", method: "POST", path: "/hashed/unhash-file", params: [
+                {name: "file", type: "file", label: "Archivo de hashes (txt)", accept: ".txt"}
+              ], desc: "Sube un archivo de texto con hashes (uno por línea). Cada hash se procesa con timeout de 1 minuto. El resultado se muestra en formato tabla." },
+              { id: "upload-hash-file", title: "Subir palabras+hash (drag & drop)", method: "POST", path: "/hashed/upload-hash-file", params: [
+                {name: "file", type: "file", label: "Archivo palabra+hash (txt)", accept: ".txt"}
+              ], desc: "Sube un archivo de texto donde cada línea contiene una palabra y su hash, separados por coma, espacio o tabulación. El sistema detecta el tipo de hash y almacena cada entrada en la base de datos. Ideal para cargas masivas mediante drag & drop." },
+              { id: "hash-file", title: "Hash de archivo (drag & drop)", method: "POST", path: "/hashed/hash-file", params: [
+                {name: "file", type: "file", label: "Archivo de palabras (txt)", accept: ".txt"},
+                {name: "algorithm", type: "enum", options: ["MD5", "SHA256", "SHA512"], default: "SHA256", label: "Algoritmo"}
+              ], desc: "Sube un archivo de texto donde cada línea es una palabra. Selecciona el algoritmo y obtén el hash de cada palabra en tarjetas visuales." }
+            ],
       "Scrapy": [
         { id: "scrape-news", title: "Scrape News", method: "GET", path: "/newsSpider/scrape-news", params: [], desc: "Extrae noticias desde las fuentes configuradas y las normaliza." },
         { id: "start-google-alerts", title: "Start Google Alerts", method: "GET", path: "/newsSpider/start-google-alerts", params: [], desc: "Inicia la recolección de alertas de Google configuradas." },
@@ -556,23 +576,21 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       });
 
-      // Insert OSINT category at top if it has children
+      // Insert OSINT category at top if it has children y colapsar por defecto
       if (osintInner.children.length) {
+        osintCategory.classList.add('collapsed');
+        const icon = osintCategory.querySelector('.toggle-icon');
+        if (icon) icon.textContent = '▸';
         controllersList.insertBefore(osintCategory, controllersList.firstChild);
       }
 
-      // Expand the Network section by default so new ops are visible
+      // Collapse all sections by default at startup
       try {
         const sections = controllersList.querySelectorAll('.controller-section');
         sections.forEach(sec => {
-          const header = sec.querySelector('.controller-header');
-          if (!header) return;
-          if (header.textContent && header.textContent.trim().startsWith('Network')) {
-            sec.classList.remove('collapsed');
-            const icon = header.querySelector('.toggle-icon');
-            if (icon) icon.textContent = '▾';
-            // Ya no se fuerza remarco visual en ningún botón
-          }
+          sec.classList.add('collapsed');
+          const icon = sec.querySelector('.toggle-icon');
+          if (icon) icon.textContent = '▸';
         });
       } catch (e) { console.log('renderControllers post-process error', e); }
     }
@@ -621,7 +639,157 @@ document.addEventListener('DOMContentLoaded', function () {
       const form = document.createElement("form");
       form.onsubmit = async (e) => { e.preventDefault(); await submitOperation(op, new FormData(form)); };
 
-      if (op.path === "/status") {
+      // Render custom fields para endpoints Hashed (incluyendo drag & drop de archivo)
+      if (op.id === "hash-phrase" || op.id === "unhash" || op.id === "unhash-file" || op.id === "upload-hash-file" || op.id === "hash-file") {
+        // Custom fields for hash, multi-unhash y upload-hash-file
+        const rendered = new Set();
+        op.params.forEach(param => {
+          if (rendered.has(param.name)) return;
+          rendered.add(param.name);
+          const row = document.createElement('div');
+          row.style.display = 'flex';
+          row.style.alignItems = 'center';
+          row.style.gap = '12px';
+          row.style.marginBottom = '14px';
+          row.style.background = '#f3f4f6';
+          row.style.borderRadius = '6px';
+          row.style.padding = '8px 12px';
+          const label = document.createElement('label');
+          label.textContent = param.label || param.name;
+          label.style.fontWeight = '600';
+          label.style.minWidth = '90px';
+          label.style.margin = '0 8px 0 0';
+          row.appendChild(label);
+          if (param.type === 'file') {
+            // Drag & drop file input (siempre visible)
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.name = param.name;
+            fileInput.accept = param.accept || '.txt';
+            fileInput.required = true;
+            fileInput.style.flex = '1';
+            fileInput.style.padding = '6px 10px';
+            fileInput.style.borderRadius = '4px';
+            fileInput.style.border = '1px solid #cbd5e1';
+            // Drag & drop area
+            const dropArea = document.createElement('div');
+            dropArea.style.flex = '1';
+            dropArea.style.padding = '18px';
+            dropArea.style.border = '2px dashed #2563eb';
+            dropArea.style.borderRadius = '6px';
+            dropArea.style.background = '#e0e7ef';
+            dropArea.style.textAlign = 'center';
+            dropArea.style.color = '#2563eb';
+            dropArea.style.cursor = 'pointer';
+            dropArea.textContent = 'Arrastra aquí el archivo o haz clic para seleccionar';
+            dropArea.addEventListener('click', () => fileInput.click());
+            dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.style.background = '#c7d2fe'; });
+            dropArea.addEventListener('dragleave', e => { e.preventDefault(); dropArea.style.background = '#e0e7ef'; });
+            dropArea.addEventListener('drop', e => {
+              e.preventDefault();
+              dropArea.style.background = '#e0e7ef';
+              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                dropArea.textContent = e.dataTransfer.files[0].name;
+              }
+            });
+            fileInput.addEventListener('change', e => {
+              if (fileInput.files && fileInput.files.length > 0) {
+                dropArea.textContent = fileInput.files[0].name;
+              } else {
+                dropArea.textContent = 'Arrastra aquí el archivo o haz clic para seleccionar';
+              }
+            });
+            row.appendChild(dropArea);
+            row.appendChild(fileInput);
+            fileInput.style.display = 'none';
+          } else if (param.type === 'enum' && Array.isArray(param.options)) {
+            // Render select for enum (desplegable)
+            const select = document.createElement('select');
+            select.name = param.name;
+            select.required = true;
+            select.style.flex = '1';
+            select.style.padding = '6px 10px';
+            select.style.borderRadius = '4px';
+            select.style.border = '1px solid #cbd5e1';
+            param.options.forEach(opt => {
+              const option = document.createElement('option');
+              option.value = opt;
+              option.textContent = opt;
+              if (param.default && param.default === opt) option.selected = true;
+              select.appendChild(option);
+            });
+            row.appendChild(select);
+          } else if (param.type === 'textarea') {
+            const textarea = document.createElement('textarea');
+            textarea.name = param.name;
+            textarea.placeholder = param.placeholder || '';
+            textarea.required = true;
+            textarea.rows = 6;
+            textarea.style.flex = '1';
+            textarea.style.padding = '6px 10px';
+            textarea.style.borderRadius = '4px';
+            textarea.style.border = '1px solid #cbd5e1';
+            row.appendChild(textarea);
+          } else if (param.type === 'number') {
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.name = param.name;
+            input.placeholder = param.placeholder || '';
+            input.value = param.default || '';
+            input.min = 1;
+            input.max = 20;
+            input.style.width = '100px';
+            input.style.padding = '6px 10px';
+            input.style.borderRadius = '4px';
+            input.style.border = '1px solid #cbd5e1';
+            row.appendChild(input);
+          } else if (param.type === 'enum' && Array.isArray(param.options)) {
+            // Render select for enum
+            const select = document.createElement('select');
+            select.name = param.name;
+            select.required = true;
+            select.style.flex = '1';
+            select.style.padding = '6px 10px';
+            select.style.borderRadius = '4px';
+            select.style.border = '1px solid #cbd5e1';
+            param.options.forEach(opt => {
+              const option = document.createElement('option');
+              option.value = opt;
+              option.textContent = opt;
+              if (param.default && param.default === opt) option.selected = true;
+            select.appendChild(option);
+            });
+            row.appendChild(select);
+          } else {
+            const input = document.createElement('input');
+            input.type = param.type || 'text';
+            input.name = param.name;
+            input.placeholder = param.placeholder || '';
+            input.required = true;
+            input.style.flex = '1';
+            input.style.padding = '6px 10px';
+            input.style.borderRadius = '4px';
+            input.style.border = '1px solid #cbd5e1';
+            row.appendChild(input);
+          }
+          form.appendChild(row);
+        });
+        // Only custom fields, do not render anything else for these endpoints
+        const submit = document.createElement("button");
+        submit.textContent = "Ejecutar";
+        submit.type = "submit";
+        submit.className = "exec-btn";
+        submit.style.padding = "8px 12px";
+        submit.style.background = "#2563eb";
+        submit.style.color = "#fff";
+        submit.style.border = "none";
+        submit.style.borderRadius = "6px";
+        submit.style.cursor = "pointer";
+        form.appendChild(submit);
+        opForm.appendChild(form);
+        return;
+      } else if (op.path === "/status") {
         const panel = document.createElement('div');
         panel.style.display = 'flex'; panel.style.flexDirection = 'column'; panel.style.gap = '8px';
         const row = document.createElement('div'); row.style.display = 'flex'; row.style.alignItems = 'center'; row.style.gap = '8px';
@@ -960,8 +1128,29 @@ document.addEventListener('DOMContentLoaded', function () {
       const url = API_BASE + op.path; if (opResult) { opResult.style.display = 'block'; opResult.innerHTML = `<div class="response-meta">Cargando...</div>`; }
       try {
         let resp;
-        if (op.method === "GET") { const params = new URLSearchParams(); for (const [k, v] of formData.entries()) if (v) params.append(k, v); const final = params.toString() ? url + "?" + params.toString() : url; resp = await fetch(final); }
-        else {
+        if (op.method === "GET") {
+          const params = new URLSearchParams();
+          for (const [k, v] of formData.entries()) if (v) params.append(k, v);
+          const final = params.toString() ? url + "?" + params.toString() : url;
+          resp = await fetch(final);
+        } else if (op.path === "/hashed/unhash-file" || op.path === "/hashed/upload-hash-file" || op.path === "/hashed/hash-file") {
+          // Envío especial para archivos: usar FormData y no establecer Content-Type
+          const fileInput = formData.get('file');
+          const fd = new FormData();
+          if (fileInput instanceof File) {
+            fd.append('file', fileInput);
+          } else if (fileInput && fileInput.length && fileInput[0] instanceof File) {
+            fd.append('file', fileInput[0]);
+          }
+          // Para /hashed/hash-file, añadir también el campo 'algorithm' si existe
+          if (op.path === "/hashed/hash-file") {
+            const algorithm = formData.get('algorithm');
+            if (algorithm) {
+              fd.append('algorithm', algorithm);
+            }
+          }
+          resp = await fetch(url, { method: op.method, body: fd });
+        } else {
           const obj = {};
           for (const [k, v] of formData.entries()) {
             // skip empty string fields to avoid validation errors (422)
@@ -987,10 +1176,101 @@ document.addEventListener('DOMContentLoaded', function () {
         const text = await resp.text();
         try {
           const j = JSON.parse(text);
-          if (op.path === '/network/scan') {
-            // Normalize scan results to the same structure used by renderPortsList
+          // Renderizado especial para /hashed/hash
+          if (op.path === '/hashed/hash') {
+            if (opResult && j.hashed_value && formData.get && typeof formData.get === 'function') {
+              // Obtener la palabra original del formData
+              const palabra = formData.get('phrase') || '';
+              const hash = j.hashed_value;
+              opResult.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">
+                <div style='background:#181f2a;padding:18px 22px;border-radius:10px;margin-bottom:12px;border:1px solid #2d3748;box-shadow:0 2px 8px #0002;display:flex;gap:16px;align-items:center;'>
+                  <div style='font-size:32px;'>🔑</div>
+                  <div style='flex:1;'>
+                    <div style='font-size:15px;margin-bottom:8px;'><b>Palabra:</b> <span style='color:#60a5fa'>${escapeHtml(palabra)}</span></div>
+                    <div style='font-family:monospace;word-break:break-all;font-size:15px;margin-bottom:8px;'><b>Hash:</b> ${escapeHtml(hash)}</div>
+                  </div>
+                </div>
+              </div>`;
+              return;
+            }
+          }
+          // Renderizado especial para /hashed/unhash-file
+          if (op.path === '/hashed/unhash-file') {
             try {
-              const results = Array.isArray(j.results) ? j.results : [];
+              const j = JSON.parse(text);
+              // Renderizado especial para /hashed/unhash-file y /hashed/upload-hash-file
+              if (op.path === '/hashed/unhash-file') {
+                if (opResult) {
+                  if (Array.isArray(j.results)) {
+                    const cards = j.results.map(item => {
+                      return `<div style="background:#181f2a;padding:14px;border-radius:8px;margin-bottom:12px;border:1px solid #2d3748;">
+                        <div style="font-size:13px;color:#9aa6b2;margin-bottom:4px;">Hash:</div>
+                        <div style="font-family:monospace;word-break:break-all;font-size:15px;margin-bottom:8px;">${escapeHtml(item.hash)}</div>
+                        <div><b>Tipo:</b> <span style="color:#60a5fa">${item.type || '-'}</span></div>
+                        <div><b>Resultado:</b> <span style="color:${item.found ? '#16a34a' : '#ef4444'}">${item.original ? escapeHtml(item.original) : 'No encontrado'}</span></div>
+                        <div><b>Método:</b> <span>${item.method || '-'}</span></div>
+                      </div>`;
+                    }).join('');
+                    let downloadBtn = '';
+                    if (j.found_file_b64 && j.found_file_b64.length > 0) {
+                      downloadBtn = `<button id="btn-download-found" style="margin-bottom:18px;padding:8px 18px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Descargar resultados encontrados (.txt)</button>`;
+                    }
+                    opResult.innerHTML = `${downloadBtn}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
+                    // Añadir handler para descarga
+                    if (downloadBtn) {
+                      const btn = document.getElementById('btn-download-found');
+                      if (btn) {
+                        btn.onclick = function() {
+                          const b64 = j.found_file_b64;
+                          const fname = j.found_file_name || 'hashes_encontrados.txt';
+                          const blob = new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], {type: 'text/plain'});
+                          const link = document.createElement('a');
+                          link.href = URL.createObjectURL(blob);
+                          link.download = fname;
+                          document.body.appendChild(link);
+                          link.click();
+                          setTimeout(() => {/* Line 1182 omitted */}, 100);
+                        };
+                      }
+                    }
+                    return;
+                  }
+                }
+              } else if (op.path === '/hashed/upload-hash-file') {
+                  if (opResult) {
+                    if (j.resultados && Array.isArray(j.resultados)) {
+                      // Visual feedback por cada hash
+                      const cards = j.resultados.map(item => {
+                        let color = '#16a34a';
+                        let icon = '✔️';
+                        if (item.status && item.status.includes('ya almacenado')) { color = '#f59e0b'; icon = 'ℹ️'; }
+                        else if (item.status && item.status.startsWith('Error')) { color = '#ef4444'; icon = '❌'; }
+                        else if (item.status && item.status.startsWith('Formato')) { color = '#ef4444'; icon = '❌'; }
+                        else if (item.status && item.status.startsWith('Tipo de hash desconocido')) { color = '#ef4444'; icon = '❓'; }
+                        // Mostrar palabra, hash, tipo de hash (método de cifrado) y estado, siempre presentes
+                        return `<div style="background:#181f2a;padding:14px;border-radius:8px;margin-bottom:12px;border:1px solid #2d3748;box-shadow:0 2px 8px #0002;display:flex;gap:16px;align-items:center;">
+                          <div style="font-size:32px;">${icon}</div>
+                          <div style="flex:1;">
+                            <div style="font-size:13px;color:#9aa6b2;margin-bottom:4px;">Línea: ${typeof item.line !== 'undefined' ? item.line : '-'}</div>
+                            <div style="font-size:15px;margin-bottom:8px;"><b>Palabra:</b> <span style="color:#60a5fa">${escapeHtml(item.palabra ?? '-')}</span></div>
+                            <div style="font-family:monospace;word-break:break-all;font-size:15px;margin-bottom:8px;"><b>Hash:</b> ${escapeHtml(item.hash ?? '-')}</div>
+                            <div style="margin-bottom:8px;"><b>Método de cifrado:</b> <span style="color:#38bdf8">${escapeHtml(item.hash_type ?? '-')}</span></div>
+                            <div><b>Estado:</b> <span style="color:${color};font-weight:600;">${escapeHtml(item.status ?? '-')}</span></div>
+                          </div>
+                        </div>`;
+                      }).join('');
+                      // Resumen superior
+                      const resumen = `<div style="margin-bottom:18px;padding:10px 18px;background:#0b1220;color:#e6eef8;border-radius:8px;display:flex;gap:24px;align-items:center;font-size:15px;">
+                        <span><b>Total líneas:</b> ${j.total}</span>
+                        <span style="color:#16a34a"><b>Insertados:</b> ${j.success}</span>
+                        <span style="color:#f59e0b"><b>Existentes:</b> ${j.existentes}</span>
+                        <span style="color:#ef4444"><b>Errores:</b> ${j.errores}</span>
+                      </div>`;
+                      opResult.innerHTML = `${resumen}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
+                      return;
+                    }
+                  }
+              }
               const items = results.map(r => ({
                 port: r.port,
                 service: r.service || '',
@@ -1034,6 +1314,82 @@ document.addEventListener('DOMContentLoaded', function () {
               }
             } catch (e) {
               if (opResult) opResult.innerHTML = renderRawJson(j);
+            }
+          } else if (op.id === "unhash") {
+            // Render result as cards per hash
+            if (opResult) {
+              if (Array.isArray(j)) {
+                const cards = j.map(item => {
+                  return `<div style="background:#181f2a;padding:14px;border-radius:8px;margin-bottom:12px;border:1px solid #2d3748;">
+                    <div style="font-size:13px;color:#9aa6b2;margin-bottom:4px;">Hash:</div>
+                    <div style="font-family:monospace;word-break:break-all;font-size:15px;margin-bottom:8px;">${escapeHtml(item.hash)}</div>
+                    <div><b>Tipo:</b> <span style="color:#60a5fa">${item.type || '-'}</span></div>
+                    <div><b>Resultado:</b> <span style="color:${item.found ? '#16a34a' : '#ef4444'}">${item.original ? escapeHtml(item.original) : 'No encontrado'}</span></div>
+                    <div><b>Método:</b> <span>${item.method || '-'}</span></div>
+                  </div>`;
+                }).join('');
+                opResult.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
+              } else {
+                opResult.innerHTML = renderRawJson(j);
+              }
+            }
+          } else if (op.path === '/hashed/hash-file') {
+            if (opResult && j.resultados && Array.isArray(j.resultados)) {
+              const cards = j.resultados.map(item => {
+                let color = '#16a34a';
+                let icon = '🔒';
+                if (item.error) { color = '#ef4444'; icon = '❌'; }
+                return `<div style="background:#181f2a;padding:14px;border-radius:8px;margin-bottom:12px;border:1px solid #2d3748;box-shadow:0 2px 8px #0002;display:flex;gap:16px;align-items:center;">
+                  <div style="font-size:32px;">${icon}</div>
+                  <div style="flex:1;">
+                    <div style="font-size:13px;color:#9aa6b2;margin-bottom:4px;">Línea: ${typeof item.line !== 'undefined' ? item.line : '-'}</div>
+                    <div style="font-size:15px;margin-bottom:8px;"><b>Palabra:</b> <span style="color:#60a5fa">${escapeHtml(item.palabra ?? '-')}</span></div>
+                    <div style="font-family:monospace;word-break:break-all;font-size:15px;margin-bottom:8px;"><b>Hash:</b> ${escapeHtml(item.hash ?? '-')}</div>
+                    <div style="margin-bottom:8px;"><b>Algoritmo:</b> <span style="color:#38bdf8">${escapeHtml(item.algorithm ?? '-')}</span></div>
+                    <div><b>Estado:</b> <span style="color:${color};font-weight:600;">${item.error ? escapeHtml(item.error) : 'OK'}</span></div>
+                  </div>
+                </div>`;
+              }).join('');
+              const resumen = `<div style="margin-bottom:18px;padding:10px 18px;background:#0b1220;color:#e6eef8;border-radius:8px;display:flex;gap:24px;align-items:center;font-size:15px;">
+                <span><b>Total líneas:</b> ${j.total}</span>
+                <span style="color:#16a34a"><b>Procesadas:</b> ${j.resultados.filter(x=>!x.error).length}</span>
+                <span style="color:#ef4444"><b>Errores:</b> ${j.resultados.filter(x=>x.error).length}</span>
+              </div>`;
+              opResult.innerHTML = `${resumen}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
+              return;
+            } else if (opResult) {
+              opResult.innerHTML = renderRawJson(j);
+            }
+          } else if (op.path === '/hashed/upload-hash-file') {
+            if (opResult && j.resultados && Array.isArray(j.resultados)) {
+              const cards = j.resultados.map(item => {
+                let color = '#16a34a';
+                let icon = '✔️';
+                if (item.status && item.status.includes('ya almacenado')) { color = '#f59e0b'; icon = 'ℹ️'; }
+                else if (item.status && item.status.startsWith('Error')) { color = '#ef4444'; icon = '❌'; }
+                else if (item.status && item.status.startsWith('Formato')) { color = '#ef4444'; icon = '❌'; }
+                else if (item.status && item.status.startsWith('Tipo de hash desconocido')) { color = '#ef4444'; icon = '❓'; }
+                return `<div style="background:#181f2a;padding:14px;border-radius:8px;margin-bottom:12px;border:1px solid #2d3748;box-shadow:0 2px 8px #0002;display:flex;gap:16px;align-items:center;">
+                  <div style="font-size:32px;">${icon}</div>
+                  <div style="flex:1;">
+                    <div style="font-size:13px;color:#9aa6b2;margin-bottom:4px;">Línea: ${typeof item.line !== 'undefined' ? item.line : '-'}</div>
+                    <div style="font-size:15px;margin-bottom:8px;"><b>Palabra:</b> <span style="color:#60a5fa">${escapeHtml(item.palabra ?? '-')}</span></div>
+                    <div style="font-family:monospace;word-break:break-all;font-size:15px;margin-bottom:8px;"><b>Hash:</b> ${escapeHtml(item.hash ?? '-')}</div>
+                    <div style="margin-bottom:8px;"><b>Método de cifrado:</b> <span style="color:#38bdf8">${escapeHtml(item.hash_type ?? '-')}</span></div>
+                    <div><b>Estado:</b> <span style="color:${color};font-weight:600;">${escapeHtml(item.status ?? '-')}</span></div>
+                  </div>
+                </div>`;
+              }).join('');
+              const resumen = `<div style="margin-bottom:18px;padding:10px 18px;background:#0b1220;color:#e6eef8;border-radius:8px;display:flex;gap:24px;align-items:center;font-size:15px;">
+                <span><b>Total líneas:</b> ${j.total}</span>
+                <span style="color:#16a34a"><b>Insertados:</b> ${j.success}</span>
+                <span style="color:#f59e0b"><b>Existentes:</b> ${j.existentes}</span>
+                <span style="color:#ef4444"><b>Errores:</b> ${j.errores}</span>
+              </div>`;
+              opResult.innerHTML = `${resumen}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
+              return;
+            } else if (opResult) {
+              opResult.innerHTML = renderRawJson(j);
             }
           } else {
             if (opResult) opResult.innerHTML = `<div class="response-two-col"><div class="left-pane">${renderResponse(j, resp.status)}</div><div class="right-pane">${renderRawJson(j)}</div></div>`;

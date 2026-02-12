@@ -228,9 +228,10 @@ async def list_feeds(
         raise he
     except Exception as e:
         logger.error("Error fetching feeds: {}", str(e))
+        # Generic error message for UI, no internal details
         raise HTTPException(
             status_code=500,
-            detail=f"Error retrieving feeds: {str(e)}"
+            detail="Ha ocurrido un error interno. Por favor, contacte con el administrador."
         )
 
 

@@ -25,3 +25,30 @@ ROOT = os.path.dirname(os.path.dirname(__file__))
 SRC = os.path.join(ROOT, "src")
 if SRC not in sys.path:
     sys.path.insert(0, SRC)
+
+# Clean up outputs and data folders in project root after all tests
+import shutil
+
+def pytest_sessionfinish(session, exitstatus):
+    """
+    @brief Remove outputs and data folders from project root after all tests.
+
+    This hook ensures that any 'outputs' and 'data' folders created in the project root are deleted after the test session.
+
+    @param session Pytest session object.
+    @param exitstatus Exit status code.
+    @return None
+    """
+    root = Path(__file__).parent.parent
+    for folder in ["outputs", "data"]:
+        target = root / folder
+        if target.exists() and target.is_dir():
+            shutil.rmtree(target)
+
+    # Eliminar la base de datos hashed.db si existe en la raíz del proyecto
+    db_path = root / "hashed.db"
+    if db_path.exists() and db_path.is_file():
+        try:
+            db_path.unlink()
+        except Exception:
+            pass  # Ignorar errores de borrado para no romper el cierre de sesión

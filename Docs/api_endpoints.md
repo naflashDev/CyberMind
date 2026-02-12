@@ -1,3 +1,4 @@
+
 # 🚀 **Endpoints de la API CyberMind**
 <div align="center">
   <img src="https://img.shields.io/badge/API-RESTful-009688?style=for-the-badge" />
@@ -39,21 +40,32 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
 ## 📊 Cobertura
 <details>
 <summary><b>📊 Ver endpoints de cobertura</b></summary>
+
 ### GET /coverage/html
 
-- Devuelve el informe HTML de cobertura generado por coverage.py, integrando el CSS global de la UI.
-- Si el informe no existe, responde 404.
+**Descripción funcional:**
+Devuelve el informe HTML de cobertura generado por coverage.py, integrando el CSS global de la UI para una visualización unificada.
+
+**Parámetros de entrada:**
+- No requiere parámetros de entrada.
+
+**Respuestas posibles:**
+| Código | Descripción | Contenido |
+|--------|-------------|-----------|
+| 200    | Informe HTML de cobertura correctamente servido | HTML (coverage report con CSS de la UI) |
+| 404    | No existe el informe de cobertura | Texto plano: 'Coverage report not found.' |
+| 500    | Error interno (BeautifulSoup4 no instalado o error de parsing) | Texto plano: 'BeautifulSoup4 no está instalado. Añádelo a requirements.txt.' o 'Ha ocurrido un error interno. Por favor, contacte con el administrador.' |
+
+**Requisitos de autenticación y autorización:**
+- No requiere autenticación (público para la UI interna de administración).
+
+**Notas técnicas:**
+- El endpoint elimina el CSS original del reporte y añade el de la UI para mantener coherencia visual.
 - Si falta la dependencia BeautifulSoup4, responde 500 con mensaje claro.
-- El endpoint es robusto ante errores de parsing y dependencias, y está cubierto por tests automatizados.
+- Si ocurre cualquier otro error de parsing, responde 500 con mensaje genérico.
+- El endpoint está cubierto por tests automatizados.
 
 <table>
-  <thead>
-    <tr>
-      <th>Método</th>
-      <th>Ruta</th>
-      <th>Descripción</th>
-    </tr>
-  </thead>
   <tbody>
     <tr>
       <td><b>GET</b></td>
@@ -383,6 +395,66 @@ curl -X POST http://127.0.0.1:8000/network/scan_range \
 > **Solución:** Verifica siempre que el archivo `.env` esté presente y contenga los valores correctos antes de activar estos workers. Si usas tests automatizados, asegúrate de restaurar `.env` tras la ejecución.
 
 <details>
+
+<summary><b>🟤 Hashing (`/hashed`)</b></summary>
+
+<table>
+  <thead>
+    <tr>
+      <th>Método</th>
+      <th>Ruta</th>
+      <th>Descripción</th>
+      <th>Body/Parámetros</th>
+      <th>Respuesta</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/hashed/hash</code></td>
+      <td>Genera el hash de una frase usando el algoritmo especificado (<code>MD5</code>, <code>SHA256</code>, <code>SHA512</code>).</td>
+      <td><code>{ "phrase": "texto", "algorithm": "SHA256" }</code></td>
+      <td><code>{ "hashed_value": "..." }</code></td>
+    </tr>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/hashed/unhash</code></td>
+      <td>Intenta descifrar uno o varios hashes (multilínea, auto-detecta tipo, fuerza bruta limitada).</td>
+      <td><code>{ "hashes": "hash1\nhash2", "max_len": 20 }</code></td>
+      <td>Lista de objetos con <code>hash</code>, <code>original</code>, <code>type</code>, <code>found</code>, <code>method</code>.</td>
+    </tr>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/hashed/hash-file</code></td>
+      <td>Sube un archivo de palabras (una por línea) y almacena sus hashes en la base de datos.</td>
+      <td>Archivo <code>.txt</code> (cada línea una palabra), parámetro <code>algorithm</code> (<code>MD5</code>, <code>SHA256</code>, <code>SHA512</code>).</td>
+      <td>Resumen de inserciones, existentes y errores.</td>
+    </tr>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/hashed/upload-hash-file</code></td>
+      <td>Sube un archivo con pares palabra-hash (separados por coma, tabulación, espacio o dos puntos) y los almacena.</td>
+      <td>Archivo <code>.txt</code> (cada línea: palabra,hash)</td>
+      <td>Resumen de líneas procesadas, tipo de hash detectado y errores.</td>
+    </tr>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/hashed/unhash-file</code></td>
+      <td>Sube un archivo con hashes (uno por línea) e intenta descifrarlos (fuerza bruta limitada, timeout por hash).</td>
+      <td>Archivo <code>.txt</code> (cada línea un hash)</td>
+      <td>Resultados por hash y archivo <code>hashes_encontrados.txt</code> en base64.</td>
+    </tr>
+  </tbody>
+</table>
+
+<blockquote>
+<b>Ejemplo de uso (curl):</b>
+
+<pre><code>curl -X POST http://127.0.0.1:8000/hashed/hash -H "Content-Type: application/json" -d '{"phrase":"hola","algorithm":"SHA256"}'
+</code></pre>
+</blockquote>
+</details>
+<details>
 <summary><b>🟣 SpaCy (`/start-spacy`)</b></summary>
 
 - <b>GET /start-spacy</b> — Inicia un proceso background que lee <code>outputs/result.json</code>, extrae entidades y escribe <code>outputs/labels_result.json</code>. Programado para ejecutarse cada 24 horas si se lanza desde la API.
@@ -490,5 +562,3 @@ Este parámetro puede modificarse manualmente para activar/desactivar el uso de 
 </details>
 
 ---
-
-

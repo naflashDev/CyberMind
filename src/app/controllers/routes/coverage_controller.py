@@ -50,4 +50,5 @@ def get_coverage_html():
         # Siempre devolver como HTML
         return HTMLResponse(str(soup), media_type='text/html')
     except Exception as e:
-        return Response(status_code=500, content=f'Error procesando el informe de cobertura: {e}', media_type='text/html')
+        # Generic error message for UI, no internal details
+        return Response(status_code=500, content='Ha ocurrido un error interno. Por favor, contacte con el administrador.', media_type='text/html')

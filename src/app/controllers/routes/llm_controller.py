@@ -61,6 +61,7 @@ def background_cve_and_finetune_loop(stop_event: Optional[threading.Event] = Non
             logger.info("[LLM Trainer] 7-day CVE + dataset cycle finished.")
         except Exception as e:
             logger.error(f"[LLM Trainer] Error in 7-day loop: {e}")
+            # No UI error here, but if hay endpoints que devuelven error, deben ser genéricos
         # Wait in an interruptible way so shutdown can proceed quickly
         try:
             stop_event.wait(interval)

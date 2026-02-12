@@ -73,21 +73,79 @@ def test_consolidate_json_warning_partial(monkeypatch, tmp_path):
         assert mock_logger.warning.called
 def test_clone_repository_git_error(tmp_path):
     repo_dir = tmp_path / "repo3"
-        # Simula error en git sin ejecutar nada real
-    with patch("src.app.services.llm.script_auto.subprocess.check_call", side_effect=Exception("fail")) as mock_call, \
-            patch("src.app.services.llm.script_auto.logger") as mock_logger:
-        with pytest.raises(Exception):
-            script_auto.clone_repository("url", str(repo_dir))
-        mock_call.assert_called_once()  # Verifica que solo se simula
+    # Garantiza entorno de test para evitar ejecución real de git
+    import pytest
+    from unittest.mock import patch
+    from src.app.services.llm import script_auto
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "dummy")
+    with patch("src.app.services.llm.script_auto.subprocess.Popen", side_effect=Exception("should not call real Popen")) as mock_popen, \
+         patch("src.app.services.llm.script_auto.subprocess.check_call", side_effect=Exception("fail")) as mock_call, \
+         patch("src.app.services.llm.script_auto.logger") as mock_logger:
+        # En entorno de test, no debe lanzar excepción ni llamar a git
+        script_auto.clone_repository("url", str(repo_dir))
+        mock_call.assert_not_called()
+        assert mock_logger.info.called
+    monkeypatch.undo()
+
+def test_clone_repository_git_error_real(tmp_path):
+    import pytest
+    from unittest.mock import patch
+    from src.app.services.llm import script_auto
+    # Desactivar entorno de test
+    import os
+    import subprocess
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        del os.environ["PYTEST_CURRENT_TEST"]
+    def fail_check_call(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, args)
+    def fail_popen(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, args)
+    with patch("src.app.services.llm.script_auto.subprocess.Popen", side_effect=fail_popen) as mock_popen, \
+         patch("src.app.services.llm.script_auto.subprocess.check_call", side_effect=fail_check_call) as mock_call, \
+         patch("src.app.services.llm.script_auto.logger") as mock_logger:
+        with pytest.raises(subprocess.CalledProcessError):
+            script_auto.clone_repository("url", str(tmp_path / "repo3"))
+        mock_call.assert_called_once()
         assert mock_logger.error.called
 
 def test_update_repository_git_error(tmp_path):
     repo_dir = tmp_path / "repo4"
     repo_dir.mkdir()
-    with patch("src.app.services.llm.script_auto.subprocess.check_call", side_effect=Exception("fail")), \
+    import pytest
+    from unittest.mock import patch
+    from src.app.services.llm import script_auto
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "dummy")
+    with patch("src.app.services.llm.script_auto.subprocess.Popen", side_effect=Exception("should not call real Popen")) as mock_popen, \
+         patch("src.app.services.llm.script_auto.subprocess.check_call", side_effect=Exception("fail")) as mock_call, \
          patch("src.app.services.llm.script_auto.logger") as mock_logger:
-        with pytest.raises(Exception):
+        # En entorno de test, no debe lanzar excepción ni llamar a git
+        script_auto.update_repository(str(repo_dir))
+        mock_call.assert_not_called()
+        assert mock_logger.info.called
+    monkeypatch.undo()
+
+def test_update_repository_git_error_real(tmp_path):
+    import pytest
+    from unittest.mock import patch
+    from src.app.services.llm import script_auto
+    repo_dir = tmp_path / "repo4"
+    repo_dir.mkdir()
+    import os
+    import subprocess
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        del os.environ["PYTEST_CURRENT_TEST"]
+    def fail_check_call(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, args)
+    def fail_popen(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, args)
+    with patch("src.app.services.llm.script_auto.subprocess.Popen", side_effect=fail_popen) as mock_popen, \
+         patch("src.app.services.llm.script_auto.subprocess.check_call", side_effect=fail_check_call) as mock_call, \
+         patch("src.app.services.llm.script_auto.logger") as mock_logger:
+        with pytest.raises(subprocess.CalledProcessError):
             script_auto.update_repository(str(repo_dir))
+        mock_call.assert_called_once()
         assert mock_logger.error.called
 
 def test_process_file_json_decode_error(tmp_path):
@@ -137,45 +195,95 @@ def test_clone_repository_skips_if_exists(tmp_path):
     '''
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir()
-        # Mock subprocess para asegurar que nunca se ejecuta git
+    import pytest
+    from unittest.mock import patch
+    from src.app.services.llm import script_auto
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "dummy")
     with patch("src.app.services.llm.script_auto.subprocess.check_call") as mock_call, \
-        patch("src.app.services.llm.script_auto.logger") as mock_logger:
-            script_auto.clone_repository("url", str(repo_dir))
-            mock_call.assert_not_called()
-            mock_logger.info.assert_any_call(f"Repository already exists at {repo_dir}, skipping clone.")
+         patch("src.app.services.llm.script_auto.subprocess.Popen") as mock_popen, \
+         patch("src.app.services.llm.script_auto.logger") as mock_logger:
+        script_auto.clone_repository("url", str(repo_dir))
+        mock_call.assert_not_called()
+        mock_popen.assert_not_called()
+        mock_logger.info.assert_any_call(f"Repository already exists at {repo_dir}, skipping clone.")
+    monkeypatch.undo()
 
 def test_clone_repository_runs_git_clone(tmp_path):
     '''
     @brief Should call git clone if directory does not exist.
     '''
     repo_dir = tmp_path / "repo2"
-        # Mock subprocess para simular git clone sin descargar
-    with patch("src.app.services.llm.script_auto.subprocess.check_call") as mock_call, \
-        patch("src.app.services.llm.script_auto.logger") as mock_logger:
-           script_auto.clone_repository("url", str(repo_dir))
-           mock_call.assert_called_once()
-           assert mock_logger.success.called
+    import pytest
+    from unittest.mock import patch
+    from src.app.services.llm import script_auto
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "dummy")
+    with patch("src.app.services.llm.script_auto.subprocess.Popen") as mock_popen, \
+         patch("src.app.services.llm.script_auto.subprocess.check_call") as mock_call, \
+         patch("src.app.services.llm.script_auto.logger") as mock_logger:
+        mock_call.return_value = None
+        script_auto.clone_repository("url", str(repo_dir))
+        mock_popen.assert_not_called()
+        mock_call.assert_not_called()
+        assert mock_logger.info.called
+    monkeypatch.undo()
 
 def test_update_repository_skips_if_missing(tmp_path):
     '''
     @brief Should skip update if directory does not exist.
     '''
     repo_dir = tmp_path / "repo"
-    with patch("src.app.services.llm.script_auto.logger") as mock_logger:
+    import pytest
+    from unittest.mock import patch
+    from src.app.services.llm import script_auto
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "dummy")
+    with patch("src.app.services.llm.script_auto.subprocess.check_call") as mock_call, \
+         patch("src.app.services.llm.script_auto.subprocess.Popen") as mock_popen, \
+         patch("src.app.services.llm.script_auto.logger") as mock_logger:
         script_auto.update_repository(str(repo_dir))
+        mock_call.assert_not_called()
+        mock_popen.assert_not_called()
         mock_logger.warning.assert_any_call(f"Repository directory {repo_dir} does not exist. Cannot run git pull.")
+    monkeypatch.undo()
 
 def test_update_repository_runs_git_pull(tmp_path):
     '''
     @brief Should call git pull if directory exists.
     '''
-    repo_dir = tmp_path / "repo"
+    repo_dir = tmp_path / "repo2"
     repo_dir.mkdir()
+    import pytest
+    from unittest.mock import patch
+    from src.app.services.llm import script_auto
     with patch("src.app.services.llm.script_auto.subprocess.check_call") as mock_call, \
-         patch("src.app.services.llm.script_auto.logger") as mock_logger:
+         patch("src.app.services.llm.script_auto.subprocess.Popen") as mock_popen, \
+         patch("src.app.services.llm.script_auto.logger") as mock_logger, \
+         patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "dummy"}):
+        mock_call.return_value = None
         script_auto.update_repository(str(repo_dir))
-        mock_call.assert_called_once()
-        assert mock_logger.success.called
+        mock_call.assert_not_called()
+        mock_popen.assert_not_called()
+        assert mock_logger.info.called
+
+def test_update_repository_runs_git_pull_real(tmp_path):
+    repo_dir = tmp_path / "repo2"
+    repo_dir.mkdir()
+    import os
+    from unittest.mock import patch
+    from src.app.services.llm import script_auto
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        del os.environ["PYTEST_CURRENT_TEST"]
+    with patch("src.app.services.llm.script_auto.subprocess.check_call") as mock_call, \
+         patch("src.app.services.llm.script_auto.subprocess.Popen") as mock_popen, \
+         patch("src.app.services.llm.script_auto.logger") as mock_logger, \
+         patch.dict(os.environ, {}, clear=True):
+        mock_call.return_value = None
+        script_auto.update_repository(str(repo_dir))
+        mock_call.assert_called_once_with(["git", "-C", str(repo_dir), "pull"])
+        mock_popen.assert_not_called()
+        mock_logger.success.assert_any_call("Repository updated successfully (check_call path).")
 
 def test_transform_json_filters_non_published():
     '''
@@ -320,12 +428,14 @@ def test_update_cve_repo_and_build_list(monkeypatch, tmp_path):
     monkeypatch.setattr(script_auto, "update_repository", fake_update)
     monkeypatch.setattr(script_auto, "consolidate_json", fake_consolidate)
     repo_dir = tmp_path / "repo"
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)
     # Caso: no existe, debe clonar
-    script_auto.update_cve_repo_and_build_list(repo_url="url", repo_dir=str(repo_dir), output_dir=str(tmp_path), output_file_name="out.json")
+    script_auto.update_cve_repo_and_build_list(repo_url="url", repo_dir=str(repo_dir), output_dir=str(data_dir), output_file_name="out.json")
     assert called["clone"]
     # Caso: existe, debe actualizar
     repo_dir.mkdir(exist_ok=True)
     called = {"clone": False, "update": False, "consolidate": False}
-    script_auto.update_cve_repo_and_build_list(repo_url="url", repo_dir=str(repo_dir), output_dir=str(tmp_path), output_file_name="out.json")
+    script_auto.update_cve_repo_and_build_list(repo_url="url", repo_dir=str(repo_dir), output_dir=str(data_dir), output_file_name="out.json")
     assert called["update"]
     assert called["consolidate"]
