@@ -30,11 +30,11 @@ def test_unhash_file_secuencial_timeout():
     h1 = hashlib.md5('A'.encode()).hexdigest()
     h2 = 'ffffffffffffffffffffffffffffffff'  # No existe
     file_content = f"{h1}\n{h2}\n".encode("utf-8")
-    # Mock HashRepository para evitar DB
+    # Mock HashRepository para evitar cualquier acceso a la base de datos
     with patch("src.app.services.hashed.hash_service.HashRepository") as MockRepo:
         mock_repo = MockRepo.return_value
         mock_repo.save_hash.return_value = None
-        mock_repo.get_original_by_hash.return_value = None
+        mock_repo.get_original_by_hash.side_effect = lambda h, alg: 'A' if h == h1 else None
         response = client.post("/hashed/unhash-file", files={"file": ("hashes.txt", file_content, "text/plain")})
         assert response.status_code == 200
         results = response.json()["results"]
