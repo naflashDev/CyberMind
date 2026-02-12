@@ -155,6 +155,8 @@ tqdm==4.67.1
 transformers==4.57.3
 tqdm==4.67.1
 transformers==4.57.3
+tqdm==4.67.1
+transformers==4.57.3
 trio==0.30.0
 trio-websocket==0.12.2
 Twisted==24.11.0
