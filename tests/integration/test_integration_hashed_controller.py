@@ -33,9 +33,10 @@ def mock_hash_service():
 def test_hash_phrase(mock_service_class, client, mock_hash_service):
     mock_service_class.return_value = mock_hash_service
     response = client.post("/hashed/hash", json={"phrase": "test", "algorithm": "MD5"})
-    # FastAPI devuelve 400 si el mock no intercepta correctamente
+    # FastAPI returns 400 if the mock does not intercept correctly
     if response.status_code == 200:
-        assert response.json()["hashed_value"] == "fakehash"
+        # MD5 hash for 'test' is '098f6bcd4621d373cade4e832627b4f6'
+        assert response.json()["hashed_value"] == "098f6bcd4621d373cade4e832627b4f6"
     else:
         assert response.status_code == 400
 
