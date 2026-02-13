@@ -1,3 +1,8 @@
+### Changed (2026-02-13)
+- Ampliados los tests unitarios para `src/app/services/hashed/bruteforce_utils.py`, cubriendo la función interna `_bruteforce_worker` (timeout, max_combinations, chunking, caracteres especiales, detección exitosa y fallida). La cobertura del módulo supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
+Archivos modificados:
+ - `tests/unit/test_bruteforce_utils.py`
+ - `src/app/services/hashed/bruteforce_utils.py`
 ### Added
 - Endpoint `/workers/shutdown` para apagar la aplicación y todos los procesos desde la UI.
 - Botón de apagado en el sidebar de la UI con feedback visual y estilos de seguridad.

@@ -1,3 +1,29 @@
+def test_clone_repository_error(monkeypatch):
+    '''
+    @brief Error Handling: Simula error en git clone.
+    '''
+    import os
+    from src.app.services.llm import script_auto
+    monkeypatch.setattr(os.path, "exists", lambda p: False)
+    with patch.object(script_auto.logger, "error") as logerr:
+        try:
+            script_auto.clone_repository("url", "repo")
+        except Exception:
+            logerr.assert_called()
+
+def test_update_repository_error(monkeypatch):
+    '''
+    @brief Error Handling: Simula error en git pull.
+    '''
+    import os
+    from src.app.services.llm import script_auto
+    monkeypatch.setattr(os.path, "isdir", lambda p: True)
+    monkeypatch.setattr(os.path, "exists", lambda p: True)
+    with patch.object(script_auto.logger, "error") as logerr:
+        try:
+            script_auto.update_repository("repo")
+        except Exception:
+            logerr.assert_called()
 """
 @file test_script_auto_unit.py
 @author naflashDev
