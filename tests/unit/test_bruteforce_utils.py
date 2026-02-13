@@ -1,13 +1,99 @@
+import os
+from src.app.services.hashed.bruteforce_utils import _bruteforce_worker, HASH_FUNCTIONS, ALL_CHARS
+
+import time
+import pytest
+
+def test_bruteforce_worker_success_md5(monkeypatch):
+    '''
+    @brief Happy Path: Finds original string for MD5 hash, chunk 0, no timeout, no max_combinations.
+    '''
+    s = 'a'
+    h = HASH_FUNCTIONS['MD5'](s)
+    args = (h, 'MD5', 1, 1, 0, time.time() + 2, 0)
+    monkeypatch.setenv("BRUTEFORCE_N_CHUNKS", "1")
+    result, count, timeout = _bruteforce_worker(args)
+    assert result == s
+    assert timeout is False
+    assert count > 0
+
+def test_bruteforce_worker_timeout(monkeypatch):
+    '''
+    @brief Edge Case: Timeout triggers before finding original string.
+    '''
+    s = 'b'
+    h = HASH_FUNCTIONS['MD5'](s)
+    args = (h, 'MD5', 1, 1, 0, time.time() - 1, 0)  # Already expired
+    monkeypatch.setenv("BRUTEFORCE_N_CHUNKS", "1")
+    result, count, timeout = _bruteforce_worker(args)
+    assert result is None
+    assert timeout is True
+
+def test_bruteforce_worker_max_combinations(monkeypatch):
+    '''
+    @brief Edge Case: max_combinations triggers before finding original string.
+    '''
+    s = 'c'
+    h = HASH_FUNCTIONS['MD5'](s)
+    args = (h, 'MD5', 1, 1, 0, time.time() + 2, 1)  # Only 1 combination allowed
+    monkeypatch.setenv("BRUTEFORCE_N_CHUNKS", "1")
+    result, count, timeout = _bruteforce_worker(args)
+    assert result is None
+    assert timeout is True
+    assert count == 1
+
+def test_bruteforce_worker_not_found(monkeypatch):
+    '''
+    @brief Error Handling: No matching string found, returns None.
+    '''
+    h = 'ffffffffffffffffffffffffffffffff'  # Unlikely hash
+    args = (h, 'MD5', 1, 1, 0, time.time() + 2, 0)
+    monkeypatch.setenv("BRUTEFORCE_N_CHUNKS", "1")
+    result, count, timeout = _bruteforce_worker(args)
+    assert result is None
+    assert timeout is False
+
+def test_bruteforce_worker_special_chars(monkeypatch):
+    '''
+    @brief Happy Path: Finds original string with special character for MD5 hash.
+    '''
+    s = '!'
+    h = HASH_FUNCTIONS['MD5'](s)
+    args = (h, 'MD5', 1, 1, 0, time.time() + 2, 0)
+    monkeypatch.setenv("BRUTEFORCE_N_CHUNKS", "1")
+    result, count, timeout = _bruteforce_worker(args)
+    assert result == s
+    assert timeout is False
+
+def test_bruteforce_worker_chunking(monkeypatch):
+    '''
+    @brief Edge Case: Only chunk 0 processes first character, chunk 1 does not find it.
+    '''
+    s = ALL_CHARS[0]
+    h = HASH_FUNCTIONS['MD5'](s)
+    # 2 chunks: chunk 0 should find, chunk 1 should not
+    monkeypatch.setenv("BRUTEFORCE_N_CHUNKS", "2")
+    args0 = (h, 'MD5', 1, 1, 0, time.time() + 2, 0)
+    args1 = (h, 'MD5', 1, 1, 1, time.time() + 2, 0)
+    result0, count0, timeout0 = _bruteforce_worker(args0)
+    result1, count1, timeout1 = _bruteforce_worker(args1)
+    assert result0 == s
+    assert result1 is None
 
 """
 @file test_bruteforce_utils.py
 @author naflashDev
 @brief Unit tests for bruteforce_utils (hash detection and brute-force).
-@details Covers detection, brute-force (short), edge and error cases.
+@details Unificado: Cubre detección, brute-force, edge cases, manejo de errores, límites de recursos y casos adicionales.
 """
 import pytest
 from src.app.services.hashed.bruteforce_utils import detect_hash_type, bruteforce_hash
+import pytest
+from src.app.services.hashed.bruteforce_utils import detect_hash_type, bruteforce_hash
 import sys
+import types
+
+# --- Resource limit tests ---
 import types
 
 def test_detect_hash_type():
@@ -30,6 +116,7 @@ def test_bruteforce_hash_md5_short():
     result = bruteforce_hash(h, 'MD5', max_len=1, cpu_limit=2)
     assert isinstance(result, dict)
     assert result['original'] == s
+# --- Extra edge/error tests ---
     assert result['timeout'] is False
 
 def test_bruteforce_hash_not_found():

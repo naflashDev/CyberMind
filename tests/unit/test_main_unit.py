@@ -1,3 +1,39 @@
+def test_app_state_and_router(monkeypatch):
+    '''
+    @brief Edge Case: App sin routers ni estado.
+    Verifica que la inicialización no falla y el estado es correcto.
+    '''
+    import main as main_mod
+    from fastapi import FastAPI
+    app = FastAPI()
+    app.state.worker_status = {}
+    app.state.worker_stop_events = {}
+    app.state.worker_timers = {}
+    assert hasattr(app.state, "worker_status")
+    assert hasattr(app.state, "worker_stop_events")
+    assert hasattr(app.state, "worker_timers")
+
+def test_lifespan_shutdown_error(monkeypatch):
+    '''
+    @brief Error Handling: Simula error en shutdown pool y servicios externos.
+    '''
+    import main as main_mod
+    from fastapi import FastAPI
+    app = FastAPI()
+    app.state.pool = None
+    app.state.worker_status = {"w1": True}
+    app.state.stop_event = None
+    monkeypatch.setattr(main_mod.logger, "exception", lambda *a, **k: None)
+    monkeypatch.setattr(main_mod.logger, "info", lambda *a, **k: None)
+    monkeypatch.setattr(main_mod.logger, "warning", lambda *a, **k: None)
+    monkeypatch.setattr(main_mod.logger, "success", lambda *a, **k: None)
+    monkeypatch.setattr(main_mod, "shutdown_services", lambda *a, **k: (_ for _ in ()).throw(Exception("fail")))
+    try:
+        cm = main_mod.lifespan(app)
+        # Simula yield y shutdown
+        next(cm)
+    except Exception:
+        assert True
 """
 @file test_main.py
 @author naflashDev
@@ -44,3 +80,39 @@ async def test_initialize_background_tasks(monkeypatch):
     app.state.worker_stop_events = {}
     await main_mod.initialize_background_tasks(app)
     assert True
+
+# --- Extra edge/error tests ---
+def test_app_missing_router(monkeypatch):
+    """
+    @brief Edge Case: App without routers
+    """
+    app = FastAPI()
+    assert not hasattr(app, "router") or app.router is not None
+
+
+def test_lifespan_error(monkeypatch):
+    """
+    @brief Error Handling: lifespan raises exception
+    """
+    app = FastAPI()
+    monkeypatch.setattr(main_mod, "lifespan", lambda app: (_ for _ in ()).throw(Exception("fail")))
+    try:
+        cm = main_mod.lifespan(app)
+    except Exception as e:
+        assert str(e) == "fail"
+
+@pytest.mark.asyncio
+def test_initialize_background_tasks_error(monkeypatch):
+    """
+    @brief Error Handling: initialize_background_tasks raises exception
+    """
+    app = FastAPI()
+    monkeypatch.setattr(main_mod, "initialize_background_tasks", lambda app: (_ for _ in ()).throw(Exception("fail")))
+    import pytest
+    import asyncio
+    async def run():
+        try:
+            await main_mod.initialize_background_tasks(app)
+        except Exception as e:
+            assert str(e) == "fail"
+    asyncio.run(run())

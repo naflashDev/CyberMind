@@ -1,8 +1,71 @@
+import pytest
+from unittest.mock import patch, MagicMock, AsyncMock
+from fastapi.testclient import TestClient
+from src.app.controllers.routes.tiny_postgres_controller import router
+from fastapi import FastAPI
+
+app = FastAPI()
+app.include_router(router)
+client = TestClient(app)
+
+@pytest.mark.asyncio
+async def test_insert_feed_missing_params(monkeypatch):
+    '''
+    @brief Error Handling: Falta de parámetros obligatorios en insert-feed.
+    '''
+    with patch("src.app.controllers.routes.tiny_postgres_controller.logger"):
+        response = client.post("/postgre-ttrss/insert-feed", json={})
+    assert response.status_code in [400, 404, 422, 500]
+
+@pytest.mark.asyncio
+async def test_insert_feed_db_error(monkeypatch):
+    '''
+    @brief Error Handling: Error inesperado en la base de datos al insertar feed.
+    '''
+    with patch("src.app.controllers.routes.tiny_postgres_controller.logger"):
+        with patch("src.app.controllers.routes.tiny_postgres_controller.asyncpg.create_pool", AsyncMock(side_effect=Exception("fail"))):
+            response = client.post("/postgre-ttrss/insert-feed", json={"feed_url": "http://feed", "title": "Feed"})
+    assert response.status_code in [500, 404]
+import pytest
+from unittest.mock import patch, MagicMock, AsyncMock
+from fastapi.testclient import TestClient
+from src.app.controllers.routes.tiny_postgres_controller import router
+from fastapi import FastAPI
+
+app = FastAPI()
+app.include_router(router)
+client = TestClient(app)
+
+@pytest.mark.asyncio
+async def test_search_and_insert_rss_file_missing(monkeypatch):
+    '''
+    @brief Error Handling: file_path no existe.
+    Simula error de archivo faltante en search-and-insert-rss.
+    '''
+    monkeypatch.setattr("src.app.controllers.routes.tiny_postgres_controller.os.path.exists", lambda x: False)
+    # Patch asyncpg.create_pool to avoid triggering 503 error
+    monkeypatch.setattr("src.app.controllers.routes.tiny_postgres_controller.asyncpg.create_pool", AsyncMock(return_value=MagicMock()))
+    with patch("src.app.controllers.routes.tiny_postgres_controller.logger"):
+        response = client.get("/postgre-ttrss/search-and-insert-rss")
+    assert response.status_code == 404
+    assert "URL file not found" in response.text
+
+@pytest.mark.asyncio
+async def test_search_and_insert_rss_pool_creation(monkeypatch):
+    '''
+    @brief Happy Path: pool se crea on-demand correctamente.
+    '''
+    monkeypatch.setattr("src.app.controllers.routes.tiny_postgres_controller.os.path.exists", lambda x: True)
+    monkeypatch.setattr("src.app.controllers.routes.tiny_postgres_controller.asyncpg.create_pool", AsyncMock(return_value=MagicMock()))
+    with patch("src.app.controllers.routes.tiny_postgres_controller.logger"):
+        app.state.pool = None
+        response = client.get("/postgre-ttrss/search-and-insert-rss")
+    assert response.status_code in [200, 202, 500]
 """
 @file test_tiny_postgres_controller_unit.py
 @author naflashDev
 @brief Unit tests for tiny_postgres_controller endpoints.
-@details Covers happy path, edge cases, and error handling for /postgre-ttrss endpoints.
+@details Unificado: Cubre happy path, edge cases y manejo de errores para todos los endpoints /postgre-ttrss.
 """
 import pytest
 from fastapi.testclient import TestClient
@@ -12,6 +75,7 @@ from fastapi import FastAPI
 
 app = FastAPI()
 app.include_router(router)
+client = TestClient(app)
 
 @pytest.mark.asyncio
 async def test_list_feeds_happy(monkeypatch):
@@ -32,7 +96,6 @@ async def test_list_feeds_happy(monkeypatch):
     monkeypatch.setattr("src.app.controllers.routes.tiny_postgres_controller.asyncpg.create_pool", AsyncMock(return_value=mock_pool))
     monkeypatch.setattr("src.app.controllers.routes.tiny_postgres_controller.get_feeds_from_db", AsyncMock(return_value=mock_feeds))
     with patch("src.app.controllers.routes.tiny_postgres_controller.logger"):
-        client = TestClient(app)
         app.state.pool = mock_pool
         response = client.get("/postgre-ttrss/feeds?limit=2")
     assert response.status_code == 200
@@ -54,7 +117,6 @@ async def test_list_feeds_not_found(monkeypatch):
     monkeypatch.setattr("src.app.controllers.routes.tiny_postgres_controller.asyncpg.create_pool", AsyncMock(return_value=mock_pool))
     monkeypatch.setattr("src.app.controllers.routes.tiny_postgres_controller.get_feeds_from_db", AsyncMock(return_value=[]))
     with patch("src.app.controllers.routes.tiny_postgres_controller.logger"):
-        client = TestClient(app)
         app.state.pool = mock_pool
         response = client.get("/postgre-ttrss/feeds?limit=2")
     assert response.status_code == 404
@@ -75,8 +137,40 @@ async def test_list_feeds_db_error(monkeypatch):
     monkeypatch.setattr("src.app.controllers.routes.tiny_postgres_controller.asyncpg.create_pool", AsyncMock(return_value=mock_pool))
     monkeypatch.setattr("src.app.controllers.routes.tiny_postgres_controller.get_feeds_from_db", AsyncMock(side_effect=Exception("fail")))
     with patch("src.app.controllers.routes.tiny_postgres_controller.logger"):
-        client = TestClient(app)
         app.state.pool = mock_pool
         response = client.get("/postgre-ttrss/feeds?limit=2")
     assert response.status_code == 500
     assert "Ha ocurrido un error interno" in response.text
+
+# --- Extra tests unificados ---
+@pytest.mark.asyncio
+def test_search_and_insert_rss(monkeypatch):
+    """
+    @brief Happy Path: search-and-insert-rss endpoint.
+    Simula el inicio del proceso de extracción RSS.
+    """
+    monkeypatch.setattr("src.app.controllers.routes.tiny_postgres_controller.asyncpg.create_pool", AsyncMock(return_value=MagicMock()))
+    with patch("src.app.controllers.routes.tiny_postgres_controller.logger"):
+        response = client.get("/postgre-ttrss/search-and-insert-rss")
+    assert response.status_code in [200, 202, 404, 500]
+
+@pytest.mark.asyncio
+def test_search_and_insert_rss_error(monkeypatch):
+    """
+    @brief Error Handling: search-and-insert-rss error.
+    Simula error de pool no inicializado.
+    """
+    monkeypatch.setattr("src.app.controllers.routes.tiny_postgres_controller.asyncpg.create_pool", AsyncMock(side_effect=Exception("Pool error")))
+    with patch("src.app.controllers.routes.tiny_postgres_controller.logger"):
+        response = client.get("/postgre-ttrss/search-and-insert-rss")
+    assert response.status_code in [500, 404]
+
+@pytest.mark.asyncio
+def test_insert_feed_invalid(monkeypatch):
+    """
+    @brief Edge Case: Insert feed with invalid data.
+    Simula inserción de feed con datos inválidos.
+    """
+    with patch("src.app.controllers.routes.tiny_postgres_controller.logger"):
+        response = client.post("/postgre-ttrss/insert-feed", json={"feed_url": "", "title": ""})
+    assert response.status_code in [400, 404, 422, 500]

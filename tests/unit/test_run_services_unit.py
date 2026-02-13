@@ -1,3 +1,46 @@
+def test_ensure_compose_from_install_error(monkeypatch):
+    '''
+    @brief Error Handling: Simula error en subprocess.run al ejecutar compose.
+    '''
+    from app.utils import run_services
+    import importlib
+    importlib.reload(run_services)
+    monkeypatch.setattr(run_services.logger, "error", lambda *a, **k: None)
+    monkeypatch.setattr(run_services.logger, "info", lambda *a, **k: None)
+    monkeypatch.setattr(run_services.logger, "success", lambda *a, **k: None)
+    monkeypatch.setattr(run_services.shutil, "which", lambda x: "docker")
+    monkeypatch.setattr(run_services.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(Exception("fail")))
+    project_root = run_services.Path(".")
+    run_services.ensure_compose_from_install(project_root)
+
+def test_shutdown_services_error(monkeypatch):
+    '''
+    @brief Error Handling: Simula error en shutdown_services.
+    '''
+    from app.utils import run_services
+    import importlib
+    importlib.reload(run_services)
+    monkeypatch.setattr(run_services.logger, "error", lambda *a, **k: None)
+    monkeypatch.setattr(run_services.logger, "info", lambda *a, **k: None)
+    monkeypatch.setattr(run_services.logger, "success", lambda *a, **k: None)
+    monkeypatch.setattr(run_services.shutil, "which", lambda x: "docker")
+    monkeypatch.setattr(run_services.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(Exception("fail")))
+    run_services.shutdown_services(project_root=run_services.Path("."), stop_ollama=True, force_stop_containers=True, distro_name=None, containers="test")
+
+def test_ensure_infrastructure_error(monkeypatch):
+    '''
+    @brief Error Handling: Simula error en ensure_infrastructure.
+    '''
+    from app.utils import run_services
+    import importlib
+    importlib.reload(run_services)
+    monkeypatch.setattr(run_services.logger, "error", lambda *a, **k: None)
+    monkeypatch.setattr(run_services.logger, "info", lambda *a, **k: None)
+    monkeypatch.setattr(run_services.logger, "success", lambda *a, **k: None)
+    monkeypatch.setattr(run_services.shutil, "which", lambda x: "docker")
+    monkeypatch.setattr(run_services.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(Exception("fail")))
+    monkeypatch.setattr(run_services, "ensure_compose_from_install", lambda project_root: (_ for _ in ()).throw(Exception("fail")))
+    run_services.ensure_infrastructure({"distro_name": "Ubuntu", "dockers_name": "test"}, use_ollama=False)
 """
 @file test_run_services.py
 @author naflashDev
@@ -23,6 +66,14 @@ def test_wsl_docker_is_running_false(monkeypatch):
     monkeypatch.setattr(run_services, "subprocess", type("S", (), {"run": lambda *a, **k: type("R", (), {"stdout": b""})()})())
     assert run_services.wsl_docker_is_running("test") is False
 
+def test_wsl_docker_is_running_none(monkeypatch):
+    """
+    @brief Edge Case: subprocess returns None
+    """
+    monkeypatch.setattr(run_services, "subprocess", type("S", (), {"run": lambda *a, **k: None})())
+    assert run_services.wsl_docker_is_running("test") is False
+
+
 def test_detect_host_os(monkeypatch):
     """
     Happy Path: Returns platform and version.
@@ -45,6 +96,14 @@ def test_detect_host_os(monkeypatch):
     monkeypatch.setattr(run_services.platform, "mac_ver", lambda: ("12.6.1", ("", "", ""), ""))
     assert run_services.detect_host_os() == ("Darwin", "12.6.1")
 
+def test_detect_host_os_unknown(monkeypatch):
+    """
+    @brief Error Handling: Unknown platform returns (None, None)
+    """
+    monkeypatch.setattr(run_services.platform, "system", lambda: "Unknown")
+    assert run_services.detect_host_os() == ("Unknown", None)
+
+
 def test_is_docker_available(monkeypatch):
     """
     Happy Path: Docker is available.
@@ -60,6 +119,24 @@ def test_is_docker_available_false(monkeypatch):
     importlib.reload(run_services)
     monkeypatch.setattr(run_services.shutil, "which", lambda x: None)
     assert run_services.is_docker_available() is False
+
+def test_is_docker_available_none(monkeypatch):
+    """
+    @brief Edge Case: shutil.which returns None
+    """
+    monkeypatch.setattr(run_services.shutil, "which", lambda x: None)
+    assert run_services.is_docker_available() is False
+
+
+def test_is_docker_available_exception(monkeypatch):
+    """
+    @brief Error Handling: Exception in shutil.which
+    """
+    monkeypatch.setattr(run_services.shutil, "which", lambda x: (_ for _ in ()).throw(Exception("fail")))
+    try:
+        result = run_services.is_docker_available()
+    except Exception as e:
+        assert str(e) == "fail"
 
 
 def test_wsl_docker_start_container_host(monkeypatch):

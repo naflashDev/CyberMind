@@ -35,9 +35,9 @@ def test_env_variables_loaded_happy_path(monkeypatch):
 def test_env_variables_loaded_missing(monkeypatch):
     import tempfile
     env_test_path = pathlib.Path(__file__).parent.parent.parent / ".env.test"
-    # Crea un archivo temporal vacío para simular la existencia de .env.test
-    with open(env_test_path, "w") as f:
-        f.write("")
+    # Mock open to avoid PermissionError
+    import builtins
+    monkeypatch.setattr(builtins, "open", lambda *args, **kwargs: tempfile.TemporaryFile(mode="w+"))
     load_dotenv(dotenv_path=env_test_path, override=True)
     # Remove POSTGRES_USER from environment to simulate missing var
     monkeypatch.delenv("POSTGRES_USER", raising=False)
