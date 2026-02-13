@@ -53,11 +53,11 @@ async def search_and_insert_rss(request: Request):
         logger.warning("[RSS] Database pool not initialized in app.state; attempting on-demand creation...")
         try:
             pool = await asyncpg.create_pool(
-                user="postgres",
-                password="password123",
-                database="postgres",
-                host="127.0.0.1",
-                port=5432,
+                user=os.getenv("POSTGRES_USER"),
+                password=os.getenv("POSTGRES_PASSWORD"),
+                database=os.getenv("POSTGRES_DB"),
+                host=os.getenv("POSTGRES_HOST"),
+                port=int(os.getenv("POSTGRES_PORT", 5432)),
                 min_size=1,
                 max_size=5,
             )
@@ -203,11 +203,11 @@ async def list_feeds(
             logger.warning("[Feeds] Database pool not initialized in app.state; attempting on-demand creation...")
             try:
                 pool = await asyncpg.create_pool(
-                    user="postgres",
-                    password="password123",
-                    database="postgres",
-                    host="127.0.0.1",
-                    port=5432,
+                    user=os.getenv("POSTGRES_USER"),
+                    password=os.getenv("POSTGRES_PASSWORD"),
+                    database=os.getenv("POSTGRES_DB"),
+                    host=os.getenv("POSTGRES_HOST"),
+                    port=int(os.getenv("POSTGRES_PORT", 5432)),
                     min_size=1,
                     max_size=5,
                 )
