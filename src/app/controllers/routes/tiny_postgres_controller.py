@@ -53,11 +53,11 @@ async def search_and_insert_rss(request: Request):
         logger.warning("[RSS] Database pool not initialized in app.state; attempting on-demand creation...")
         try:
             pool = await asyncpg.create_pool(
-                user="postgres",
-                password="password123",
-                database="postgres",
-                host="127.0.0.1",
-                port=5432,
+                user=os.getenv("POSTGRES_USER"),
+                password=os.getenv("POSTGRES_PASSWORD"),
+                database=os.getenv("POSTGRES_DB"),
+                host=os.getenv("POSTGRES_HOST"),
+                port=int(os.getenv("POSTGRES_PORT", 5432)),
                 min_size=1,
                 max_size=5,
             )
@@ -136,8 +136,14 @@ def background_rss_process_loop(pool, file_path: str, loop: asyncio.AbstractEven
         # callback to surface errors when the coroutine ends.
         def _on_done_rss(fut):
             try:
+                import sys
+                app = sys.modules.get("main").app if "main" in sys.modules else None
+                stop_event_cb = getattr(getattr(app, "state", None), "stop_event", None) if app else None
                 if fut.cancelled():
-                    logger.warning("[RSS] extract_rss_and_save future was cancelled.")
+                    if stop_event_cb is not None and stop_event_cb.is_set():
+                        logger.debug("[RSS] extract_rss_and_save future was cancelled (shutdown in progress).")
+                    else:
+                        logger.warning("[RSS] extract_rss_and_save future was cancelled.")
                     return
                 exc = fut.exception()
                 if exc:
@@ -150,7 +156,6 @@ def background_rss_process_loop(pool, file_path: str, loop: asyncio.AbstractEven
             finally:
                 # Nunca bloquear el hilo principal
                 pass
-
         try:
             future.add_done_callback(_on_done_rss)
         except Exception:
@@ -203,11 +208,11 @@ async def list_feeds(
             logger.warning("[Feeds] Database pool not initialized in app.state; attempting on-demand creation...")
             try:
                 pool = await asyncpg.create_pool(
-                    user="postgres",
-                    password="password123",
-                    database="postgres",
-                    host="127.0.0.1",
-                    port=5432,
+                    user=os.getenv("POSTGRES_USER"),
+                    password=os.getenv("POSTGRES_PASSWORD"),
+                    database=os.getenv("POSTGRES_DB"),
+                    host=os.getenv("POSTGRES_HOST"),
+                    port=int(os.getenv("POSTGRES_PORT", 5432)),
                     min_size=1,
                     max_size=5,
                 )

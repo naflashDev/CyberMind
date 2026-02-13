@@ -1,4 +1,3 @@
-
 # 🚀 **Endpoints de la API CyberMind**
 <div align="center">
   <img src="https://img.shields.io/badge/API-RESTful-009688?style=for-the-badge" />

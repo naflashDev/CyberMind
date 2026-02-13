@@ -182,7 +182,6 @@ def process_json(input_path, output_path):
                 continue
 
             if text_exists_in_opensearch(text, parameters[0], parameters[1], "spacy_documents"):
-                logger.info(f"Text already indexed, skipping: {text[:80]}...")
                 continue
 
             processed_texts.add(text)

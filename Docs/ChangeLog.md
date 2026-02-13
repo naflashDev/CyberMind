@@ -1,6 +1,8 @@
+# [Unreleased] - 2026-02-13
 
-
-# [Unreleased] - 2026-02-12
+### Security
+- Eliminadas todas las credenciales hardcoded de conexión a PostgreSQL en los controladores de feeds (<code>tiny_postgres_controller.py</code>). Ahora se utilizan exclusivamente variables de entorno definidas en el archivo <code>.env</code> (<code>POSTGRES_USER</code>, <code>POSTGRES_PASSWORD</code>, <code>POSTGRES_DB</code>, <code>POSTGRES_HOST</code>, <code>POSTGRES_PORT</code>), cumpliendo la política de seguridad y buenas prácticas establecidas en <code>AGENTS.md</code>.
+- Documentación de endpoints actualizada en <code>Docs/api_endpoints.md</code> para reflejar el uso de variables de entorno en la conexión a la base de datos.
 
 ### Added
 - Nuevo endpoint <code>/hashed/hash-file</code> que permite subir un archivo de texto donde cada línea es una palabra, seleccionar el algoritmo de hash (MD5, SHA256, SHA512) y obtener el hash de cada palabra en tarjetas visuales desde la UI (drag & drop). No almacena los hashes, solo los calcula y devuelve.
