@@ -1,3 +1,4 @@
+
 """
 @file worker_controller.py
 @brief HTTP endpoints to inspect and toggle background workers.
@@ -10,11 +11,25 @@ background tasks.
 @author naflashDev
 """
 
-from fastapi import APIRouter, Request, HTTPException
+
+# Standard library imports
+import os
+import signal
+import threading
+from pathlib import Path
+import time
+import inspect
+
+
+# Third-party imports
+from fastapi import APIRouter, Request, HTTPException, BackgroundTasks, Response
 from pydantic import BaseModel
 from loguru import logger
-import threading
+import asyncpg
+from dotenv import load_dotenv
+import asyncio
 
+# Internal imports
 from app.utils.worker_control import load_worker_settings, save_worker_settings
 from app.controllers.routes import (
     scrapy_news_controller,
@@ -22,7 +37,7 @@ from app.controllers.routes import (
     tiny_postgres_controller,
     llm_controller,
 )
-import asyncpg
+from app.utils.run_services import shutdown_services
 
 router = APIRouter(prefix="/workers", tags=["workers"])
 
@@ -30,6 +45,115 @@ router = APIRouter(prefix="/workers", tags=["workers"])
 class WorkerToggle(BaseModel):
     enabled: bool
 
+@router.post("/shutdown")
+async def shutdown_app(background_tasks: BackgroundTasks, request: Request):
+    '''
+    @brief Shutdown the backend and all subprocesses.
+
+    This endpoint triggers a safe shutdown of the FastAPI app and all background workers/processes.
+    It returns immediately to the client, then kills the process in the background.
+
+    @param background_tasks BackgroundTasks for deferred kill.
+    @param request FastAPI Request object.
+    @return JSON message indicating shutdown was triggered.
+    '''
+    # Señal de log y respuesta inmediata
+    logger.warning("[API] Shutdown endpoint called. App will terminate.")
+    # Defer kill to background to allow HTTP response
+    def kill_proc():
+        # 1. Señalizar eventos de parada de workers
+        try:
+            app = request.app
+            stop_event = getattr(app.state, "stop_event", None)
+            if stop_event is not None:
+                try:
+                    stop_event.set()
+                except Exception:
+                    pass
+            stop_events = getattr(app.state, "worker_stop_events", {})
+            for evt in stop_events.values():
+                try:
+                    evt.set()
+                except Exception:
+                    pass
+            timers = getattr(app.state, "worker_timers", {})
+            for t in timers.values():
+                try:
+                    if hasattr(t, 'cancel'):
+                        t.cancel()
+                    elif hasattr(t, 'terminate'):
+                        t.terminate()
+                        if hasattr(t, 'join'):
+                            t.join(timeout=2)
+                except Exception:
+                    pass
+            # 2. Marcar workers como parados
+            ws = getattr(app.state, "worker_status", None)
+            if isinstance(ws, dict):
+                for k in list(ws.keys()):
+                    ws[k] = False
+                app.state.worker_status = ws
+            # 3. Cerrar pool de PostgreSQL si existe
+            pool = getattr(app.state, "pool", None)
+            if pool:
+                try:
+                    loop = None
+                    try:
+                        loop = asyncio.get_running_loop()
+                    except Exception:
+                        pass
+                    if loop and loop.is_running():
+                        fut = pool.close()
+                        if hasattr(fut, '__await__'):
+                            loop.run_until_complete(fut)
+                    else:
+                        # fallback sync
+                        pool.close()
+                except Exception:
+                    pass
+            # 4. Apagar servicios externos (compose, ollama)
+            try:
+                project_root = Path(__file__).resolve().parents[3]
+                distro_arg = None
+                containers_arg = None
+                try:
+                    parameters = getattr(app.state, 'parameters', None)
+                    if parameters:
+                        distro_arg = parameters[0] if len(parameters) > 0 else None
+                        containers_arg = parameters[1] if len(parameters) > 1 else None
+                except Exception:
+                    pass
+                shutdown_services(
+                    project_root=project_root,
+                    stop_ollama=True,
+                    force_stop_containers=True,
+                    distro_name=distro_arg,
+                    containers=containers_arg,
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
+        # Espera breve para que los workers paren y los logs se vacíen
+        time.sleep(0.5)
+        # Log shutdown success message in English
+        try:
+            logger.success("App shutdown completed successfully. You may now close this console.")
+        except Exception:
+            pass
+        # Cerrar el logger explícitamente
+        try:
+            logger.remove()
+        except Exception:
+            pass
+        # Forzar salida inmediata
+        os._exit(0)
+    background_tasks.add_task(kill_proc)
+    # Add 'reload' field to signal frontend to reload UI
+    return {
+        "message": "Apagado iniciado. La aplicación se cerrará en unos segundos.",
+        "reload": True
+    }
 
 @router.get("")
 async def get_workers(request: Request):
@@ -120,7 +244,6 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
 
     loop = None
     try:
-        import asyncio
         loop = asyncio.get_running_loop()
     except RuntimeError:
         loop = None
@@ -151,10 +274,6 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
         threading.Thread(target=llm_controller.background_cve_and_finetune_loop, args=(evt,), daemon=True).start()
     elif name == "dynamic_spider":
         pool = getattr(request.app.state, "pool", None)
-        import os
-        from dotenv import load_dotenv
-        from pathlib import Path
-        import asyncio
         # Try to create pool on-demand if not present (UI may trigger init asynchronously)
         if pool is None:
             env_test = Path(__file__).parent.parent.parent.parent / ".env.test"
@@ -177,13 +296,11 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
             except Exception as e:
                 logger.error(f"[dynamic_spider] Failed to create DB pool: {e}")
                 request.app.state.worker_status[name] = False
-                from fastapi import Response
                 # Generic error message for UI, no internal details
                 return Response(status_code=503, content="Ha ocurrido un error interno. Por favor, contacte con el administrador.")
         try:
             # pass stop_event and register callback so UI can control the process
             # Para evitar RuntimeWarning en tests y ejecución, comprobamos si la corutina es awaitable y si hay event loop
-            import inspect
             coro = scrapy_news_controller.run_dynamic_spider_from_db(pool, stop_event=evt, register_process=_register_timer)
             try:
                 loop = asyncio.get_running_loop()
