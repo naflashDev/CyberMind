@@ -204,19 +204,15 @@ async def lifespan(app: FastAPI):
             logger.info("Signaled background threads to stop.")
         except Exception:
             logger.exception("Error signaling stop_event")
-    # mark workers as stopped and persist to worker_settings.json
+    # mark workers as stopped (best-effort)
     try:
         ws = getattr(app.state, "worker_status", None)
         if isinstance(ws, dict):
             for k in list(ws.keys()):
                 ws[k] = False
             app.state.worker_status = ws
-            # Persist stopped state to worker_settings.json
-            from app.utils.worker_control import save_worker_settings
-            save_worker_settings(ws)
-            logger.info("Worker states persisted to worker_settings.json on shutdown.")
     except Exception:
-        logger.exception("Error updating or persisting worker_status during shutdown")
+        logger.exception("Error updating worker_status during shutdown")
     pool = getattr(app.state, "pool", None)
     if pool:
         try:
