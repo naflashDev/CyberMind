@@ -207,9 +207,9 @@ El módulo LLM de CyberMind utiliza un modelo **LLama3** restringido, configurad
 
 > 🗂️ **Obtención de datos CVE:** El worker <code>LLM Updater</code> clona automáticamente el repositorio oficial de CVE (https://github.com/CVEProject/cvelistV5) y utiliza los datos descargados para generar el archivo JSON de finetuning (<code>outputs/finetune_data.jsonl</code>). Este proceso permite actualizar la base de conocimiento del modelo con información técnica y descripciones de vulnerabilidades extraídas directamente de la fuente oficial.
 
-El finetuning con datos propios está planificado como mejora futura, pero el archivo JSON para el finetuning **sí se genera** automáticamente (`outputs/finetune_data.jsonl`), aunque no se utiliza aún para entrenar el modelo.
+El R.A.G con datos propios está planificado como mejora futura, pero el archivo JSON para el entrenamiento **sí se genera** automáticamente (`outputs/finetune_data.jsonl`), aunque no se utiliza aún para entrenar el modelo.
 
-> ⚠️ **Importante:** El modelo actual **NO ha sido finetuneado** con los datos extraídos por el sistema. La función de entrenamiento personalizado (finetuning) se implementará en el futuro, ya que el proceso es altamente demandante en recursos y tiempo.
+> ⚠️ **Importante:** El modelo actual **NO ha sido finetuneado** con los datos extraídos por el sistema. La función de entrenamiento personalizado (R.A.G) se implementará en el futuro, ya que el proceso de diseño e implementación lleva bastante tiempo.
 
 > 🚨 **Aviso de recursos:** Si tu máquina no es suficientemente potente (CPU/RAM limitados), **NO ejecutes el worker de LLM Updater** (`/llm/updater`). El proceso de actualización y entrenamiento consume muchos recursos y puede afectar gravemente el rendimiento del sistema o bloquear otros servicios.
 

@@ -101,7 +101,7 @@ python main.py
 - 🤖 LLM CyberSentinel: consulta y resumen de CVEs/noticias OT/IT
 - 🦾 Orquestador ligero: workers y tareas automatizadas
 - 🛡️ Security by Design: validación, gestión de secretos, CI/CD
-- 📝 Generación de JSON para finetune de LLM
+- 📝 Generación de JSON para finetune/R.A.G (futura implementación) de LLM
 - 🚀 Expansión continua: nuevos módulos y servicios en desarrollo
 
 ---
@@ -114,6 +114,7 @@ python main.py
 - 🛠️ Instalación dependencias: [Docs/instalacion_dependencias.md](Docs/instalacion_dependencias.md)
 - ⚙️ Workflows CI/CD: [Docs/Workflows.md](Docs/Workflows.md)
 - 📝 Registro de cambios: [Docs/ChangeLog.md](Docs/ChangeLog.md)
+- 📅 Roadmap y estado de próximas implementaciones: [Trello CyberMind](https://trello.com/b/IjdRmwLD/cybermind)
 
 ---
 
@@ -121,7 +122,7 @@ python main.py
 
 La IA integrada en CyberMind utiliza un modelo **LLama3** restringido, configurado mediante un archivo **Model file** que limita sus respuestas y comportamiento. La base de conocimiento del modelo está limitada hasta el año **2023** y no incluye información posterior.
 
-> ⚠️ **Importante:** El modelo actual **NO ha sido finetuneado** con los datos extraídos por el sistema. La función de entrenamiento personalizado (finetuning) se implementará en el futuro, ya que el proceso es altamente demandante en recursos y tiempo.
+> ⚠️ **Importante:** El modelo actual **NO ha sido finetuneado** con los datos extraídos por el sistema. La función de entrenamiento personalizado (R.A.G) se implementará en el futuro, ya que el proceso de diseño e implementación lleva bastante tiempo.
 
 - El modelo responde únicamente sobre temas de ciberseguridad y CVE según las restricciones del Model file.
 - No puede responder sobre eventos, vulnerabilidades o noticias posteriores a 2023.

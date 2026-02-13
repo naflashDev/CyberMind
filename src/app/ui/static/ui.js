@@ -481,7 +481,7 @@ document.addEventListener('DOMContentLoaded', function () {
         { id: "feeds", title: "List Feeds", method: "GET", path: "/postgre-ttrss/feeds", params: [], desc: "Lista los feeds almacenados en la base de datos." }
       ],
       "LLM": [
-        { id: "llm-updater", title: "LLM Updater", method: "GET", path: "/llm/updater", params: [], desc: "Inicia el updater/finetune en background (llm_updater)." }
+        { id: "llm-updater", title: "LLM Updater", method: "GET", path: "/llm/updater", params: [], desc: "Inicia el updater en background (llm_updater)." }
       ],
       "Network": [
         { id: "network-scan", title: "Analisis de redes (scan)", method: "POST", path: "/network/scan", params: [{name: "host", type: "text", placeholder: "IP o hostname"}, {name: "ports", type: "text", placeholder: "puertos separados por comas (opcional)"}], desc: "Escanea puertos comunes y devuelve servicios heurísticos. Asegúrate de tener permiso para escanear el host." },
@@ -968,10 +968,22 @@ document.addEventListener('DOMContentLoaded', function () {
         const host = obj.host || '';
         const res = obj.results || [];
         if (!res.length) return `<div style="color:#9aa6b2">No se encontraron puertos o la respuesta está vacía.</div>`;
-        const cards = res.map(r => {
+        // Ordenar: abiertos primero, luego filtrados, luego cerrados, y por número de puerto
+        const sorted = res.slice().sort((a, b) => {
+          // Abiertos primero
+          if (!!b.open !== !!a.open) return b.open ? 1 : -1;
+          // Filtrados después de abiertos
+          const aState = (a && a.state) ? String(a.state).toLowerCase().trim() : '';
+          const bState = (b && b.state) ? String(b.state).toLowerCase().trim() : '';
+          if (aState === 'filtered' && bState !== 'filtered') return 1;
+          if (bState === 'filtered' && aState !== 'filtered') return -1;
+          // Por número de puerto ascendente
+          return (Number(a.port) || 0) - (Number(b.port) || 0);
+        });
+        const cards = sorted.map(r => {
           const port = r.port || '';
           const protocol = r.protocol || 'tcp';
-          const identity = `${escapeHtml(host)}:${escapeHtml(String(port))}/${escapeHtml(protocol)}`;
+          // const identity = `${escapeHtml(host)}:${escapeHtml(String(port))}/${escapeHtml(protocol)}`;
           const methods = (r.methods && r.methods.length) ? `<div style="margin-top:6px;color:#cbd5e1"><strong>Métodos:</strong> ${r.methods.map(m=>escapeHtml(m)).join(', ')}</div>` : '';
           const product = r.product ? (escapeHtml(r.product) + (r.version ? (' v' + escapeHtml(r.version)) : '')) : '';
             let openBadge = '';
@@ -981,17 +993,16 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
               openBadge = r.open ? '<span style="background:#16a34a;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600">OPEN</span>' : '';
             }
-          return `<div class="port-card" style="background:#071127;padding:12px;border-radius:8px;border:1px solid #0f1724;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-            <div>
-              <div style="font-weight:700;font-size:20px">${escapeHtml(String(port))}</div>
-              <div style="color:#9aa6b2;margin-top:4px">${escapeHtml(r.service || '')}</div>
-              <div style="color:#9aa6b2;font-size:12px;margin-top:4px">${identity}</div>
-              ${product ? `<div style="color:#9aa6b2;margin-top:6px;font-size:13px">${product}</div>` : ''}
+          return `<div class="port-card" style="background:#071127;padding:16px 14px 14px 16px;border-radius:12px;border:1px solid #0f1724;margin-bottom:16px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:0;min-width:0;box-sizing:border-box;">
+            <div style="flex:1 1 180px;min-width:0;max-width:calc(100% - 110px);display:flex;flex-direction:column;gap:4px;">
+              <div style="font-weight:700;font-size:22px;word-break:break-word;line-height:1.1;">${escapeHtml(String(port))}</div>
+              <div style="color:#9aa6b2;font-size:15px;">${escapeHtml(r.service || '')}</div>
+              ${product ? `<div style="color:#9aa6b2;font-size:13px;">${product}</div>` : ''}
               ${methods}
             </div>
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-              <div style="font-size:12px;color:#94a3b8">Puerto</div>
-              ${openBadge}
+            <div style="flex:0 0 90px;display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-start;gap:8px;min-width:90px;max-width:120px;">
+              <div style="font-size:13px;color:#94a3b8;margin-bottom:2px;">Puerto</div>
+              <div>${openBadge}</div>
             </div>
           </div>`;
         }).join('');
@@ -1179,18 +1190,36 @@ document.addEventListener('DOMContentLoaded', function () {
           // Renderizado especial para /hashed/hash
           if (op.path === '/hashed/hash') {
             if (opResult && j.hashed_value && formData.get && typeof formData.get === 'function') {
-              // Obtener la palabra original del formData
-              const palabra = formData.get('phrase') || '';
-              const hash = j.hashed_value;
-              opResult.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">
-                <div style='background:#181f2a;padding:18px 22px;border-radius:10px;margin-bottom:12px;border:1px solid #2d3748;box-shadow:0 2px 8px #0002;display:flex;gap:16px;align-items:center;'>
-                  <div style='font-size:32px;'>🔑</div>
-                  <div style='flex:1;'>
-                    <div style='font-size:15px;margin-bottom:8px;'><b>Palabra:</b> <span style='color:#60a5fa'>${escapeHtml(palabra)}</span></div>
-                    <div style='font-family:monospace;word-break:break-all;font-size:15px;margin-bottom:8px;'><b>Hash:</b> ${escapeHtml(hash)}</div>
-                  </div>
-                </div>
-              </div>`;
+              // ...existing code...
+              return;
+            }
+          }
+
+          // Renderizado especial para /network/scan (forzar tarjetas aunque la estructura no sea perfecta)
+          if (op.path === '/network/scan') {
+            if (opResult) {
+              // Si la respuesta ya tiene host y results, usar normalmente
+              if (j && typeof j === 'object' && Array.isArray(j.results)) {
+                opResult.innerHTML = renderNetworkScanResult(j);
+                return;
+              }
+              // Si la respuesta es un array de puertos directamente
+              if (Array.isArray(j)) {
+                opResult.innerHTML = renderNetworkScanResult({host: '', results: j});
+                return;
+              }
+              // Si la respuesta es un objeto con claves tipo puerto
+              if (j && typeof j === 'object' && Object.keys(j).length > 0) {
+                // Intentar detectar si es un dict de puertos
+                const keys = Object.keys(j);
+                if (keys.every(k => !isNaN(Number(k)))) {
+                  const results = keys.map(k => Object.assign({port: k}, j[k]));
+                  opResult.innerHTML = renderNetworkScanResult({host: '', results});
+                  return;
+                }
+              }
+              // Si nada coincide, mostrar JSON crudo pero con aviso
+              opResult.innerHTML = `<div style='color:#fca5a5;margin-bottom:8px'>Respuesta inesperada del backend, mostrando JSON crudo:</div>` + renderRawJson(j);
               return;
             }
           }
@@ -1288,7 +1317,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (a.open === b.open) return (Number(a.port) || 0) - (Number(b.port) || 0);
                 return a.open ? -1 : 1;
               });
-              if (opResult) opResult.innerHTML = renderPortsList({ common_ports: items });
+              if (opResult) opResult.innerHTML = renderNetworkScanResult(j);
             } catch (e) {
               if (opResult) opResult.innerHTML = renderRawJson(j);
             }

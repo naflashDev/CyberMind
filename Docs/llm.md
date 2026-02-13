@@ -30,11 +30,11 @@ El LLM actúa como asistente técnico especializado para:
 
 El sistema de IA de CyberMind utiliza un modelo **LLama3** restringido, configurado mediante un archivo **Model file** que limita sus respuestas y comportamiento. La base de conocimiento del modelo está limitada hasta el año **2023** y no incluye información posterior.
 
-> ⚠️ **Importante:** El modelo actual **NO ha sido finetuneado** con los datos extraídos por el sistema. La función de entrenamiento personalizado (finetuning) se implementará en el futuro, ya que el proceso es altamente demandante en recursos y tiempo.
+> ⚠️ **Importante:** El modelo actual **NO ha sido finetuneado** con los datos extraídos por el sistema. La función de entrenamiento personalizado (R.A.G) se implementará en el futuro, ya que el proceso de diseño e implementación lleva bastante tiempo.
 
 - El modelo responde únicamente sobre temas de ciberseguridad y CVE según las restricciones del Model file.
 - No puede responder sobre eventos, vulnerabilidades o noticias posteriores a 2023.
-- El finetuning con datos propios está planificado como mejora futura.
+- El R.A.G con datos propios está planificado como mejora futura.
 - El archivo JSON para el finetuning **sí se genera** automáticamente (`outputs/finetune_data.jsonl`), pero no se utiliza aún para entrenar el modelo.
 
 ---
@@ -44,7 +44,7 @@ El sistema de IA de CyberMind utiliza un modelo **LLama3** restringido, configur
 | Método | Ruta | Descripción |
 |:---:|:---|:---|
 | POST | `/llm/query` | Enviar prompt y recibir respuesta |
-| GET | `/llm/updater` | Inicia el proceso periódico de actualización/finetune del LLM |
+| GET | `/llm/updater` | Inicia el proceso periódico de actualización de la información para el LLM |
 | GET | `/llm/stop-updater` | Detiene el proceso iniciado |
 
 ---
