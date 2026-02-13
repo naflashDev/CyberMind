@@ -1,3 +1,27 @@
+  // --- Botón de apagado de la app ---
+  const btnShutdown = document.getElementById('btn-shutdown');
+  if (btnShutdown) {
+    btnShutdown.addEventListener('click', async function () {
+      if (!confirm('¿Seguro que deseas apagar la aplicación? Se cerrarán todos los servicios y procesos.')) return;
+      btnShutdown.disabled = true;
+      btnShutdown.innerHTML = '<span style="margin-right:6px;">⏻</span>Apagando...';
+      try {
+        const resp = await fetch('/workers/shutdown', { method: 'POST' });
+        if (resp.ok) {
+          const data = await resp.json();
+          alert('La aplicación se está apagando. Esta ventana dejará de responder en unos segundos.');
+          if (data && data.reload) {
+            setTimeout(() => { window.location.reload(); }, 5000);
+          }
+        } else {
+          alert('Error al solicitar el apagado.');
+        }
+      } catch (e) {
+        alert('Error de red al solicitar el apagado.');
+      }
+      // Si el backend responde con reload, la UI se recargará automáticamente
+    });
+  }
 document.addEventListener('DOMContentLoaded', function () {
   // --- Sidebar / view switching ---
   // Handles sidebar toggle and view switching logic

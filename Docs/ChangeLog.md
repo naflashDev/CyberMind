@@ -1,3 +1,6 @@
+### Added
+- Endpoint `/workers/shutdown` para apagar la aplicación y todos los procesos desde la UI.
+- Botón de apagado en el sidebar de la UI con feedback visual y estilos de seguridad.
 # [Unreleased] - 2026-02-13
 
 ### Security
