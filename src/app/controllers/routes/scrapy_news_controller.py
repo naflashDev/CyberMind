@@ -241,26 +241,18 @@ def recurring_google_alert_scraper(loop: asyncio.AbstractEventLoop, stop_event=N
     try:
         logger.info("[Google Alerts] Extracting feeds from file...")
         fetch_and_save_alert_urls()
-
-        logger.success("[Feeds] Google Alerts feeds updated.")
+        timer = threading.Timer(86400, recurring_google_alert_scraper, args=(loop, stop_event, register_timer))
+        timer.daemon = True
+        # allow caller to keep reference to timer so it can be canceled
+        if callable(register_timer):
+            try:
+                register_timer(timer)
+            except Exception:
+                pass
+        timer.start()
+        logger.info("[Scheduler] Next feed update in 24h")
     except Exception as e:
-        logger.error(f"[Feeds] Error extracting feeds: {e}")
-
-    # Schedule next run only if stop_event not set
-    try:
-        if stop_event is None or not stop_event.is_set():
-            timer = threading.Timer(86400, recurring_google_alert_scraper, args=(loop, stop_event, register_timer))
-            timer.daemon = True
-            # allow caller to keep reference to timer so it can be canceled
-            if callable(register_timer):
-                try:
-                    register_timer(timer)
-                except Exception:
-                    pass
-            timer.start()
-            logger.info("[Scheduler] Next feed update in 24h")
-        else:
-            logger.info("[Google Alerts] stop_event set; not scheduling next run.")
+        logger.error(f"[Google Alerts] Error scheduling next run: {e}")
     except Exception as e:
         logger.error(f"[Scheduler] Error rescheduling Google Alerts: {e}")
 
@@ -398,8 +390,14 @@ def background_scraping_news(loop: asyncio.AbstractEventLoop, stop_event=None, r
         future = asyncio.run_coroutine_threadsafe(run_news_search(), loop)
         def _on_done_news(fut):
             try:
+                import sys
+                app = sys.modules.get("main").app if "main" in sys.modules else None
+                stop_event_cb = getattr(getattr(app, "state", None), "stop_event", None) if app else None
                 if fut.cancelled():
-                    logger.warning("[Scraper] run_news_search future was cancelled.")
+                    if stop_event_cb is not None and stop_event_cb.is_set():
+                        logger.debug("[Scraper] run_news_search future was cancelled (shutdown in progress).")
+                    else:
+                        logger.warning("[Scraper] run_news_search future was cancelled.")
                     return
                 exc = fut.exception()
                 if exc:

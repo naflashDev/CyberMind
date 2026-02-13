@@ -136,8 +136,14 @@ def background_rss_process_loop(pool, file_path: str, loop: asyncio.AbstractEven
         # callback to surface errors when the coroutine ends.
         def _on_done_rss(fut):
             try:
+                import sys
+                app = sys.modules.get("main").app if "main" in sys.modules else None
+                stop_event_cb = getattr(getattr(app, "state", None), "stop_event", None) if app else None
                 if fut.cancelled():
-                    logger.warning("[RSS] extract_rss_and_save future was cancelled.")
+                    if stop_event_cb is not None and stop_event_cb.is_set():
+                        logger.debug("[RSS] extract_rss_and_save future was cancelled (shutdown in progress).")
+                    else:
+                        logger.warning("[RSS] extract_rss_and_save future was cancelled.")
                     return
                 exc = fut.exception()
                 if exc:
@@ -150,7 +156,6 @@ def background_rss_process_loop(pool, file_path: str, loop: asyncio.AbstractEven
             finally:
                 # Nunca bloquear el hilo principal
                 pass
-
         try:
             future.add_done_callback(_on_done_rss)
         except Exception:
