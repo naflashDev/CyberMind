@@ -1214,7 +1214,19 @@ document.addEventListener('DOMContentLoaded', function () {
           // Renderizado especial para /hashed/hash
           if (op.path === '/hashed/hash') {
             if (opResult && j.hashed_value && formData.get && typeof formData.get === 'function') {
-              // ...existing code...
+              // Visualización tipo tarjeta como en la imagen adjunta
+              const phrase = formData.get('phrase') || '';
+              const algorithm = formData.get('algorithm') || '';
+              opResult.innerHTML = `
+                <div style="background:#181e26;border-radius:10px;padding:24px 32px;margin:0 auto 16px auto;max-width:900px;box-shadow:0 2px 8px #0002;display:flex;align-items:center;gap:18px;">
+                  <span style="font-size:2.1em;vertical-align:middle;">🔑</span>
+                  <div style="display:flex;flex-direction:column;gap:6px;">
+                    <div style="color:#e5e7eb;font-size:1.1em;"><b>Palabra:</b> <span style="color:#facc15">${escapeHtml(phrase)}</span></div>
+                    <div style="color:#e5e7eb;font-size:1.1em;"><b>Hash:</b> <span style="font-family:monospace;color:#38bdf8">${escapeHtml(j.hashed_value)}</span></div>
+                    <div style="color:#e5e7eb;font-size:1.1em;"><b>Algoritmo:</b> <span style="color:#fbbf24">${escapeHtml(algorithm)}</span></div>
+                  </div>
+                </div>
+              `;
               return;
             }
           }
