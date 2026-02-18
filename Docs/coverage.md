@@ -116,6 +116,4 @@ Para asegurar la calidad, añade el siguiente paso al workflow de CI:
 ## Recursos y referencias
 
 - [Documentación oficial de pytest-cov](https://pytest-cov.readthedocs.io/en/latest/)
-- [Cobertura HTML generada](../htmlcov/index.html)
-
 ---

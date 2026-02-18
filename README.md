@@ -45,6 +45,9 @@
 ## 🚀 Quick Start
 
 ### 🐳 Con Docker Compose (Recomendado)
+
+> ⚠️ **Importante:** Para usar la app es necesario crear un .env con las variables de entorno necesarias.Puedes clonar el .env.example y renombrarlo como .env y cambiar las variables de entorno por las tuyas. En este .env se almacenan las variables de entorno para la bbdd de tiny rss si quieres usar otros datos como variables debes modificar tambien el fichero stack.env del directorio install, para que al hacerse el compose del docker de tiny tenga las claves que tu especifiques.➡️ [Ver guía detallada](tiny_rss_install.md)
+
 ```bash
 # 1. Clonar el repositorio
 
@@ -67,7 +70,7 @@ cd ..
 cd src
 python main.py
 ```
-
+- 🛠️ Instalación dependencias: [Docs/instalacion_dependencias.md](Docs/instalacion_dependencias.md)
 - 🌐 UI: [http://127.0.0.1:8000/ui](http://127.0.0.1:8000/ui)
 - 📡 API: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - 📊 Dashboards: [http://localhost:5601](http://localhost:5601)
@@ -89,6 +92,7 @@ python main.py
 | 🦾 Workers     | Orquestación de tareas y procesos            |
 | 🛡️ Seguridad  | Validación, gestión de secretos, SAST        |
 | ⚙️ CI/CD      | Workflows automáticos con GitHub Actions      |
+| 🗄️ SQLite     | Base de datos de hashing (hash repository)   |
 
 ---
 
@@ -115,6 +119,7 @@ python main.py
 - ⚙️ Workflows CI/CD: [Docs/Workflows.md](Docs/Workflows.md)
 - 📝 Registro de cambios: [Docs/ChangeLog.md](Docs/ChangeLog.md)
 - 📅 Roadmap y estado de próximas implementaciones: [Trello CyberMind](https://trello.com/b/IjdRmwLD/cybermind)
+- 🎥 Presentación del proyecto: [Ver presentación en Canva](https://www.canva.com/design/DAHBq7K17zs/PjCMwu3Dj2wg58bleBO-Zg/edit?utm_content=DAHBq7K17zs&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)
 
 ---
 
@@ -161,11 +166,11 @@ CyberMind/
 │   ├── cfg.ini
 │   ├── cfg_services.ini
 │   ├── app/
-│   │   ├── controllers/
-│   │   ├── models/
-│   │   ├── services/
-│   │   ├── ui/
-│   │   ├── utils/
+│   │   ├── controllers/   # Controladores de rutas y lógica de API
+│   │   ├── models/        # Modelos de datos y esquemas
+│   │   ├── services/      # Lógica de negocio y servicios
+│   │   ├── ui/            # Componentes de interfaz de usuario
+│   │   ├── utils/         # Utilidades y funciones auxiliares
 │   │   └── ...
 │   ├── data/
 │   │   ├── cve_list.json
@@ -198,7 +203,12 @@ CyberMind/
 | Install/                | Archivos de configuración y orquestación de servicios (Docker Compose, env)      |
 | src/                    | Código fuente principal del proyecto                                            |
 | src/main.py             | Punto de entrada de la API y la UI                                              |
-| src/app/                | Módulos de la aplicación: controladores, servicios, UI, utilidades              |
+| src/app/                | Núcleo de la aplicación y submódulos                                            |
+| src/app/controllers/    | Controladores de rutas y lógica de API                                          |
+| src/app/models/         | Modelos de datos y esquemas                                                     |
+| src/app/services/       | Lógica de negocio y servicios                                                   |
+| src/app/ui/             | Componentes de interfaz de usuario                                              |
+| src/app/utils/          | Utilidades y funciones auxiliares                                               |
 | src/data/               | Datos, feeds, resultados de scraping y procesamiento                             |
 | tests/                  | Pruebas unitarias, de integración y de servicios                                |
 | env/                    | Entorno virtual Python para aislar dependencias                                 |

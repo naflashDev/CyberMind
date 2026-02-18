@@ -36,7 +36,7 @@ Investigadores, periodistas de datos, analistas y desarrolladores interesados en
 | 🌐 Multifuente y multipropósito | Integración con RSS (TinyRSS), Google Alerts, Google Dorking, APIs públicas, escaneos de red, logs, bases de datos y más. |
 | 🧠 Procesamiento semántico y ML | Extracción de keywords, NER, sentimiento, embeddings, categorización y análisis avanzado con NLP y machine learning. |
 | 🗂️ Almacenamiento híbrido | OpenSearch para búsquedas semánticas, PostgreSQL para datos estructurados, soporte para outputs customizados. |
-| 📊 Dashboards e informes | Visualización configurable con OpenSearch Dashboards, Grafana, Chartbrew, generación de informes y paneles interactivos. |
+| 📊 Dashboards e informes | Visualización configurable con OpenSearch Dashboards. |
 | 🤖 Integración de IA y LLM | Módulo de IA especializado en ciberseguridad, consultas técnicas, resumen de CVEs, análisis de noticias y soporte a auditoría. |
 | 🛡️ Auditoría y análisis de red | Funciones de escaneo de red, análisis de puertos, correlación de vulnerabilidades y soporte a auditoría técnica. |
 | 🧩 Arquitectura modular y extensible | Permite incorporar nuevos dominios, módulos, plugins y servicios de forma independiente. |
@@ -110,4 +110,3 @@ Se ha mejorado la sección "System Status" de la interfaz de usuario añadiendo 
 | llm_updater      | LLM Updater         | Actualiza el modelo LLM y el dataset de CVEs cada 7 días.   |
 | dynamic_spider   | Spider Dinámico     | Ejecuta spiders Scrapy configurados dinámicamente desde la base de datos. |
 
-*Última actualización: 27/01/2026*
