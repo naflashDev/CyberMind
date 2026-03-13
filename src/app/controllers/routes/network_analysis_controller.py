@@ -27,7 +27,7 @@ router = APIRouter(prefix="/network", tags=["network"])
 class ScanRequest(BaseModel):
     host: str
     ports: Optional[List[int]] = None
-    timeout: Optional[float] = 0.5
+    timeout: Optional[float] = 180.0
     use_nmap: Optional[bool] = True
 
     @model_validator(mode="before")
@@ -55,7 +55,7 @@ class RangeScanRequest(BaseModel):
     start: Optional[str] = None
     end: Optional[str] = None
     ports: Optional[List[int]] = None
-    timeout: Optional[float] = 0.5
+    timeout: Optional[float] = 180.0
     use_nmap: Optional[bool] = True
     concurrency: Optional[int] = 20
 

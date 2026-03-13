@@ -118,7 +118,7 @@ def scan_ports(host: str, ports: Optional[List[int]] = None, timeout: float = 0.
     return results
 
 
-def run_nmap_scan(host: str, ports: Optional[List[int]] = None, timeout: int = 120) -> Tuple[List[Dict], str]:
+def run_nmap_scan(host: str, ports: Optional[List[int]] = None, timeout: int = 180) -> Tuple[List[Dict], str]:
     '''
     @brief Run nmap -sV against the host and parse results.
 
@@ -221,7 +221,7 @@ async def scan_range(cidr: Optional[str] = None,
                      start: Optional[str] = None,
                      end: Optional[str] = None,
                      ports: Optional[List[int]] = None,
-                     timeout: Optional[float] = 0.5,
+                     timeout: Optional[float] = 180.0,
                      use_nmap: bool = True,
                      concurrency: int = 20,
                      max_allowed: int = 1024) -> Dict:
