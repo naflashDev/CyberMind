@@ -23,7 +23,7 @@ def test_scan_range_cidr_fallback(monkeypatch):
 
     monkeypatch.setattr('app.services.network_analysis.network_analysis.scan_ports', fake_scan)
 
-    payload = {"cidr": "127.0.0.0/30", "use_nmap": False, "ports": [22, 80], "concurrency": 5}
+    payload = {"cidr": "127.0.0.0/30", "use_nmap": False, "ports": [22, 80], "concurrency": 5, "timeout": 0.5}
     r = client.post('/network/scan_range', json=payload)
     assert r.status_code == 200
     j = r.json()

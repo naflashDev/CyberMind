@@ -66,7 +66,7 @@ def test_scan_range_success(monkeypatch):
     }
     monkeypatch.setattr("app.services.network_analysis.network_analysis.scan_range", lambda **kw: mock_result)
     client = TestClient(app)
-    resp = client.post('/network/scan_range', json={"cidr": "127.0.0.1/32"})
+    resp = client.post('/network/scan_range', json={"cidr": "127.0.0.1/32", "timeout": 0.5})
     assert resp.status_code == 200
     # La respuesta debe contener la clave 'hosts' y ser lista
     data = resp.json()

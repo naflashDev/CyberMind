@@ -30,7 +30,7 @@ def test_post_scan_fallback(monkeypatch):
         return [{'port': 80, 'open': True, 'service': 'http', 'methods': ['HTTP'], 'vulnerabilities': []}]
 
     monkeypatch.setattr('app.services.network_analysis.network_analysis.scan_ports', fake_scan)
-    payload = {'host': '127.0.0.1', 'use_nmap': False}
+    payload = {'host': '127.0.0.1', 'use_nmap': False, 'timeout': 0.5}
     r = client.post('/network/scan', json=payload)
     assert r.status_code == 200
     j = r.json()
