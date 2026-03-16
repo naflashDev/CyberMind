@@ -88,3 +88,14 @@ Al arrancar `main.py`, la aplicación puede iniciar servicios adicionales (conte
 
 - El `llm_updater` puede ejecutar tareas de actualización periódica (clon de repositorios CVE, construcción de dataset, fine-tuning). Controla su ejecución desde la UI
 - En entornos de pruebas/CI desactiva el updater automático para evitar llamadas largas o dependencias externas
+
+---
+
+## ⚙️ Activación/desactivación del LLM por configuración
+
+El uso del LLM en el análisis de código (explicaciones avanzadas de vulnerabilidades) está controlado por el flag `use_ollama` en los archivos `.ini` de la carpeta `src/` (`cfg.ini` o `cfg_services.ini`).
+
+- Si el flag está en `true` en alguno de los archivos, el sistema contactará con el LLM para generar explicaciones.
+- Si el flag está en `false` en ambos, la explicación LLM se sustituye por el texto fijo: "LLM desactivado por configuración.".
+
+Esto permite controlar el uso de recursos y la privacidad desde la configuración, sin modificar el código.

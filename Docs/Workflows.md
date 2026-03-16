@@ -97,5 +97,8 @@ A partir de la versión [fecha actual], la interfaz de usuario incluye un aparta
 - El usuario debe tener acceso a la UI web.
 - Los archivos de documentación deben estar presentes en el sistema de archivos del servidor.
 
----
+### 2026-03-15: Lógica condicional LLM en code scanning
+
+- El workflow de tests y CI verifica ahora que el análisis de código solo contacta con el LLM si el flag `use_ollama` está activado en algún `.ini` de `src/`. Si está en `false` en ambos, la explicación LLM se sustituye por el texto fijo "LLM desactivado por configuración.".
+- Añadidos tests unitarios en `tests/unit/test_scanner_llm_flag.py` para cubrir este comportamiento.
 

@@ -1,3 +1,32 @@
+      /**
+       * @brief Renderiza el resultado de code scanning (vulnerabilidades y PDF).
+       * @param obj Objeto de respuesta del backend.
+       * @return HTML string.
+       */
+      function renderCodeScanResult(obj) {
+        if (!obj || typeof obj !== 'object') return renderRawJson(obj);
+        const vulns = Array.isArray(obj.vulnerabilities) ? obj.vulnerabilities : [];
+        let cards = '';
+        if (vulns.length) {
+          cards = vulns.map(v => {
+            const sevColor = v.severity === 'high' ? '#ef4444' : v.severity === 'medium' ? '#f59e0b' : '#16a34a';
+            return `<div style="background:#181f2a;padding:14px;border-radius:8px;margin-bottom:12px;border:1px solid #2d3748;box-shadow:0 2px 8px #0002;">
+              <div style='font-size:17px;font-weight:700;margin-bottom:6px;color:${sevColor}'>${escapeHtml(v.title || 'Vulnerabilidad')}</div>
+              <div style='color:#9aa6b2;font-size:14px;margin-bottom:8px;'>${escapeHtml(v.description || '')}</div>
+              <div><b>Severidad:</b> <span style='color:${sevColor};font-weight:600;'>${escapeHtml(v.severity || 'desconocida')}</span></div>
+              <div><b>Línea:</b> ${typeof v.line !== 'undefined' ? escapeHtml(String(v.line)) : '-'}</div>
+              <div><b>Regla:</b> ${escapeHtml(v.rule_id || '-')}</div>
+            </div>`;
+          }).join('');
+        } else {
+          cards = `<div style='color:#16a34a'>No se encontraron vulnerabilidades.</div>`;
+        }
+        let pdfBtn = '';
+        if (obj.pdf_base64) {
+          pdfBtn = `<button id="btn-download-pdf" style="margin-bottom:18px;padding:8px 18px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Descargar informe PDF</button>`;
+        }
+        return `${pdfBtn}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
+      }
   // --- Botón de apagado de la app ---
   const btnShutdown = document.getElementById('btn-shutdown');
   if (btnShutdown) {
@@ -470,6 +499,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const API_BASE = window.__CYBERMIND_API_BASE__ || "http://127.0.0.1:8000";
 
     const controllers = {
+      "Code Scanning": [
+        { id: "scan-code-text", title: "Analizar código (texto)", method: "POST", path: "/code/scan-text", params: [
+          {name: "code", type: "textarea", placeholder: "Pega aquí el código fuente a analizar", large: true}
+        ], desc: "Analiza un fragmento de código recibido como texto y muestra vulnerabilidades encontradas e informe PDF." },
+        { id: "scan-code-file", title: "Analizar código (archivo)", method: "POST", path: "/code/scan-file", params: [
+          {name: "file", type: "file", label: "Archivo de código (drag & drop)", accept: ".py,.js,.java,.c,.cpp,.rb,.go", dragdrop: true}
+        ], desc: "Sube un archivo de código fuente y muestra vulnerabilidades encontradas e informe PDF." }
+      ],
             "Hashed": [
               { id: "hash-phrase", title: "Hashear frase", method: "POST", path: "/hashed/hash", params: [
                 {name: "phrase", type: "text", placeholder: "Texto a hashear"},
@@ -661,7 +698,20 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       opForm.appendChild(info);
       const form = document.createElement("form");
-      form.onsubmit = async (e) => { e.preventDefault(); await submitOperation(op, new FormData(form)); };
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        // Validación para endpoints de archivo drag & drop
+        if (op.params && op.params.some(p => p.type === 'file' && p.dragdrop)) {
+          const fileInput = form.querySelector('input[type="file"]');
+          if (!fileInput || !fileInput.files || !fileInput.files.length) {
+            if (opResult) {
+              opResult.innerHTML = `<div style="background:#fee2e2;color:#b91c1c;padding:16px 18px;border-radius:8px;margin-bottom:18px;font-size:16px;font-weight:600;max-width:900px;margin:0 auto 18px auto;">Debes seleccionar un archivo antes de enviar.</div>`;
+            }
+            return;
+          }
+        }
+        await submitOperation(op, new FormData(form));
+      };
 
       // Render custom fields para endpoints Hashed (incluyendo drag & drop de archivo)
       if (op.id === "hash-phrase" || op.id === "unhash" || op.id === "unhash-file" || op.id === "upload-hash-file" || op.id === "hash-file") {
@@ -902,8 +952,108 @@ document.addEventListener('DOMContentLoaded', function () {
 
       if (op.params && op.params.length) {
         op.params.forEach(p => {
-          const label = document.createElement("label"); label.style.display = "block"; label.style.marginBottom = "6px"; label.innerHTML = `<div style='font-size:13px;color:#cbd5e1;margin-bottom:4px;'>${p.name}</div>`;
-          const input = document.createElement("input"); input.name = p.name; input.placeholder = p.placeholder || ""; input.style.width = "100%"; input.style.padding = "8px"; input.style.boxSizing = "border-box"; input.style.marginBottom = "6px"; label.appendChild(input); form.appendChild(label);
+          const label = document.createElement("label");
+          label.style.display = "block";
+          label.style.marginBottom = "6px";
+          label.innerHTML = `<div style='font-size:13px;color:#cbd5e1;margin-bottom:4px;'>${p.label || p.name}</div>`;
+          if (p.type === "textarea" && p.large) {
+            // Textarea grande con estilo solicitado (fondo claro, borde azul claro, ancho completo, código visible)
+            const wrapper = document.createElement("div");
+            wrapper.style.background = "transparent";
+            wrapper.style.border = "none";
+            wrapper.style.borderRadius = "0";
+            wrapper.style.padding = "0";
+            wrapper.style.margin = "0 auto 16px auto";
+            wrapper.style.maxWidth = "900px";
+            wrapper.style.boxShadow = "none";
+            wrapper.style.display = "flex";
+            wrapper.style.alignItems = "flex-start";
+            wrapper.style.gap = "0";
+            const textarea = document.createElement("textarea");
+            textarea.name = p.name;
+            textarea.placeholder = p.placeholder || "";
+            textarea.required = true;
+            textarea.rows = 8;
+            textarea.style.flex = "1 1 0%";
+            textarea.style.width = "100%";
+            textarea.style.padding = "6px 10px";
+            textarea.style.borderRadius = "4px";
+            textarea.style.border = "1px solid rgb(203, 213, 225)";
+            textarea.style.fontFamily = "monospace";
+            textarea.style.fontSize = "15px";
+            textarea.style.background = "#fff";
+            textarea.style.color = "#222";
+            textarea.style.resize = "vertical";
+            textarea.style.boxSizing = "border-box";
+            wrapper.appendChild(textarea);
+            form.appendChild(wrapper);
+          } else if (p.type === "file" && p.dragdrop) {
+            // Drag & drop con input file SIEMPRE dentro del <form>
+            const wrapper = document.createElement("div");
+            wrapper.style.background = "transparent";
+            wrapper.style.border = "none";
+            wrapper.style.borderRadius = "0";
+            wrapper.style.padding = "0";
+            wrapper.style.margin = "0 auto 16px auto";
+            wrapper.style.maxWidth = "900px";
+            wrapper.style.boxShadow = "none";
+            wrapper.style.display = "flex";
+            wrapper.style.alignItems = "center";
+            wrapper.style.gap = "0";
+            const dropZone = document.createElement("div");
+            dropZone.className = "file-drop-zone";
+            dropZone.style.flex = "1 1 0%";
+            dropZone.style.padding = "18px";
+            dropZone.style.border = "2px dashed rgb(37, 99, 235)";
+            dropZone.style.borderRadius = "6px";
+            dropZone.style.background = "rgb(224, 231, 239)";
+            dropZone.style.textAlign = "center";
+            dropZone.style.color = "rgb(37, 99, 235)";
+            dropZone.style.cursor = "pointer";
+            dropZone.style.fontSize = "16px";
+            dropZone.style.marginBottom = "0";
+            dropZone.style.width = "100%";
+            dropZone.textContent = "Arrastra aquí el archivo o haz clic para seleccionar";
+            // El input file debe estar en el <form> y visible para FormData
+            const input = document.createElement("input");
+            input.type = "file";
+            input.name = p.name;
+            if (p.accept) input.accept = p.accept;
+            input.style.display = "none";
+            // Añadir el input file al form (no solo al dropZone)
+            form.appendChild(input);
+            dropZone.addEventListener("click", () => input.click());
+            dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.style.borderColor = "#2563eb"; });
+            dropZone.addEventListener("dragleave", e => { e.preventDefault(); dropZone.style.borderColor = "#2563eb"; });
+            dropZone.addEventListener("drop", e => {
+              e.preventDefault();
+              dropZone.style.borderColor = "#2563eb";
+              if (e.dataTransfer.files && e.dataTransfer.files.length) {
+                input.files = e.dataTransfer.files;
+                dropZone.textContent = `Archivo seleccionado: ${e.dataTransfer.files[0].name}`;
+              }
+            });
+            input.addEventListener("change", e => {
+              if (input.files && input.files.length) {
+                dropZone.textContent = `Archivo seleccionado: ${input.files[0].name}`;
+              } else {
+                dropZone.textContent = "Arrastra aquí el archivo o haz clic para seleccionar";
+              }
+            });
+            wrapper.appendChild(dropZone);
+            form.appendChild(wrapper);
+          } else {
+            // ...existing code for other input types...
+            const input = document.createElement("input");
+            input.name = p.name;
+            input.placeholder = p.placeholder || "";
+            input.style.width = "100%";
+            input.style.padding = "8px";
+            input.style.boxSizing = "border-box";
+            input.style.marginBottom = "6px";
+            label.appendChild(input);
+            form.appendChild(label);
+          }
         });
       }
 
@@ -1168,7 +1318,7 @@ document.addEventListener('DOMContentLoaded', function () {
           for (const [k, v] of formData.entries()) if (v) params.append(k, v);
           const final = params.toString() ? url + "?" + params.toString() : url;
           resp = await fetch(final);
-        } else if (op.path === "/hashed/unhash-file" || op.path === "/hashed/upload-hash-file" || op.path === "/hashed/hash-file") {
+        } else if (op.path === "/hashed/unhash-file" || op.path === "/hashed/upload-hash-file" || op.path === "/hashed/hash-file" || op.path === "/code/scan-file") {
           // Envío especial para archivos: usar FormData y no establecer Content-Type
           const fileInput = formData.get('file');
           const fd = new FormData();
@@ -1209,6 +1359,18 @@ document.addEventListener('DOMContentLoaded', function () {
           resp = await fetch(url, { method: op.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
         }
         const text = await resp.text();
+        // Manejo de errores HTTP (especialmente 400 de validación)
+        if (!resp.ok) {
+          let msg = 'Error desconocido.';
+          try {
+            const err = JSON.parse(text);
+            msg = err.detail || err.message || text;
+          } catch { msg = text; }
+          if (opResult) {
+            opResult.innerHTML = `<div style="background:#fee2e2;color:#b91c1c;padding:16px 18px;border-radius:8px;margin-bottom:18px;font-size:16px;font-weight:600;max-width:900px;margin:0 auto 18px auto;">${escapeHtml(msg)}</div>`;
+          }
+          return;
+        }
         try {
           const j = JSON.parse(text);
           // Renderizado especial para /hashed/hash
@@ -1231,7 +1393,27 @@ document.addEventListener('DOMContentLoaded', function () {
             }
           }
 
-          // Renderizado especial para /network/scan (forzar tarjetas aunque la estructura no sea perfecta)
+          // Renderizado especial para /code/scan-text y /code/scan-file
+          if (op.path === '/code/scan-text' || op.path === '/code/scan-file') {
+            if (opResult) {
+              opResult.innerHTML = renderCodeScanResult(j);
+              // Handler para descarga de PDF
+              const btn = document.getElementById('btn-download-pdf');
+              if (btn && j.pdf_base64) {
+                btn.onclick = function() {
+                  const b64 = j.pdf_base64;
+                  const blob = new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], {type: 'application/pdf'});
+                  const link = document.createElement('a');
+                  link.href = URL.createObjectURL(blob);
+                  link.download = 'informe_code_scan.pdf';
+                  document.body.appendChild(link);
+                  link.click();
+                  setTimeout(() => { document.body.removeChild(link); }, 100);
+                };
+              }
+              return;
+            }
+          }
           if (op.path === '/network/scan') {
             if (opResult) {
               // Si la respuesta ya tiene host y results, usar normalmente

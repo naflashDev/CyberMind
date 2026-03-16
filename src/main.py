@@ -44,7 +44,8 @@ from app.controllers.routes import (
     worker_controller,
     network_analysis_controller,
     docs_controller,
-    coverage_controller
+    coverage_controller,
+    code_analysis_controller
 )
 from app.controllers.routes.hashed_controller import router as hashed_router
 from app.controllers.routes.config_controller import router as config_controller_router
@@ -460,6 +461,7 @@ app.include_router(docs_controller.router)
 app.include_router(config_controller_router)
 app.include_router(coverage_controller.router)
 app.include_router(hashed_router)
+app.include_router(code_analysis_controller.router)
 
 # Serve UI static files (simple single-file UI under app/ui/static)
 STATIC_DIR = Path(__file__).resolve().parent / "app" / "ui" / "static"

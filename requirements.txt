@@ -177,3 +177,4 @@ wsproto==1.2.0
 xxhash==3.6.0
 yarl==1.22.0
 zope.interface==7.2
+fpdf2==2.7.8

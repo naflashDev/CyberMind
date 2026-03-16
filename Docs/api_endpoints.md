@@ -142,7 +142,53 @@ Devuelve el informe HTML de cobertura generado por coverage.py, integrando el CS
 <b>Ejemplo de uso (curl):</b>
 
 <pre><code>curl -X POST http://127.0.0.1:8000/newsSpider/save-feed-google-alerts -H "Content-Type: application/json" -d '{"feed_url":"https://example.com/rss"}'
+
+---
+
+## 🟦 Code Scanning
+
+<details>
+<summary><b>🔎 Endpoints de análisis de código</b></summary>
+
+<table>
+  <thead>
+    <tr>
+      <th>Método</th>
+      <th>Ruta</th>
+      <th>Descripción</th>
+      <th>Body/Parámetros</th>
+      <th>Respuesta</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/code/scan-text</code></td>
+      <td>Analiza un fragmento de código recibido como texto y devuelve vulnerabilidades encontradas junto con un informe PDF.</td>
+      <td><code>{ "code": "..." }</code></td>
+      <td><code>{ "vulnerabilities": [...], "llm_enabled": true/false, "pdf_base64": "..." }</code></td>
+    </tr>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/code/scan-file</code></td>
+      <td>Analiza un archivo de código subido y devuelve vulnerabilidades encontradas junto con un informe PDF.</td>
+      <td>Archivo <code>.py, .js, .java, .c, .cpp, .rb, .go</code></td>
+      <td><code>{ "vulnerabilities": [...], "llm_enabled": true/false, "pdf_base64": "..." }</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<blockquote>
+<b>Ejemplo de uso (curl):</b>
+
+<pre><code>curl -X POST http://127.0.0.1:8000/code/scan-text -H "Content-Type: application/json" -d '{"code":"print(123)"}'
 </code></pre>
+
+<pre><code>curl -X POST http://127.0.0.1:8000/code/scan-file -F "file=@test.py"
+</code></pre>
+</blockquote>
+
+</details>
 </blockquote>
 
 </details>
@@ -560,4 +606,3 @@ Este parámetro puede modificarse manualmente para activar/desactivar el uso de 
 
 </details>
 
----
