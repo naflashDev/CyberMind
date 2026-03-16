@@ -51,11 +51,11 @@ async def scan_code_file(file: UploadFile = File(...)):
     @param file Archivo subido (UploadFile).
     @return JSON con lista de vulnerabilidades y PDF en base64.
     '''
-    # --- LOGS DE DEPURACIÓN PARA UPLOADS ---
-    logger.info(f"[scan-file] Petición recibida. file: {file}")
+    # --- LOGS DE DEPURACIÓN PARA UPLOADS (reducidos) ---
+    logger.debug(f"[scan-file] Petición recibida. file: {file}")
     if file:
-        logger.info(f"[scan-file] file.filename: {getattr(file, 'filename', None)}")
-        logger.info(f"[scan-file] file.content_type: {getattr(file, 'content_type', None)}")
+        logger.debug(f"[scan-file] file.filename: {getattr(file, 'filename', None)}")
+        logger.debug(f"[scan-file] file.content_type: {getattr(file, 'content_type', None)}")
     else:
         logger.warning("[scan-file] file es None")
 
@@ -70,14 +70,14 @@ async def scan_code_file(file: UploadFile = File(...)):
     pdf_b64 = None
     llm_enabled = False
     if file.filename.endswith('.zip'):
-        logger.info("[scan-file] Archivo ZIP recibido. Procesando...")
+        logger.debug("[scan-file] Archivo ZIP recibido. Procesando...")
         with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp_zip:
             tmp_zip.write(await file.read())
             tmp_zip_path = tmp_zip.name
         with zipfile.ZipFile(tmp_zip_path, 'r') as zip_ref:
             extract_dir = tempfile.mkdtemp()
             zip_ref.extractall(extract_dir)
-            logger.info(f"[scan-file] ZIP extraído en: {extract_dir}")
+            logger.debug(f"[scan-file] ZIP extraído en: {extract_dir}")
             # Recorrer archivos extraídos y analizar los de código soportados
             extensiones = ('.py', '.js', '.java', '.c', '.cpp', '.rb', '.go')
             scanner = CodeScanner()
@@ -86,7 +86,7 @@ async def scan_code_file(file: UploadFile = File(...)):
                 for fname in files:
                     if fname.endswith(extensiones):
                         fpath = os.path.join(root, fname)
-                        logger.info(f"[scan-file] Analizando archivo en ZIP: {fpath}")
+                        logger.debug(f"[scan-file] Analizando archivo en ZIP: {fpath}")
                         with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
                             content = f.read()
                         try:
@@ -99,19 +99,18 @@ async def scan_code_file(file: UploadFile = File(...)):
                             logger.error(f"[scan-file] Error analizando {fname}: {e}")
             # Generar PDF global solo si hay vulnerabilidades
             pdf_b64 = scanner.generate_pdf_report(results) if results else None
-        logger.info("[scan-file] Análisis de ZIP completado.")
+        logger.debug("[scan-file] Análisis de ZIP completado.")
         return {"vulnerabilities": results, "llm_enabled": llm_enabled, "pdf_base64": pdf_b64}
     else:
         try:
-            logger.info("[scan-file] Intentando leer el archivo subido...")
+            logger.debug("[scan-file] Intentando leer el archivo subido...")
             content = (await file.read()).decode("utf-8", errors="ignore")
-            logger.info(f"[scan-file] Longitud del contenido leído: {len(content)}")
-            logger.debug(f"[scan-file] Primeros 200 caracteres del contenido: {repr(content)[:200]}")
+            logger.debug(f"[scan-file] Longitud del contenido leído: {len(content)}")
             scanner = CodeScanner()
             results = scanner.scan_text(content)
             llm_enabled = scanner.is_llm_enabled() if hasattr(scanner, 'is_llm_enabled') else False
             pdf_b64 = scanner.generate_pdf_report(results) if results else None
-            logger.info("[scan-file] Análisis completado correctamente.")
+            logger.debug("[scan-file] Análisis completado correctamente.")
             return {"vulnerabilities": results, "llm_enabled": llm_enabled, "pdf_base64": pdf_b64}
         except Exception as e:
             logger.error(f"Error in scan_code_file: {e}")

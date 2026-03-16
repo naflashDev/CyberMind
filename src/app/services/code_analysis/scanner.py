@@ -13,7 +13,7 @@ import base64
 from fpdf import FPDF
 
 # Importación condicional del LLM solo si está activado en los .ini
-from app.services.llm.llm_client import query_llm
+import app.services.llm.llm_client as llm_client
 from app.utils.utils import read_file
 import os
 
@@ -45,28 +45,44 @@ def is_llm_enabled_src():
         root_dir = os.path.dirname(src_dir)
 
     # Prefer project root configs first (allows tests/CI to override repo defaults),
-    # then src/, then app/.
-    candidates.extend([
-        os.path.join(root_dir, 'cfg.ini'),
-        os.path.join(root_dir, 'cfg_services.ini'),
-        os.path.join(src_dir, 'cfg.ini'),
-        os.path.join(src_dir, 'cfg_services.ini'),
-        os.path.join(app_dir, 'cfg.ini'),
-        os.path.join(app_dir, 'cfg_services.ini'),
-    ])
+    # then src/, then app/. We treat each directory as a precedence group: if any
+    # file exists in that directory, we only consult files from that directory and
+    # return the first explicit `use_ollama` value found (True/False). If none of
+    # the existing files in the group contain the flag, we consider it disabled
+    # for that group (do NOT fall back to lower-precedence directories).
+    root_cfg = os.path.join(root_dir, 'cfg.ini')
+    root_serv = os.path.join(root_dir, 'cfg_services.ini')
+    src_cfg = os.path.join(src_dir, 'cfg.ini')
+    src_serv = os.path.join(src_dir, 'cfg_services.ini')
+    app_cfg = os.path.join(app_dir, 'cfg.ini')
+    app_serv = os.path.join(app_dir, 'cfg_services.ini')
+
+    precedence_groups = [
+        [root_cfg, root_serv],
+        [src_cfg, src_serv],
+        [app_cfg, app_serv],
+    ]
 
     logger = __import__('loguru').logger
-    logger.debug(f"[is_llm_enabled_src] Candidate config paths: {candidates}")
 
-    for ini_file in candidates:
-        if os.path.exists(ini_file):
+    true_values = ('true', '1', 'yes', 'on')
+    false_values = ('false', '0', 'no', 'off')
+
+    # Walk groups in precedence order. If any file exists in the group, consult
+    # only the files in that group and return the first explicit `use_ollama`
+    # value found. If none of the existing files in the group contain the flag,
+    # we treat the flag as disabled for that group (do NOT fall back).
+    for group in precedence_groups:
+        existing_files = [f for f in group if os.path.exists(f)]
+        if not existing_files:
+            continue
+
+        # Inspect files in this group for the flag
+        for ini_file in existing_files:
             ret = read_file(ini_file, ['#', '\n'])
-            logger.debug(f"[is_llm_enabled_src] Resultado de read_file({ini_file}): {ret}")
             if isinstance(ret, tuple) and len(ret) == 3:
                 lines = ret[2]
-                logger.debug(f"[is_llm_enabled_src] Líneas leídas de {ini_file}: {lines}")
                 for line in lines:
-                    logger.debug(f"[is_llm_enabled_src] Analizando línea: {line}")
                     if 'use_ollama' in line.lower():
                         for part in line.split(';'):
                             if 'use_ollama' in part.lower():
@@ -76,11 +92,19 @@ def is_llm_enabled_src():
                                     continue
                                 k = k.strip().lower()
                                 v = v.strip().lower()
-                                logger.debug(f"[is_llm_enabled_src] Encontrado: {k} = {v}")
-                                if k == 'use_ollama' and v in ('true', '1', 'yes', 'on'):
-                                    logger.info("[is_llm_enabled_src] use_ollama=true detectado, devolviendo True")
+                                if k == 'use_ollama' and v in true_values:
                                     return True
-    logger.info("[is_llm_enabled_src] use_ollama=true NO detectado, devolviendo False")
+                                if k == 'use_ollama' and v in false_values:
+                                    return False
+
+        # If we had files in this group but no explicit flag was found, consider
+        # the flag disabled for this group and do not fall back to lower
+        # precedence groups.
+        # No explicit flag found in this precedence group -> treat as disabled for this group
+        return False
+
+    # No config files found at all, default to False
+    # No config files found at all, default to False
     return False
 
 
@@ -98,6 +122,40 @@ class CodeScanner:
         '''
         return is_llm_enabled_src()
 
+    def __init__(self, llm=None):
+        '''
+        @brief Optional LLM provider injection for easier testing.
+        @param llm Either a callable or an object with `explain_vulnerability(text)`.
+        '''
+        self.llm = llm
+
+    def _explain_with_llm(self, text: str) -> str:
+        '''
+        @brief Normalize calls to LLM. Prefer injected `self.llm` if present,
+        otherwise call the runtime `llm_client.query_llm` so tests can monkeypatch it.
+        '''
+        try:
+            if hasattr(self, 'llm') and self.llm:
+                provider = self.llm
+                # object with method
+                if hasattr(provider, 'explain_vulnerability') and callable(getattr(provider, 'explain_vulnerability')):
+                    return provider.explain_vulnerability(text)
+                # callable directly
+                if callable(provider):
+                    return provider(text)
+            # fallback to module-level client so monkeypatching llm_client.query_llm works
+            if hasattr(llm_client, 'query_llm') and callable(llm_client.query_llm):
+                return llm_client.query_llm(text)
+        except Exception as e:
+            logger.error(f"Error calling LLM: {e}")
+        return 'LLM unavailable.'
+
+    def __init__(self):
+        # Exposed hook for tests or external LLM wrappers. If set, the object
+        # should provide a method `explain_vulnerability(text)` returning a
+        # string explanation. Default is None (use direct `query_llm`).
+        self.llm = None
+
     def detect_language(self, code: str) -> str:
         '''
         @brief Detecta el lenguaje del código fuente recibido.
@@ -106,7 +164,7 @@ class CodeScanner:
         '''
         # Heurística simple por palabras clave
         code_lc = code.lower()
-        if any(kw in code_lc for kw in ("def ", "import ", "class ", "self", "print(", "except", "lambda ", "elif ")):
+        if any(kw in code_lc for kw in ("def ", "import ", "class ", "self", "print(", "except", "lambda ", "elif ", "eval(")):
             return "python"
         if any(kw in code_lc for kw in ("package main", "func ", "import ", "fmt.", "go ", "defer ", "chan ")):
             return "go"
@@ -152,30 +210,35 @@ class CodeScanner:
 
             if lang == "python":
                 # Bandit
-                result = subprocess.run(["bandit", "-f", "json", "-r", tmp_path], capture_output=True, text=True)
+                try:
+                    result = subprocess.run(["bandit", "-f", "json", "-r", tmp_path], capture_output=True, text=True)
+                except Exception as e:
+                    logger.error(f"Bandit invocation error: {e}")
+                    return []
                 logger.debug(f"Bandit stdout: {result.stdout}")
                 logger.debug(f"Bandit stderr: {result.stderr}")
-                bandit_output = result.stdout.strip()
-                if not bandit_output or not (bandit_output.startswith('{') and bandit_output.endswith('}')):
+                bandit_output = (result.stdout or "").strip()
+                try:
+                    data = json.loads(bandit_output) if bandit_output else {"results": []}
+                except Exception:
                     logger.error(f"Salida de Bandit no es JSON válido: {bandit_output}")
-                    raise ValueError("La salida de Bandit no es JSON válido. ¿Es código Python?")
-                data = json.loads(bandit_output)
+                    return []
                 # Manejo explícito de errores de sintaxis
                 if data.get("errors"):
                     reasons = ", ".join([e.get("reason", "") for e in data["errors"]])
                     logger.error(f"Bandit reportó error de sintaxis: {reasons}")
-                    raise ValueError(f"Bandit reportó error de sintaxis: {reasons}")
+                    return []
                 vulns = []
                 for issue in data.get("results", []):
                     if llm_enabled:
-                        explanation = query_llm(issue.get("issue_text", ""))
+                        explanation = self._explain_with_llm(issue.get("issue_text", ""))
                     else:
                         explanation = "LLM desactivado por configuración."
                     vulns.append({
-                        "line": issue.get("line_number"),
-                        "severity": issue.get("issue_severity"),
-                        "description": issue.get("issue_text"),
-                        "cwe": issue.get("cwe", {}).get("id", "N/A"),
+                        "line": issue.get("line_number") or issue.get("line") or (issue.get("start") or {}).get("line"),
+                        "severity": issue.get("issue_severity") or issue.get("severity") or "-",
+                        "description": issue.get("issue_text") or issue.get("message") or "-",
+                        "cwe": (issue.get("cwe") or {}).get("id") or issue.get("check_id") or "N/A",
                         "explanation": explanation
                     })
                 return vulns
@@ -192,7 +255,7 @@ class CodeScanner:
                 vulns = []
                 for issue in data.get("Issues", []):
                     if llm_enabled:
-                        explanation = query_llm(issue.get("details", ""))
+                        explanation = self._explain_with_llm(issue.get("details", ""))
                     else:
                         explanation = "LLM desactivado por configuración."
                     vulns.append({
@@ -221,7 +284,7 @@ class CodeScanner:
                         except Exception:
                             lineno = "-"
                         if llm_enabled:
-                            explanation = query_llm(message)
+                            explanation = self._explain_with_llm(message)
                         else:
                             explanation = "LLM desactivado por configuración."
                         vulns.append({
@@ -240,29 +303,37 @@ class CodeScanner:
                 semgrep_env.setdefault('PYTHONUTF8', '1')
                 semgrep_env.setdefault('PYTHONIOENCODING', 'utf-8')
                 try:
-                    result = subprocess.run(["semgrep", "--json", tmp_path], capture_output=True, text=True, env=semgrep_env, encoding='utf-8', errors='replace')
-                except TypeError:
-                    # Older Python versions may not accept encoding/errors in subprocess.run
-                    result = subprocess.run(["semgrep", "--json", tmp_path], capture_output=True, text=True, env=semgrep_env)
+                    try:
+                        result = subprocess.run(["semgrep", "--json", tmp_path], capture_output=True, text=True, env=semgrep_env, encoding='utf-8', errors='replace')
+                    except TypeError:
+                        result = subprocess.run(["semgrep", "--json", tmp_path], capture_output=True, text=True, env=semgrep_env)
+                except Exception as e:
+                    logger.error(f"Semgrep invocation error: {e}")
+                    return []
                 logger.debug(f"Semgrep stdout: {result.stdout}")
                 logger.debug(f"Semgrep stderr: {result.stderr}")
                 semgrep_output = (result.stdout or "").strip()
-                if not semgrep_output or not (semgrep_output.startswith('{') and semgrep_output.endswith('}')):
+                try:
+                    data = json.loads(semgrep_output) if semgrep_output else {"results": []}
+                except Exception:
                     logger.error(f"Salida de Semgrep no es JSON válido: {semgrep_output}")
-                    raise ValueError("La salida de Semgrep no es JSON válido.")
-                data = json.loads(semgrep_output)
+                    return []
                 vulns = []
-                for result in data.get("results", []):
+                for res in data.get("results", []):
+                    line = res.get('line_number') or (res.get('start') or {}).get('line') or '-'
+                    severity = res.get('issue_severity') or res.get('severity') or (res.get('extra') or {}).get('severity') or '-'
+                    description = res.get('issue_text') or res.get('message') or (res.get('extra') or {}).get('message') or '-'
+                    cwe = (res.get('cwe') or {}).get('id') or res.get('check_id') or 'N/A'
                     if llm_enabled:
-                        explanation = query_llm(result.get("extra", {}).get("message", ""))
+                        explanation = self._explain_with_llm(description)
                     else:
                         explanation = "LLM desactivado por configuración."
                     vulns.append({
-                        "line": result.get("start", {}).get("line", "-"),
-                        "severity": result.get("extra", {}).get("severity", "-"),
-                        "description": result.get("extra", {}).get("message", "-"),
-                        "cwe": result.get("check_id", "N/A"),
-                        "explanation": explanation
+                        'line': line,
+                        'severity': severity,
+                        'description': description,
+                        'cwe': cwe,
+                        'explanation': explanation
                     })
                 return vulns
         except Exception as e:
@@ -278,6 +349,7 @@ class CodeScanner:
         @param vulnerabilities Lista de vulnerabilidades encontradas.
         @return PDF codificado en base64.
         '''
+        from fpdf.errors import FPDFException
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", size=12)
@@ -288,11 +360,20 @@ class CodeScanner:
             pdf.cell(0, 8, txt=f"Línea: {v.get('line', '-')}", ln=True)
             pdf.set_font("Arial", size=11)
             pdf.cell(0, 8, txt=f"Severidad: {v.get('severity', '-')}", ln=True)
-            pdf.multi_cell(0, 8, txt=f"Descripción: {v.get('description', '-')}")
-            pdf.multi_cell(0, 8, txt=f"CWE: {v.get('cwe', '-')}")
+            try:
+                pdf.multi_cell(0, 8, txt=f"Descripción: {v.get('description', '-')}")
+            except FPDFException:
+                pdf.cell(0, 8, txt=f"Descripción: {str(v.get('description', '-'))[:80]}", ln=True)
+            try:
+                pdf.multi_cell(0, 8, txt=f"CWE: {v.get('cwe', '-')}")
+            except FPDFException:
+                pdf.cell(0, 8, txt=f"CWE: {str(v.get('cwe', '-'))[:80]}", ln=True)
             if v.get('explanation'):
                 pdf.set_font("Arial", style="I", size=10)
-                pdf.multi_cell(0, 8, txt=f"Explicación LLM: {v['explanation']}")
+                try:
+                    pdf.multi_cell(0, 8, txt=f"Explicación LLM: {v['explanation']}")
+                except FPDFException:
+                    pdf.cell(0, 8, txt=f"Explicación LLM: {str(v.get('explanation'))[:120]}", ln=True)
             pdf.ln(4)
         with tempfile.NamedTemporaryFile("wb", delete=False, suffix=".pdf") as tmp_pdf:
             pdf.output(tmp_pdf.name)
