@@ -11,6 +11,8 @@ import subprocess
 import tempfile
 import base64
 from fpdf import FPDF
+from datetime import datetime
+from typing import Callable
 
 # Importación condicional del LLM solo si está activado en los .ini
 import app.services.llm.llm_client as llm_client
@@ -135,30 +137,55 @@ class CodeScanner:
         otherwise call the runtime `llm_client.query_llm` so tests can monkeypatch it.
         '''
         try:
-            # Build a clear prompt asking the LLM to reply in Spanish with a
-            # formal, standardized structure. This improves readability in the
-            # generated PDF and satisfies the user's requirement.
-            prompt = (
-                "Por favor, explica en español con un tono formal y usando un formato "
-                "estandarizado. Comienza con una línea que indique 'Estado: <Crítico/Alto/Medio/Bajo/Informativo>' "
-                "(valora brevemente según la gravedad), luego añade una sección 'Resumen:' con una explicación "
-                "concisa y una sección 'Recomendación:' con pasos accionables y claros. No incluyas referencias a "
-                "herramientas internas ni meta-discursos. Texto a explicar:\n\n" + str(text)
-            )
-
             if hasattr(self, 'llm') and self.llm:
                 provider = self.llm
+                # object with method
                 if hasattr(provider, 'explain_vulnerability') and callable(getattr(provider, 'explain_vulnerability')):
-                    return provider.explain_vulnerability(prompt)
+                    return provider.explain_vulnerability(text)
+                # callable directly
                 if callable(provider):
-                    return provider(prompt)
-
+                    return provider(text)
             # fallback to module-level client so monkeypatching llm_client.query_llm works
             if hasattr(llm_client, 'query_llm') and callable(llm_client.query_llm):
-                return llm_client.query_llm(prompt)
+                # Provide a system-level prompt in Spanish to ensure the model
+                # responds in Spanish and with a professional tone. We avoid
+                # editing the llm client itself and pass the system prompt here.
+                system_prompt = (
+                    "Eres un asistente experto en ciberseguridad. Responde siempre en español, "
+                    "de forma clara, concisa y profesional. Al explicar vulnerabilidades, ofrece "
+                    "pasos accionables y utiliza terminología técnica apropiada para desarrolladores."
+                )
+                try:
+                    return llm_client.query_llm(text, system_prompt=system_prompt)
+                except TypeError:
+                    # In case the underlying client does not accept system_prompt
+                    # (backward compatibility), fall back to the simple call.
+                    return llm_client.query_llm(text)
         except Exception as e:
             logger.error(f"Error calling LLM: {e}")
         return 'LLM unavailable.'
+
+    def _classify_confidentiality(self, text: str) -> str:
+        '''
+        @brief Heurística simple para estimar el impacto sobre la confidencialidad.
+        @param text Texto (descripción, detalles) de la vulnerabilidad.
+        @return Una de: 'High', 'Medium', 'Low', 'Unknown'
+        '''
+        if not text:
+            return 'Unknown'
+        t = text.lower()
+        high_keywords = ('expos', 'leak', 'information disclosure', 'sensitive', 'secret', 'credentials', 'password', 'token', 'key', 'ssn', 'pii', 'personal data')
+        medium_keywords = ('access control', 'authorization', 'auth bypass', 'insecure direct object', 'idor', 'privacy')
+        for kw in high_keywords:
+            if kw in t:
+                return 'High'
+        for kw in medium_keywords:
+            if kw in t:
+                return 'Medium'
+        # If the description mentions data or files, consider Medium
+        if 'data' in t or 'file' in t or 'database' in t:
+            return 'Medium'
+        return 'Low'
 
     def __init__(self):
         # Exposed hook for tests or external LLM wrappers. If set, the object
@@ -188,7 +215,7 @@ class CodeScanner:
             return "java"
         return "unknown"
 
-    def scan_text(self, code: str) -> List[Dict[str, Any]]:
+    def scan_text(self, code: str, source_filename: str | None = None) -> List[Dict[str, Any]]:
         '''
         @brief Analiza el código recibido y detecta vulnerabilidades usando la herramienta adecuada.
 
@@ -212,6 +239,10 @@ class CodeScanner:
             with tempfile.NamedTemporaryFile("w", delete=False, suffix=ext) as tmp:
                 tmp.write(code)
                 tmp_path = tmp.name
+            # Determine a sensible filename to attribute vulnerabilities to.
+            # Prefer an explicit source_filename passed by the caller (e.g. upload),
+            # otherwise use the temporary file's basename.
+            attributed_filename = source_filename if source_filename else os.path.basename(tmp_path)
             logger.debug(f"[scanner] Archivo temporal creado para análisis: {tmp_path}")
             logger.debug(f"[scanner] Primeros 200 caracteres escritos: {repr(code)[:200]}")
 
@@ -244,12 +275,16 @@ class CodeScanner:
                         explanation = self._explain_with_llm(issue.get("issue_text", ""))
                     else:
                         explanation = "LLM desactivado por configuración."
+                    desc = issue.get("issue_text") or issue.get("message") or "-"
+                    confidentiality = self._classify_confidentiality(desc)
                     vulns.append({
                         "line": issue.get("line_number") or issue.get("line") or (issue.get("start") or {}).get("line"),
                         "severity": issue.get("issue_severity") or issue.get("severity") or "-",
-                        "description": issue.get("issue_text") or issue.get("message") or "-",
+                        "description": desc,
                         "cwe": (issue.get("cwe") or {}).get("id") or issue.get("check_id") or "N/A",
-                        "explanation": explanation
+                        "explanation": explanation,
+                        "filename": attributed_filename,
+                        "confidentiality": confidentiality,
                     })
                 return vulns
             elif lang == "go":
@@ -268,12 +303,16 @@ class CodeScanner:
                         explanation = self._explain_with_llm(issue.get("details", ""))
                     else:
                         explanation = "LLM desactivado por configuración."
+                    desc = issue.get("details", "-")
+                    confidentiality = self._classify_confidentiality(desc)
                     vulns.append({
                         "line": issue.get("line", "-"),
                         "severity": issue.get("severity", "-"),
-                        "description": issue.get("details", "-"),
+                        "description": desc,
                         "cwe": issue.get("cwe", {}).get("ID", "N/A"),
-                        "explanation": explanation
+                        "explanation": explanation,
+                        "filename": attributed_filename,
+                        "confidentiality": confidentiality,
                     })
                 return vulns
             elif lang == "c" or lang == "cpp":
@@ -297,12 +336,16 @@ class CodeScanner:
                             explanation = self._explain_with_llm(message)
                         else:
                             explanation = "LLM desactivado por configuración."
+                        desc = message
+                        confidentiality = self._classify_confidentiality(desc)
                         vulns.append({
                             "line": lineno,
                             "severity": level,
-                            "description": message,
+                            "description": desc,
                             "cwe": category,
-                            "explanation": explanation
+                            "explanation": explanation,
+                            "filename": attributed_filename,
+                            "confidentiality": confidentiality,
                         })
                 return vulns
             else:
@@ -338,16 +381,85 @@ class CodeScanner:
                         explanation = self._explain_with_llm(description)
                     else:
                         explanation = "LLM desactivado por configuración."
+                    confidentiality = self._classify_confidentiality(description)
                     vulns.append({
                         'line': line,
                         'severity': severity,
                         'description': description,
                         'cwe': cwe,
-                        'explanation': explanation
+                        'explanation': explanation,
+                        'filename': attributed_filename,
+                        'confidentiality': confidentiality,
                     })
                 return vulns
         except Exception as e:
             logger.error(f"Error en scan_text: {e}")
+            raise
+
+    def scan_uploaded_file(self, file_bytes: bytes, filename: str | None = None) -> Dict[str, Any]:
+        '''
+        @brief Procesa un archivo subido (zip o fichero simple), escanea su contenido y genera el payload listo para la UI.
+
+        @param file_bytes Contenido del archivo subido en bytes.
+        @param filename Nombre original del archivo subido (puede ser None).
+        @return Diccionario con claves: `vulnerabilities`, `vulnerabilities_full`, `llm_enabled`, `pdf_base64`.
+        '''
+        import zipfile, tempfile, os, shutil
+
+        results: List[Dict[str, Any]] = []
+        pdf_b64 = None
+        llm_enabled = self.is_llm_enabled() if hasattr(self, 'is_llm_enabled') else False
+
+        # Manejo ZIP
+        if filename and filename.lower().endswith('.zip'):
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp_zip:
+                    tmp_zip.write(file_bytes)
+                    tmp_zip_path = tmp_zip.name
+                with zipfile.ZipFile(tmp_zip_path, 'r') as zip_ref:
+                    extract_dir = tempfile.mkdtemp()
+                    zip_ref.extractall(extract_dir)
+                    # Recorrer archivos extraídos y analizar los de código soportados
+                    extensiones = ('.py', '.js', '.java', '.c', '.cpp', '.rb', '.go')
+                    for root, _, files in os.walk(extract_dir):
+                        for fname in files:
+                            if fname.endswith(extensiones):
+                                fpath = os.path.join(root, fname)
+                                try:
+                                    with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
+                                        content = f.read()
+                                    # Pass the extracted file's name so scanner attributes findings correctly
+                                    res = self.scan_text(content, source_filename=fname)
+                                    results.extend(res)
+                                except Exception as e:
+                                    logger.error(f"[scanner.scan_uploaded_file] Error analizando {fname}: {e}")
+                pdf_b64 = self.generate_pdf_report(results) if results else None
+            finally:
+                try:
+                    if 'tmp_zip_path' in locals() and os.path.exists(tmp_zip_path):
+                        os.remove(tmp_zip_path)
+                except Exception:
+                    pass
+                try:
+                    if 'extract_dir' in locals() and os.path.exists(extract_dir):
+                        shutil.rmtree(extract_dir)
+                except Exception:
+                    pass
+            ui_results = [{k: v for k, v in r.items() if k != 'explanation'} for r in results]
+            return {"vulnerabilities": ui_results, "vulnerabilities_full": results, "llm_enabled": llm_enabled, "pdf_base64": pdf_b64}
+
+        # Fichero único (no zip)
+        try:
+            try:
+                content = file_bytes.decode('utf-8', errors='ignore')
+            except Exception:
+                content = ''
+            results = self.scan_text(content, source_filename=filename)
+            pdf_b64 = self.generate_pdf_report(results) if results else None
+            ui_results = [{k: v for k, v in r.items() if k != 'explanation'} for r in results]
+            return {"vulnerabilities": ui_results, "vulnerabilities_full": results, "llm_enabled": llm_enabled, "pdf_base64": pdf_b64}
+        except Exception as e:
+            logger.error(f"[scanner.scan_uploaded_file] Error procesando archivo subido: {e}")
             raise
 
     def generate_pdf_report(self, vulnerabilities: List[Dict[str, Any]]) -> str:
@@ -360,99 +472,93 @@ class CodeScanner:
         @return PDF codificado en base64.
         '''
         from fpdf.errors import FPDFException
-            pdf = FPDF()        
-            pdf.set_auto_page_break(auto=True, margin=15)
-            # Cover / header
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 16)
-            pdf.cell(0, 10, txt="Informe de Análisis de Código", ln=True, align="C")
-            pdf.ln(2)
+
+        class PDF(FPDF):
+            def header(self):
+                # Title
+                self.set_font("Arial", 'B', 14)
+                self.set_text_color(33, 37, 41)
+                self.cell(0, 8, "Informe de Análisis de Código", ln=True, align="C")
+                self.ln(2)
+
+            def footer(self):
+                # Page number + small footer
+                self.set_y(-12)
+                self.set_font("Arial", 'I', 8)
+                self.set_text_color(100)
+                self.cell(0, 8, f"CyberMind - Página {self.page_no()}", align="C")
+
+        pdf = PDF()
+        pdf.set_auto_page_break(True, margin=15)
+        pdf.add_page()
+
+        # Header info
+        pdf.set_font("Arial", size=10)
+        generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        pdf.cell(0, 6, f"Fecha de generación: {generated_at}", ln=True)
+        pdf.cell(0, 6, f"Vulnerabilidades totales: {len(vulnerabilities)}", ln=True)
+        pdf.ln(4)
+
+        # Summary by severity
+        counts: Dict[str, int] = {}
+        for v in vulnerabilities:
+            key = str(v.get('severity') or '-')
+            counts[key] = counts.get(key, 0) + 1
+        summary_parts = [f"{k}: {counts[k]}" for k in counts]
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(0, 6, "Resumen por severidad:", ln=True)
+        pdf.set_font("Arial", size=10)
+        pdf.multi_cell(0, 6, " | ".join(summary_parts) or "-")
+        pdf.ln(6)
+
+        # Summary by confidentiality
+        conf_counts: Dict[str, int] = {}
+        for v in vulnerabilities:
+            ck = str(v.get('confidentiality') or 'Unknown')
+            conf_counts[ck] = conf_counts.get(ck, 0) + 1
+        conf_parts = [f"{k}: {conf_counts[k]}" for k in conf_counts]
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(0, 6, "Resumen por confidencialidad:", ln=True)
+        pdf.set_font("Arial", size=10)
+        pdf.multi_cell(0, 6, " | ".join(conf_parts) or "-")
+        pdf.ln(6)
+
+        # Detailed entries: use a clean block layout per vulnerability
+        for idx, v in enumerate(vulnerabilities, start=1):
+            filename = v.get('filename', '-')
+            line = v.get('line', '-')
+            severity = v.get('severity', '-')
+            cwe = v.get('cwe', '-')
+            description = str(v.get('description', '-'))
+            explanation = str(v.get('explanation', '-'))
+
+            pdf.set_font("Arial", 'B', 11)
+            pdf.cell(0, 6, f"{idx}. Archivo: {filename} | Línea {line} - Severidad: {severity} - CWE: {cwe}", ln=True)
             pdf.set_font("Arial", size=10)
-            generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-            pdf.cell(0, 6, txt=f"Generado: {generated_at}", ln=True, align="C")
-            pdf.ln(8)
+            try:
+                pdf.multi_cell(0, 6, f"Descripción: {description}")
+            except FPDFException:
+                pdf.multi_cell(0, 6, f"Descripción: {description[:200]}")
+            pdf.ln(1)
+            pdf.set_font("Arial", 'I', 10)
+            try:
+                pdf.multi_cell(0, 6, f"Explicación LLM: {explanation}")
+            except FPDFException:
+                pdf.multi_cell(0, 6, f"Explicación LLM: {explanation[:300]}")
+            pdf.ln(4)
 
-            # Small summary table
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 6, txt="Resumen de vulnerabilidades", ln=True)
-            pdf.ln(3)
-            pdf.set_font("Arial", size=10)
-            # Header row
-            pdf.set_fill_color(230, 230, 230)
-            pdf.cell(90, 7, txt="Archivo:Linea", border=1, fill=True)
-            pdf.cell(40, 7, txt="Severidad", border=1, fill=True)
-            pdf.cell(0, 7, txt="Descripción (resumen)", border=1, ln=True, fill=True)
-            # Rows
-            for v in vulnerabilities:
-                try:
-                    filename = v.get('filename') or v.get('file') or '-'
-                    line = v.get('line', '-')
-                    sev = str(v.get('severity', '-'))
-                    desc = str(v.get('description', '-')).replace('\n', ' ')[:120]
-                    pdf.cell(90, 7, txt=f"{filename}:{line}", border=1)
-                    pdf.cell(40, 7, txt=sev, border=1)
-                    pdf.cell(0, 7, txt=desc, border=1, ln=True)
-                except Exception:
-                    # On row failure, continue gracefully
-                    pdf.cell(0, 7, txt="Fila de resumen omitida por error", border=1, ln=True)
-
-            pdf.add_page()
-
-            # Detailed cards per vulnerability with visual severity coloring
-            def sev_color(s: str):
-                s_l = (s or '').lower()
-                if 'critical' in s_l or 'crit' in s_l:
-                    return (200, 30, 30)
-                if 'high' in s_l:
-                    return (220, 90, 20)
-                if 'medium' in s_l or 'med' in s_l:
-                    return (230, 140, 30)
-                if 'low' in s_l or 'info' in s_l:
-                    return (60, 150, 60)
-                return (120, 120, 120)
-
-            for v in vulnerabilities:
-                try:
-                    # Box header
-                    pdf.set_font("Arial", "B", 11)
-                    filename = v.get('filename') or v.get('file') or '-'
-                    line = v.get('line', '-')
-                    sev = str(v.get('severity', '-'))
-                    # Draw a colored rectangle for severity label
-                    r, g, b = sev_color(sev)
-                    pdf.set_fill_color(r, g, b)
-                    # Severity label cell
-                    pdf.cell(40, 8, txt=sev, border=0, ln=0, align='C', fill=True)
-                    pdf.set_fill_color(255, 255, 255)
-                    pdf.cell(0, 8, txt=f"  {filename} — línea {line}", border=0, ln=True)
-
-                    pdf.set_font("Arial", size=11)
-                    # Description
-                    try:
-                        pdf.multi_cell(0, 7, txt=f"Descripción: {v.get('description', '-')}")
-                    except FPDFException:
-                        pdf.cell(0, 7, txt=f"Descripción: {str(v.get('description', '-'))[:120]}", ln=True)
-                    # CWE
-                    try:
-                        pdf.multi_cell(0, 7, txt=f"CWE: {v.get('cwe', '-')}")
-                    except FPDFException:
-                        pdf.cell(0, 7, txt=f"CWE: {str(v.get('cwe', '-'))[:80]}", ln=True)
-                    # LLM explanation (italic)
-                    if v.get('explanation'):
-                        pdf.set_font("Arial", 'I', 10)
-                        try:
-                            pdf.multi_cell(0, 7, txt=f"Explicación:\n{v.get('explanation')}")
-                        except FPDFException:
-                            pdf.cell(0, 7, txt=f"Explicación: {str(v.get('explanation'))[:200]}", ln=True)
-                    pdf.ln(6)
-                    pdf.set_font("Arial", size=10)
-                except Exception:
-                    pdf.set_font("Arial", size=10)
-                    pdf.cell(0, 7, txt="Error mostrando esta vulnerabilidad en el PDF.", ln=True)
+        # Write to temporary file and return base64
         with tempfile.NamedTemporaryFile("wb", delete=False, suffix=".pdf") as tmp_pdf:
             pdf.output(tmp_pdf.name)
             tmp_pdf_path = tmp_pdf.name
-        # Ahora abrir en modo lectura binaria
-        with open(tmp_pdf_path, "rb") as f:
-            pdf_bytes = f.read()
+
+        try:
+            with open(tmp_pdf_path, "rb") as f:
+                pdf_bytes = f.read()
+        finally:
+            try:
+                os.remove(tmp_pdf_path)
+            except Exception:
+                pass
+
         return base64.b64encode(pdf_bytes).decode("utf-8")

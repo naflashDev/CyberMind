@@ -43,10 +43,11 @@
                     <div style="font-size:26px;line-height:1;color:${sevColor};width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:rgba(255,255,255,0.02);flex-shrink:0">${sevIcon}</div>
                     <div style="min-width:0;">
                       <div style="font-weight:700;color:#e6eef8;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:520px;">${escapeHtml(description)}</div>
-                      <div style="color:#9aa6b2;font-size:13px;margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;">
+                      <div style="color:#9aa6b2;font-size:13px;margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
                         <div><b>Archivo:</b> ${filename ? `<span style='color:#60a5fa'>${escapeHtml(filename)}</span>` : '<span style="color:#9aa6b2">-</span>'}</div>
                         <div><b>Línea:</b> ${escapeHtml(line)}</div>
                         <div><b>CWE:</b> ${escapeHtml(cwe)}</div>
+                        <div><b>Confidencialidad:</b> ${escapeHtml(v.confidentiality || '-')}</div>
                       </div>
                       ${cveHtml}
                     </div>
