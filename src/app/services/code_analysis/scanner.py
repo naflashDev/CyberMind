@@ -135,17 +135,27 @@ class CodeScanner:
         otherwise call the runtime `llm_client.query_llm` so tests can monkeypatch it.
         '''
         try:
+            # Build a clear prompt asking the LLM to reply in Spanish with a
+            # formal, standardized structure. This improves readability in the
+            # generated PDF and satisfies the user's requirement.
+            prompt = (
+                "Por favor, explica en español con un tono formal y usando un formato "
+                "estandarizado. Comienza con una línea que indique 'Estado: <Crítico/Alto/Medio/Bajo/Informativo>' "
+                "(valora brevemente según la gravedad), luego añade una sección 'Resumen:' con una explicación "
+                "concisa y una sección 'Recomendación:' con pasos accionables y claros. No incluyas referencias a "
+                "herramientas internas ni meta-discursos. Texto a explicar:\n\n" + str(text)
+            )
+
             if hasattr(self, 'llm') and self.llm:
                 provider = self.llm
-                # object with method
                 if hasattr(provider, 'explain_vulnerability') and callable(getattr(provider, 'explain_vulnerability')):
-                    return provider.explain_vulnerability(text)
-                # callable directly
+                    return provider.explain_vulnerability(prompt)
                 if callable(provider):
-                    return provider(text)
+                    return provider(prompt)
+
             # fallback to module-level client so monkeypatching llm_client.query_llm works
             if hasattr(llm_client, 'query_llm') and callable(llm_client.query_llm):
-                return llm_client.query_llm(text)
+                return llm_client.query_llm(prompt)
         except Exception as e:
             logger.error(f"Error calling LLM: {e}")
         return 'LLM unavailable.'
@@ -350,31 +360,95 @@ class CodeScanner:
         @return PDF codificado en base64.
         '''
         from fpdf.errors import FPDFException
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        pdf.cell(200, 10, txt="Informe de Análisis de Código", ln=True, align="C")
-        pdf.ln(10)
-        for v in vulnerabilities:
-            pdf.set_font("Arial", style="B", size=11)
-            pdf.cell(0, 8, txt=f"Línea: {v.get('line', '-')}", ln=True)
-            pdf.set_font("Arial", size=11)
-            pdf.cell(0, 8, txt=f"Severidad: {v.get('severity', '-')}", ln=True)
-            try:
-                pdf.multi_cell(0, 8, txt=f"Descripción: {v.get('description', '-')}")
-            except FPDFException:
-                pdf.cell(0, 8, txt=f"Descripción: {str(v.get('description', '-'))[:80]}", ln=True)
-            try:
-                pdf.multi_cell(0, 8, txt=f"CWE: {v.get('cwe', '-')}")
-            except FPDFException:
-                pdf.cell(0, 8, txt=f"CWE: {str(v.get('cwe', '-'))[:80]}", ln=True)
-            if v.get('explanation'):
-                pdf.set_font("Arial", style="I", size=10)
+            pdf = FPDF()        
+            pdf.set_auto_page_break(auto=True, margin=15)
+            # Cover / header
+            pdf.add_page()
+            pdf.set_font("Arial", "B", 16)
+            pdf.cell(0, 10, txt="Informe de Análisis de Código", ln=True, align="C")
+            pdf.ln(2)
+            pdf.set_font("Arial", size=10)
+            generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+            pdf.cell(0, 6, txt=f"Generado: {generated_at}", ln=True, align="C")
+            pdf.ln(8)
+
+            # Small summary table
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 6, txt="Resumen de vulnerabilidades", ln=True)
+            pdf.ln(3)
+            pdf.set_font("Arial", size=10)
+            # Header row
+            pdf.set_fill_color(230, 230, 230)
+            pdf.cell(90, 7, txt="Archivo:Linea", border=1, fill=True)
+            pdf.cell(40, 7, txt="Severidad", border=1, fill=True)
+            pdf.cell(0, 7, txt="Descripción (resumen)", border=1, ln=True, fill=True)
+            # Rows
+            for v in vulnerabilities:
                 try:
-                    pdf.multi_cell(0, 8, txt=f"Explicación LLM: {v['explanation']}")
-                except FPDFException:
-                    pdf.cell(0, 8, txt=f"Explicación LLM: {str(v.get('explanation'))[:120]}", ln=True)
-            pdf.ln(4)
+                    filename = v.get('filename') or v.get('file') or '-'
+                    line = v.get('line', '-')
+                    sev = str(v.get('severity', '-'))
+                    desc = str(v.get('description', '-')).replace('\n', ' ')[:120]
+                    pdf.cell(90, 7, txt=f"{filename}:{line}", border=1)
+                    pdf.cell(40, 7, txt=sev, border=1)
+                    pdf.cell(0, 7, txt=desc, border=1, ln=True)
+                except Exception:
+                    # On row failure, continue gracefully
+                    pdf.cell(0, 7, txt="Fila de resumen omitida por error", border=1, ln=True)
+
+            pdf.add_page()
+
+            # Detailed cards per vulnerability with visual severity coloring
+            def sev_color(s: str):
+                s_l = (s or '').lower()
+                if 'critical' in s_l or 'crit' in s_l:
+                    return (200, 30, 30)
+                if 'high' in s_l:
+                    return (220, 90, 20)
+                if 'medium' in s_l or 'med' in s_l:
+                    return (230, 140, 30)
+                if 'low' in s_l or 'info' in s_l:
+                    return (60, 150, 60)
+                return (120, 120, 120)
+
+            for v in vulnerabilities:
+                try:
+                    # Box header
+                    pdf.set_font("Arial", "B", 11)
+                    filename = v.get('filename') or v.get('file') or '-'
+                    line = v.get('line', '-')
+                    sev = str(v.get('severity', '-'))
+                    # Draw a colored rectangle for severity label
+                    r, g, b = sev_color(sev)
+                    pdf.set_fill_color(r, g, b)
+                    # Severity label cell
+                    pdf.cell(40, 8, txt=sev, border=0, ln=0, align='C', fill=True)
+                    pdf.set_fill_color(255, 255, 255)
+                    pdf.cell(0, 8, txt=f"  {filename} — línea {line}", border=0, ln=True)
+
+                    pdf.set_font("Arial", size=11)
+                    # Description
+                    try:
+                        pdf.multi_cell(0, 7, txt=f"Descripción: {v.get('description', '-')}")
+                    except FPDFException:
+                        pdf.cell(0, 7, txt=f"Descripción: {str(v.get('description', '-'))[:120]}", ln=True)
+                    # CWE
+                    try:
+                        pdf.multi_cell(0, 7, txt=f"CWE: {v.get('cwe', '-')}")
+                    except FPDFException:
+                        pdf.cell(0, 7, txt=f"CWE: {str(v.get('cwe', '-'))[:80]}", ln=True)
+                    # LLM explanation (italic)
+                    if v.get('explanation'):
+                        pdf.set_font("Arial", 'I', 10)
+                        try:
+                            pdf.multi_cell(0, 7, txt=f"Explicación:\n{v.get('explanation')}")
+                        except FPDFException:
+                            pdf.cell(0, 7, txt=f"Explicación: {str(v.get('explanation'))[:200]}", ln=True)
+                    pdf.ln(6)
+                    pdf.set_font("Arial", size=10)
+                except Exception:
+                    pdf.set_font("Arial", size=10)
+                    pdf.cell(0, 7, txt="Error mostrando esta vulnerabilidad en el PDF.", ln=True)
         with tempfile.NamedTemporaryFile("wb", delete=False, suffix=".pdf") as tmp_pdf:
             pdf.output(tmp_pdf.name)
             tmp_pdf_path = tmp_pdf.name

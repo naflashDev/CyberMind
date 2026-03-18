@@ -3,20 +3,25 @@
        * @param obj Objeto de respuesta del backend.
        * @return HTML string.
        */
+      // Ensure escapeHtml is available at global scope for early functions
+      if (typeof escapeHtml !== 'function') {
+        function escapeHtml(unsafe) { return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#039;"); }
+      }
       function renderCodeScanResult(obj) {
         if (!obj || typeof obj !== 'object') return renderRawJson(obj);
         const vulns = Array.isArray(obj.vulnerabilities) ? obj.vulnerabilities : [];
         if (!vulns.length) return `<div style='color:#16a34a'>No se encontraron vulnerabilidades.</div>`;
 
           // Render each vulnerability as a nice card. Include CVE (if present), file and line.
-          const cards = vulns.map(v => {
-            const sev = (v.severity || '').toString().toLowerCase();
-            const sevColor = sev === 'high' ? '#ef4444' : sev === 'medium' ? '#f59e0b' : '#16a34a';
-            const sevIcon = sev === 'high' ? '⛔' : sev === 'medium' ? '⚠️' : 'ℹ️';
-            const description = v.description || (v.title || '-') ;
-            const line = (typeof v.line !== 'undefined') ? String(v.line) : '-';
-            const filename = v.filename ? String(v.filename) : null;
-            const cwe = v.cwe || '-';
+          const cards = vulns.map((v, idx) => {
+            try {
+              const sev = (v.severity || '').toString().toLowerCase();
+              const sevColor = sev === 'high' ? '#ef4444' : sev === 'medium' ? '#f59e0b' : '#16a34a';
+              const sevIcon = sev === 'high' ? '⛔' : sev === 'medium' ? '⚠️' : 'ℹ️';
+              const description = v.description || (v.title || '-') ;
+              const line = (typeof v.line !== 'undefined') ? String(v.line) : '-';
+              const filename = v.filename ? String(v.filename) : null;
+              const cwe = v.cwe || '-';
             // Try to find CVE identifiers in common fields
             let cveList = [];
             if (v.cve && typeof v.cve === 'string') cveList.push(v.cve);
@@ -52,6 +57,13 @@
                   </div>
                 </div>
               </div>`;
+            } catch (err) {
+              console.error('[UI] Error rendering vulnerability at index', idx, err, 'item:', v);
+              return `
+                <div class="vuln-card" style="background:#2b1313;padding:14px;border-radius:12px;margin-bottom:12px;border-left:6px solid #ef4444;min-height:80px;display:flex;align-items:center;">
+                  <div style="flex:1;color:#ffd6d6;font-weight:700;">Error mostrando esta vulnerabilidad (ver consola).</div>
+                </div>`;
+            }
           }).join('');
 
           const pdfBtn = obj.pdf_base64 ? `<button id="btn-download-pdf" data-has-pdf="1" style="margin-bottom:18px;padding:8px 18px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;">Descargar informe PDF</button>` : `<button id="btn-download-pdf" data-has-pdf="0" style="margin-bottom:18px;padding:8px 18px;background:#0ea5e9;color:#04263a;border:none;border-radius:8px;cursor:pointer;font-weight:700;">Generar y descargar informe PDF</button>`;
@@ -1388,21 +1400,37 @@ document.addEventListener('DOMContentLoaded', function () {
           }
           resp = await fetch(url, { method: op.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
         }
-        const text = await resp.text();
+        // Prefer JSON parsing when server sets application/json; fallback to text.
+        let text = null;
+        let j = null;
+        const contentType = resp.headers && resp.headers.get ? (resp.headers.get('content-type') || '') : '';
+        if (contentType.toLowerCase().includes('application/json')) {
+          try { j = await resp.json(); }
+          catch (e) { text = await resp.text(); }
+        } else {
+          // Not JSON according to headers — try to parse as text and then JSON.
+          text = await resp.text();
+          try { j = JSON.parse(text); } catch (e) { j = null; }
+        }
+
         // Manejo de errores HTTP (especialmente 400 de validación)
         if (!resp.ok) {
           let msg = 'Error desconocido.';
           try {
-            const err = JSON.parse(text);
-            msg = err.detail || err.message || text;
-          } catch { msg = text; }
+            if (j && typeof j === 'object') msg = j.detail || j.message || JSON.stringify(j);
+            else if (text) msg = text;
+          } catch (e) { msg = text || String(e); }
           if (opResult) {
             opResult.innerHTML = `<div style="background:#fee2e2;color:#b91c1c;padding:16px 18px;border-radius:8px;margin-bottom:18px;font-size:16px;font-weight:600;max-width:900px;margin:0 auto 18px auto;">${escapeHtml(msg)}</div>`;
           }
           return;
         }
         try {
-          const j = JSON.parse(text);
+          // If we already have parsed JSON in `j`, use it. Otherwise, if we have `text`, attempt
+          // to detect markdown vs raw text. If neither, fallback to renderRawJson of resp.json()
+          if (!j && text) {
+            try { j = JSON.parse(text); } catch (e) { /* leave j null */ }
+          }
           // Renderizado especial para /hashed/hash
           if (op.path === '/hashed/hash') {
             if (opResult && j.hashed_value && formData.get && typeof formData.get === 'function') {
@@ -1426,13 +1454,39 @@ document.addEventListener('DOMContentLoaded', function () {
           // Renderizado especial para /code/scan-text y /code/scan-file
           if (op.path === '/code/scan-text' || op.path === '/code/scan-file') {
             if (opResult) {
-              opResult.innerHTML = renderCodeScanResult(j);
+              // Debug console to help determine why cards may not appear
+              try { console.debug('[UI] CodeScan response content-type:', contentType, 'parsed:', j); } catch (e) {}
+
+              // Normalize response shapes: accept array or object with vulnerabilities/vulnerabilities_full
+              let payload = null;
+              if (j === null) {
+                payload = { vulnerabilities: [] };
+              } else if (Array.isArray(j)) {
+                payload = { vulnerabilities: j, vulnerabilities_full: j };
+              } else if (typeof j === 'object') {
+                if (Array.isArray(j.vulnerabilities)) payload = j;
+                else if (Array.isArray(j.vulnerabilities_full)) payload = { vulnerabilities: j.vulnerabilities_full, vulnerabilities_full: j.vulnerabilities_full, pdf_base64: j.pdf_base64 };
+                else {
+                  const arr = Object.values(j).find(v => Array.isArray(v));
+                  payload = { vulnerabilities: Array.isArray(arr) ? arr : [], vulnerabilities_full: Array.isArray(arr) ? arr : [], pdf_base64: j.pdf_base64 };
+                }
+              } else {
+                payload = { vulnerabilities: [] };
+              }
+
+              try {
+                opResult.innerHTML = renderCodeScanResult(payload);
+              } catch (err) {
+                console.error('[UI] Error rendering code scan result:', err, 'payload:', payload);
+                // Fallback: show raw JSON but keep console log for debugging
+                opResult.innerHTML = `<div style='color:#fca5a5;margin-bottom:8px'>Error rendering resultados, mostrando JSON crudo:</div>` + renderRawJson(payload);
+              }
               // PDF button behavior: download if backend included base64, otherwise generate on-demand
               const btn = document.getElementById('btn-download-pdf');
               if (btn) {
-                if (j.pdf_base64) {
+                if (payload && payload.pdf_base64) {
                   btn.onclick = function() {
-                    const b64 = j.pdf_base64;
+                    const b64 = payload.pdf_base64;
                     const blob = new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], {type: 'application/pdf'});
                     const link = document.createElement('a');
                     link.href = URL.createObjectURL(blob);
@@ -1446,7 +1500,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     try {
                       btn.disabled = true; const old = btn.textContent; btn.textContent = 'Generando informe...';
                       // Prefer the full results (with LLM explanations) when available
-                      const payloadVulns = j.vulnerabilities_full || j.vulnerabilities || [];
+                      const payloadVulns = (payload && payload.vulnerabilities_full) || (payload && payload.vulnerabilities) || [];
                       const resp = await fetch('/code/generate-pdf', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ vulnerabilities: payloadVulns }) });
                       if (!resp.ok) throw new Error('HTTP ' + resp.status);
                       const data = await resp.json();
