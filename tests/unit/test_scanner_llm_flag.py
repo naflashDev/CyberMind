@@ -38,10 +38,12 @@ def test_scan_text_llm(monkeypatch):
     with open(INI_CFG, 'w') as f:
         f.write('use_ollama=true')
     called = {}
-    def fake_query_llm(txt):
+    def fake_query_llm(*args, **kwargs):
+        # Accept positional and keyword args to be compatible with callers
         called['ok'] = True
         return 'LLM OK'
-    monkeypatch.setattr('src.app.services.llm.llm_client.query_llm', fake_query_llm)
+    # Patch the runtime import used by scanner (app.services...), not the source path
+    monkeypatch.setattr('app.services.llm.llm_client.query_llm', fake_query_llm)
     scanner = CodeScanner()
     # Simula salida de Bandit
     def fake_bandit(*a, **kw):
@@ -57,10 +59,10 @@ def test_scan_text_no_llm(monkeypatch):
     with open(INI_CFG, 'w') as f:
         f.write('use_ollama=false')
     called = {}
-    def fake_query_llm(txt):
+    def fake_query_llm(*args, **kwargs):
         called['fail'] = True
         return 'NO'
-    monkeypatch.setattr('src.app.services.llm.llm_client.query_llm', fake_query_llm)
+    monkeypatch.setattr('app.services.llm.llm_client.query_llm', fake_query_llm)
     scanner = CodeScanner()
     def fake_bandit(*a, **kw):
         class R: stdout = '{"results":[{"issue_text":"prob","line_number":1,"issue_severity":"HIGH","cwe":{"id":"CWE-1"}}]}'; stderr = ''

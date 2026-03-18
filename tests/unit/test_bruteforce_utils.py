@@ -1,3 +1,13 @@
+from app.services.hashed import bruteforce_utils
+
+
+def test_detect_hash_type_and_invalid_bruteforce():
+    # MD5 length 32
+    assert bruteforce_utils.detect_hash_type('a'*32) == 'MD5'
+    # Invalid hash type should return an error dict quickly
+    res = bruteforce_utils.bruteforce_hash('deadbeef', 'UNKNOWN', max_len=1, timeout=1)
+    assert isinstance(res, dict)
+    assert 'error' in res
 import os
 from src.app.services.hashed.bruteforce_utils import _bruteforce_worker, HASH_FUNCTIONS, ALL_CHARS
 

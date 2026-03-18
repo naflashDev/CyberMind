@@ -82,8 +82,13 @@ def global_patches(monkeypatch):
     monkeypatch.setattr(app_net, "service_scan_range", fake_service_scan_range)
 
     # Patch LLM query to controlled response on both import paths
-    monkeypatch.setattr(llm_controller, "query_llm", lambda prompt: f"ECHO: {prompt}")
-    monkeypatch.setattr(app_llm, "query_llm", lambda prompt: f"ECHO: {prompt}")
+    def _fake_query(*args, **kwargs):
+        # Compatible stub for any signature (positional or keyword)
+        prompt = args[0] if args else kwargs.get('prompt') or ''
+        return f"ECHO: {prompt}"
+
+    monkeypatch.setattr(llm_controller, "query_llm", _fake_query)
+    monkeypatch.setattr(app_llm, "query_llm", _fake_query)
 
     yield
 

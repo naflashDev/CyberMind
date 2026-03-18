@@ -187,11 +187,7 @@ class CodeScanner:
             return 'Medium'
         return 'Low'
 
-    def __init__(self):
-        # Exposed hook for tests or external LLM wrappers. If set, the object
-        # should provide a method `explain_vulnerability(text)` returning a
-        # string explanation. Default is None (use direct `query_llm`).
-        self.llm = None
+    # NOTE: single constructor above accepts optional `llm` injection for tests.
 
     def detect_language(self, code: str) -> str:
         '''
