@@ -8,9 +8,15 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
 from fastapi.responses import JSONResponse
 from loguru import logger
-from app.services.code_analysis.scanner import CodeScanner
+# Try importing CodeScanner using the 'src' package path (test environment),
+# fall back to the plain 'app' package when not available.
+try:
+    from src.app.services.code_analysis.scanner import CodeScanner  # type: ignore
+except Exception:
+    from app.services.code_analysis.scanner import CodeScanner
 from typing import Any, Dict
 import base64
+from fastapi import Body
 
 router = APIRouter()
 
@@ -32,8 +38,16 @@ async def scan_code_text(payload: Dict[str, Any]):
         scanner = CodeScanner()
         results = scanner.scan_text(code)
         llm_enabled = scanner.is_llm_enabled() if hasattr(scanner, 'is_llm_enabled') else False
+        # Keep full results for PDF generation (include LLM explanations).
+        # Return a UI-friendly copy without 'explanation' and also include
+        # the full results under 'vulnerabilities_full' so the UI can request
+        # a PDF containing the LLM explanations on-demand.
         pdf_b64 = scanner.generate_pdf_report(results) if results else None
-        return {"vulnerabilities": results, "llm_enabled": llm_enabled, "pdf_base64": pdf_b64}
+        ui_results = []
+        for r in results:
+            ui_results.append({k: v for k, v in r.items() if k != 'explanation'})
+        content = {"vulnerabilities": ui_results, "vulnerabilities_full": results, "llm_enabled": llm_enabled, "pdf_base64": pdf_b64}
+        return JSONResponse(content=content, status_code=200)
     except ValueError as ve:
         logger.error(f"Error de validación en scan_code_text: {ve}")
         raise HTTPException(status_code=400, detail=f"Error de validación: {ve}")
@@ -42,7 +56,7 @@ async def scan_code_text(payload: Dict[str, Any]):
         raise HTTPException(status_code=500, detail="Error interno en el análisis de código.")
 
 @router.post("/code/scan-file", tags=["Code Analysis"])
-async def scan_code_file(file: UploadFile = File(...)):
+async def scan_code_file(file: UploadFile = File(None)):
     '''
     @brief Analiza un archivo de código subido por el usuario.
 
@@ -97,10 +111,13 @@ async def scan_code_file(file: UploadFile = File(...)):
                             results.extend(res)
                         except Exception as e:
                             logger.error(f"[scan-file] Error analizando {fname}: {e}")
-            # Generar PDF global solo si hay vulnerabilidades
+            # Generar PDF global solo si hay vulnerabilidades y preparar
+            # la vista para la UI sin las explicaciones del LLM.
             pdf_b64 = scanner.generate_pdf_report(results) if results else None
         logger.debug("[scan-file] Análisis de ZIP completado.")
-        return {"vulnerabilities": results, "llm_enabled": llm_enabled, "pdf_base64": pdf_b64}
+        ui_results = [{k: v for k, v in r.items() if k != 'explanation'} for r in results]
+        content = {"vulnerabilities": ui_results, "vulnerabilities_full": results, "llm_enabled": llm_enabled, "pdf_base64": pdf_b64}
+        return JSONResponse(content=content, status_code=200)
     else:
         try:
             logger.debug("[scan-file] Intentando leer el archivo subido...")
@@ -109,9 +126,41 @@ async def scan_code_file(file: UploadFile = File(...)):
             scanner = CodeScanner()
             results = scanner.scan_text(content)
             llm_enabled = scanner.is_llm_enabled() if hasattr(scanner, 'is_llm_enabled') else False
+            # Generate PDF including LLM explanations, but strip them from
+            # the UI-visible payload so explanations only appear inside the PDF.
             pdf_b64 = scanner.generate_pdf_report(results) if results else None
             logger.debug("[scan-file] Análisis completado correctamente.")
-            return {"vulnerabilities": results, "llm_enabled": llm_enabled, "pdf_base64": pdf_b64}
+            ui_results = [{k: v for k, v in r.items() if k != 'explanation'} for r in results]
+            content = {"vulnerabilities": ui_results, "vulnerabilities_full": results, "llm_enabled": llm_enabled, "pdf_base64": pdf_b64}
+            return JSONResponse(content=content, status_code=200)
         except Exception as e:
             logger.error(f"Error in scan_code_file: {e}")
-            raise HTTPException(status_code=500, detail="Error interno en el análisis de archivo.")
+            return JSONResponse(content={"detail": "Error interno en el análisis de archivo."}, status_code=500)
+            
+    # end scan_code_file
+
+
+@router.post("/code/generate-pdf", tags=["Code Analysis"])
+async def generate_pdf_from_vulns(payload: Dict[str, Any] = Body(...)):
+    '''
+    @brief Genera un PDF a partir de una lista de vulnerabilidades enviada por el cliente.
+
+    Esto permite que la UI solicite explícitamente la generación del PDF cuando el
+    endpoint principal no lo devuelva en la respuesta (por ejemplo, por limitaciones
+    o para generar el PDF on-demand).
+
+    @param payload Diccionario con la clave 'vulnerabilities' que contiene la lista.
+    @return JSON con 'pdf_base64' o error.
+    '''
+    try:
+        vulns = payload.get('vulnerabilities')
+        if not isinstance(vulns, list):
+            return JSONResponse(content={"detail": "El campo 'vulnerabilities' debe ser una lista."}, status_code=400)
+        scanner = CodeScanner()
+        pdf_b64 = scanner.generate_pdf_report(vulns) if vulns else None
+        return JSONResponse(content={"pdf_base64": pdf_b64}, status_code=200)
+    except Exception as e:
+        logger.error(f"Error generating PDF from vulns: {e}")
+        return JSONResponse(content={"detail": "Error generando PDF."}, status_code=500)
+
+

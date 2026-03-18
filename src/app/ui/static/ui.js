@@ -6,26 +6,56 @@
       function renderCodeScanResult(obj) {
         if (!obj || typeof obj !== 'object') return renderRawJson(obj);
         const vulns = Array.isArray(obj.vulnerabilities) ? obj.vulnerabilities : [];
-        let cards = '';
-        if (vulns.length) {
-          cards = vulns.map(v => {
-            const sevColor = v.severity === 'high' ? '#ef4444' : v.severity === 'medium' ? '#f59e0b' : '#16a34a';
-            return `<div style="background:#181f2a;padding:14px;border-radius:8px;margin-bottom:12px;border:1px solid #2d3748;box-shadow:0 2px 8px #0002;">
-              <div style='font-size:17px;font-weight:700;margin-bottom:6px;color:${sevColor}'>${escapeHtml(v.title || 'Vulnerabilidad')}</div>
-              <div style='color:#9aa6b2;font-size:14px;margin-bottom:8px;'>${escapeHtml(v.description || '')}</div>
-              <div><b>Severidad:</b> <span style='color:${sevColor};font-weight:600;'>${escapeHtml(v.severity || 'desconocida')}</span></div>
-              <div><b>Línea:</b> ${typeof v.line !== 'undefined' ? escapeHtml(String(v.line)) : '-'}</div>
-              <div><b>Regla:</b> ${escapeHtml(v.rule_id || '-')}</div>
-            </div>`;
+        if (!vulns.length) return `<div style='color:#16a34a'>No se encontraron vulnerabilidades.</div>`;
+
+          // Render each vulnerability as a nice card. Include CVE (if present), file and line.
+          const cards = vulns.map(v => {
+            const sev = (v.severity || '').toString().toLowerCase();
+            const sevColor = sev === 'high' ? '#ef4444' : sev === 'medium' ? '#f59e0b' : '#16a34a';
+            const sevIcon = sev === 'high' ? '⛔' : sev === 'medium' ? '⚠️' : 'ℹ️';
+            const description = v.description || (v.title || '-') ;
+            const line = (typeof v.line !== 'undefined') ? String(v.line) : '-';
+            const filename = v.filename ? String(v.filename) : null;
+            const cwe = v.cwe || '-';
+            // Try to find CVE identifiers in common fields
+            let cveList = [];
+            if (v.cve && typeof v.cve === 'string') cveList.push(v.cve);
+            if (v.cve_id && typeof v.cve_id === 'string') cveList.push(v.cve_id);
+            if (Array.isArray(v.cves)) cveList = cveList.concat(v.cves.map(String));
+            if (Array.isArray(v.references)) {
+              const found = v.references.map(String).filter(r => /CVE-\d{4}-\d{4,}/i.test(r));
+              cveList = cveList.concat(found);
+            }
+            // Deduplicate and normalise
+            cveList = Array.from(new Set(cveList.map(s => s.toUpperCase())));
+
+            const cveHtml = cveList.length ? `<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">${cveList.map(c => `<a href="https://cve.org/search/?q=${encodeURIComponent(c)}" target="_blank" rel="noopener noreferrer" style="background:#071a2b;color:#9dd3ff;padding:6px 8px;border-radius:8px;border:1px solid rgba(157,211,255,0.08);font-weight:700;font-size:12px;text-decoration:none;">${escapeHtml(c)}</a>`).join('')}</div>` : '';
+
+            return `
+              <div class="vuln-card" style="background:#071127;padding:14px;border-radius:12px;margin-bottom:12px;border-left:6px solid ${sevColor};box-shadow:0 6px 18px rgba(2,6,23,0.6);min-height:120px;display:flex;flex-direction:column;justify-content:space-between;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+                  <div style="display:flex;gap:12px;align-items:flex-start;min-width:0;flex:1;">
+                    <div style="font-size:26px;line-height:1;color:${sevColor};width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:rgba(255,255,255,0.02);flex-shrink:0">${sevIcon}</div>
+                    <div style="min-width:0;">
+                      <div style="font-weight:700;color:#e6eef8;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:520px;">${escapeHtml(description)}</div>
+                      <div style="color:#9aa6b2;font-size:13px;margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;">
+                        <div><b>Archivo:</b> ${filename ? `<span style='color:#60a5fa'>${escapeHtml(filename)}</span>` : '<span style="color:#9aa6b2">-</span>'}</div>
+                        <div><b>Línea:</b> ${escapeHtml(line)}</div>
+                        <div><b>CWE:</b> ${escapeHtml(cwe)}</div>
+                      </div>
+                      ${cveHtml}
+                    </div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+                    <div style="background:${sevColor};color:#061018;padding:6px 10px;border-radius:8px;font-weight:700;font-size:12px;">${escapeHtml(sev.toUpperCase())}</div>
+                    <button class="copy-vuln-details" data-line="${escapeHtml(line)}" style="background:transparent;border:1px solid #233044;color:#9aa6b2;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:13px;">Copiar</button>
+                  </div>
+                </div>
+              </div>`;
           }).join('');
-        } else {
-          cards = `<div style='color:#16a34a'>No se encontraron vulnerabilidades.</div>`;
-        }
-        let pdfBtn = '';
-        if (obj.pdf_base64) {
-          pdfBtn = `<button id="btn-download-pdf" style="margin-bottom:18px;padding:8px 18px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Descargar informe PDF</button>`;
-        }
-        return `${pdfBtn}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
+
+          const pdfBtn = obj.pdf_base64 ? `<button id="btn-download-pdf" data-has-pdf="1" style="margin-bottom:18px;padding:8px 18px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;">Descargar informe PDF</button>` : `<button id="btn-download-pdf" data-has-pdf="0" style="margin-bottom:18px;padding:8px 18px;background:#0ea5e9;color:#04263a;border:none;border-radius:8px;cursor:pointer;font-weight:700;">Generar y descargar informe PDF</button>`;
+          return `${pdfBtn}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
       }
   // --- Botón de apagado de la app ---
   const btnShutdown = document.getElementById('btn-shutdown');
@@ -1397,20 +1427,59 @@ document.addEventListener('DOMContentLoaded', function () {
           if (op.path === '/code/scan-text' || op.path === '/code/scan-file') {
             if (opResult) {
               opResult.innerHTML = renderCodeScanResult(j);
-              // Handler para descarga de PDF
+              // PDF button behavior: download if backend included base64, otherwise generate on-demand
               const btn = document.getElementById('btn-download-pdf');
-              if (btn && j.pdf_base64) {
-                btn.onclick = function() {
-                  const b64 = j.pdf_base64;
-                  const blob = new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], {type: 'application/pdf'});
-                  const link = document.createElement('a');
-                  link.href = URL.createObjectURL(blob);
-                  link.download = 'informe_code_scan.pdf';
-                  document.body.appendChild(link);
-                  link.click();
-                  setTimeout(() => { document.body.removeChild(link); }, 100);
-                };
+              if (btn) {
+                if (j.pdf_base64) {
+                  btn.onclick = function() {
+                    const b64 = j.pdf_base64;
+                    const blob = new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], {type: 'application/pdf'});
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'informe_code_scan.pdf';
+                    document.body.appendChild(link);
+                    link.click();
+                    setTimeout(() => { document.body.removeChild(link); }, 100);
+                  };
+                } else {
+                  btn.onclick = async function() {
+                    try {
+                      btn.disabled = true; const old = btn.textContent; btn.textContent = 'Generando informe...';
+                      // Prefer the full results (with LLM explanations) when available
+                      const payloadVulns = j.vulnerabilities_full || j.vulnerabilities || [];
+                      const resp = await fetch('/code/generate-pdf', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ vulnerabilities: payloadVulns }) });
+                      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                      const data = await resp.json();
+                      const b64 = data && data.pdf_base64;
+                      if (!b64) throw new Error('No se recibió PDF');
+                      const blob = new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], {type: 'application/pdf'});
+                      const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'informe_code_scan.pdf'; document.body.appendChild(link); link.click(); setTimeout(() => { document.body.removeChild(link); }, 100);
+                      // Update button to allow direct download next time
+                      btn.dataset.hasPdf = '1'; btn.textContent = 'Descargar informe PDF';
+                    } catch (err) {
+                      showToast('Error generando PDF: ' + String(err));
+                    } finally { btn.disabled = false; }
+                  };
+                }
               }
+
+              // Attach copy handlers for each vulnerability card
+              const copyBtns = opResult.querySelectorAll('.copy-vuln-details');
+              copyBtns.forEach(cb => {
+                cb.addEventListener('click', () => {
+                  try {
+                    const line = cb.dataset.line || '-';
+                    const parent = cb.closest('div');
+                    const desc = parent ? parent.querySelector('div') && parent.querySelector('div').textContent : '';
+                    const text = `Línea: ${line}\n${desc || ''}`;
+                    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text);
+                    else {
+                      const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+                    }
+                    showToast('Detalles copiados');
+                  } catch (e) { showToast('Error copiando'); }
+                });
+              });
               return;
             }
           }
