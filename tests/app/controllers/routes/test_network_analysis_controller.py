@@ -221,12 +221,19 @@ def test_scan_timeout_and_misc(mock_nmap):
 
 def test_scan_range_payloads():
     # Payload válido mínimo
+    pass
+
+
+@patch("app.controllers.routes.network_analysis_controller.service_scan_range", return_value={"scanned": 1, "hosts": []})
+def test_scan_range_payloads(mock_service):
+    # Mockeamos el servicio para evitar escanear en CI
     response = client.post("/network/scan_range", json={"cidr": "192.168.1.0/30"})
-    # Puede fallar por dependencias, pero debe ejecutarse
+    # El endpoint debe responder (la implementación real está mockeada)
     assert response.status_code in (200, 400, 500)
     # Payload malformado
     response2 = client.post("/network/scan_range", data="notjson", headers={"content-type": "application/json"})
     assert response2.status_code in (400, 422, 500)
+    mock_service.assert_called()
 
 def test_list_common_ports():
     response = client.get("/network/ports")
