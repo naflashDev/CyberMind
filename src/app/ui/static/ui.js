@@ -1,3 +1,106 @@
+      /**
+       * @brief Renderiza el resultado de code scanning (vulnerabilidades y PDF).
+       * @param obj Objeto de respuesta del backend.
+       * @return HTML string.
+       */
+      // Ensure escapeHtml is available at global scope for early functions
+      if (typeof escapeHtml !== 'function') {
+        function escapeHtml(unsafe) { return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#039;"); }
+      }
+      function renderCodeScanResult(obj) {
+        if (!obj || typeof obj !== 'object') return renderRawJson(obj);
+        const vulns = Array.isArray(obj.vulnerabilities) ? obj.vulnerabilities : [];
+        // Order vulnerabilities by severity (highest -> lowest) before rendering cards
+        const severityRank = (s) => {
+          if (!s && s !== 0) return 0;
+          const v = String(s).toLowerCase();
+          if (/critical|crit|cve-critical/.test(v)) return 5;
+          if (/high|h/.test(v)) return 4;
+          if (/medium|med|m/.test(v)) return 3;
+          if (/low|l/.test(v)) return 2;
+          if (/info|informational|notice/.test(v)) return 1;
+          // Try to parse numeric severities (e.g., '7.5')
+          const n = Number(String(s).replace(/[^0-9.]/g, ''));
+          if (!Number.isNaN(n)) return Math.min(5, Math.max(0, Math.round(n)));
+          return 0;
+        };
+        try {
+          vulns.sort((a, b) => {
+            const ra = severityRank(a && a.severity);
+            const rb = severityRank(b && b.severity);
+            if (rb !== ra) return rb - ra; // descending
+            // Tie-breaker: severity equal -> file name then line number
+            const fa = (a && a.filename) ? String(a.filename) : '';
+            const fb = (b && b.filename) ? String(b.filename) : '';
+            const cmp = fa.localeCompare(fb);
+            if (cmp !== 0) return cmp;
+            const la = Number((a && a.line) || 0) || 0;
+            const lb = Number((b && b.line) || 0) || 0;
+            return la - lb;
+          });
+        } catch (e) {
+          console.warn('[UI] Error sorting vulnerabilities by severity', e);
+        }
+        if (!vulns.length) return `<div style='color:#16a34a'>No se encontraron vulnerabilidades.</div>`;
+
+          // Render each vulnerability as a nice card. Include CVE (if present), file and line.
+          const cards = vulns.map((v, idx) => {
+            try {
+              const sev = (v.severity || '').toString().toLowerCase();
+              const sevColor = sev === 'high' ? '#ef4444' : sev === 'medium' ? '#f59e0b' : '#16a34a';
+              const sevIcon = sev === 'high' ? '⛔' : sev === 'medium' ? '⚠️' : 'ℹ️';
+              const description = v.description || (v.title || '-') ;
+              const line = (typeof v.line !== 'undefined') ? String(v.line) : '-';
+              const filename = v.filename ? String(v.filename) : null;
+              const cwe = v.cwe || '-';
+            // Try to find CVE identifiers in common fields
+            let cveList = [];
+            if (v.cve && typeof v.cve === 'string') cveList.push(v.cve);
+            if (v.cve_id && typeof v.cve_id === 'string') cveList.push(v.cve_id);
+            if (Array.isArray(v.cves)) cveList = cveList.concat(v.cves.map(String));
+            if (Array.isArray(v.references)) {
+              const found = v.references.map(String).filter(r => /CVE-\d{4}-\d{4,}/i.test(r));
+              cveList = cveList.concat(found);
+            }
+            // Deduplicate and normalise
+            cveList = Array.from(new Set(cveList.map(s => s.toUpperCase())));
+
+            const cveHtml = cveList.length ? `<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">${cveList.map(c => `<a href="https://cve.org/search/?q=${encodeURIComponent(c)}" target="_blank" rel="noopener noreferrer" style="background:#071a2b;color:#9dd3ff;padding:6px 8px;border-radius:8px;border:1px solid rgba(157,211,255,0.08);font-weight:700;font-size:12px;text-decoration:none;">${escapeHtml(c)}</a>`).join('')}</div>` : '';
+
+            return `
+              <div class="vuln-card" style="background:#071127;padding:14px;border-radius:12px;margin-bottom:12px;border-left:6px solid ${sevColor};box-shadow:0 6px 18px rgba(2,6,23,0.6);min-height:120px;display:flex;flex-direction:column;justify-content:space-between;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+                  <div style="display:flex;gap:12px;align-items:flex-start;min-width:0;flex:1;">
+                    <div style="font-size:26px;line-height:1;color:${sevColor};width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:rgba(255,255,255,0.02);flex-shrink:0">${sevIcon}</div>
+                    <div style="min-width:0;">
+                      <div style="font-weight:700;color:#e6eef8;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:520px;">${escapeHtml(description)}</div>
+                      <div style="color:#9aa6b2;font-size:13px;margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+                        <div><b>Archivo:</b> ${filename ? `<span style='color:#60a5fa'>${escapeHtml(filename)}</span>` : '<span style="color:#9aa6b2">-</span>'}</div>
+                        <div><b>Línea:</b> ${escapeHtml(line)}</div>
+                        <div><b>CWE:</b> ${escapeHtml(cwe)}</div>
+                        <div><b>Confidencialidad:</b> ${escapeHtml(v.confidentiality || '-')}</div>
+                      </div>
+                      ${cveHtml}
+                    </div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+                    <div style="background:${sevColor};color:#061018;padding:6px 10px;border-radius:8px;font-weight:700;font-size:12px;">${escapeHtml(sev.toUpperCase())}</div>
+                    <button class="copy-vuln-details" data-line="${escapeHtml(line)}" style="background:transparent;border:1px solid #233044;color:#9aa6b2;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:13px;">Copiar</button>
+                  </div>
+                </div>
+              </div>`;
+            } catch (err) {
+              console.error('[UI] Error rendering vulnerability at index', idx, err, 'item:', v);
+              return `
+                <div class="vuln-card" style="background:#2b1313;padding:14px;border-radius:12px;margin-bottom:12px;border-left:6px solid #ef4444;min-height:80px;display:flex;align-items:center;">
+                  <div style="flex:1;color:#ffd6d6;font-weight:700;">Error mostrando esta vulnerabilidad (ver consola).</div>
+                </div>`;
+            }
+          }).join('');
+
+          const pdfBtn = obj.pdf_base64 ? `<button id="btn-download-pdf" data-has-pdf="1" style="margin-bottom:18px;padding:8px 18px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;">Descargar informe PDF</button>` : `<button id="btn-download-pdf" data-has-pdf="0" style="margin-bottom:18px;padding:8px 18px;background:#0ea5e9;color:#04263a;border:none;border-radius:8px;cursor:pointer;font-weight:700;">Generar y descargar informe PDF</button>`;
+          return `${pdfBtn}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
+      }
   // --- Botón de apagado de la app ---
   const btnShutdown = document.getElementById('btn-shutdown');
   if (btnShutdown) {
@@ -470,6 +573,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const API_BASE = window.__CYBERMIND_API_BASE__ || "http://127.0.0.1:8000";
 
     const controllers = {
+      "Code Scanning": [
+        { id: "scan-code-text", title: "Analizar código (texto)", method: "POST", path: "/code/scan-text", params: [
+          {name: "code", type: "textarea", placeholder: "Pega aquí el código fuente a analizar", large: true}
+        ], desc: "Analiza un fragmento de código recibido como texto y muestra vulnerabilidades encontradas e informe PDF." },
+        { id: "scan-code-file", title: "Analizar código (archivo)", method: "POST", path: "/code/scan-file", params: [
+          {name: "file", type: "file", label: "Archivo de código (drag & drop)", accept: ".py,.js,.java,.c,.cpp,.rb,.go", dragdrop: true}
+        ], desc: "Sube un archivo de código fuente y muestra vulnerabilidades encontradas e informe PDF." }
+      ],
             "Hashed": [
               { id: "hash-phrase", title: "Hashear frase", method: "POST", path: "/hashed/hash", params: [
                 {name: "phrase", type: "text", placeholder: "Texto a hashear"},
@@ -661,7 +772,20 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       opForm.appendChild(info);
       const form = document.createElement("form");
-      form.onsubmit = async (e) => { e.preventDefault(); await submitOperation(op, new FormData(form)); };
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        // Validación para endpoints de archivo drag & drop
+        if (op.params && op.params.some(p => p.type === 'file' && p.dragdrop)) {
+          const fileInput = form.querySelector('input[type="file"]');
+          if (!fileInput || !fileInput.files || !fileInput.files.length) {
+            if (opResult) {
+              opResult.innerHTML = `<div style="background:#fee2e2;color:#b91c1c;padding:16px 18px;border-radius:8px;margin-bottom:18px;font-size:16px;font-weight:600;max-width:900px;margin:0 auto 18px auto;">Debes seleccionar un archivo antes de enviar.</div>`;
+            }
+            return;
+          }
+        }
+        await submitOperation(op, new FormData(form));
+      };
 
       // Render custom fields para endpoints Hashed (incluyendo drag & drop de archivo)
       if (op.id === "hash-phrase" || op.id === "unhash" || op.id === "unhash-file" || op.id === "upload-hash-file" || op.id === "hash-file") {
@@ -902,8 +1026,108 @@ document.addEventListener('DOMContentLoaded', function () {
 
       if (op.params && op.params.length) {
         op.params.forEach(p => {
-          const label = document.createElement("label"); label.style.display = "block"; label.style.marginBottom = "6px"; label.innerHTML = `<div style='font-size:13px;color:#cbd5e1;margin-bottom:4px;'>${p.name}</div>`;
-          const input = document.createElement("input"); input.name = p.name; input.placeholder = p.placeholder || ""; input.style.width = "100%"; input.style.padding = "8px"; input.style.boxSizing = "border-box"; input.style.marginBottom = "6px"; label.appendChild(input); form.appendChild(label);
+          const label = document.createElement("label");
+          label.style.display = "block";
+          label.style.marginBottom = "6px";
+          label.innerHTML = `<div style='font-size:13px;color:#cbd5e1;margin-bottom:4px;'>${p.label || p.name}</div>`;
+          if (p.type === "textarea" && p.large) {
+            // Textarea grande con estilo solicitado (fondo claro, borde azul claro, ancho completo, código visible)
+            const wrapper = document.createElement("div");
+            wrapper.style.background = "transparent";
+            wrapper.style.border = "none";
+            wrapper.style.borderRadius = "0";
+            wrapper.style.padding = "0";
+            wrapper.style.margin = "0 auto 16px auto";
+            wrapper.style.maxWidth = "900px";
+            wrapper.style.boxShadow = "none";
+            wrapper.style.display = "flex";
+            wrapper.style.alignItems = "flex-start";
+            wrapper.style.gap = "0";
+            const textarea = document.createElement("textarea");
+            textarea.name = p.name;
+            textarea.placeholder = p.placeholder || "";
+            textarea.required = true;
+            textarea.rows = 8;
+            textarea.style.flex = "1 1 0%";
+            textarea.style.width = "100%";
+            textarea.style.padding = "6px 10px";
+            textarea.style.borderRadius = "4px";
+            textarea.style.border = "1px solid rgb(203, 213, 225)";
+            textarea.style.fontFamily = "monospace";
+            textarea.style.fontSize = "15px";
+            textarea.style.background = "#fff";
+            textarea.style.color = "#222";
+            textarea.style.resize = "vertical";
+            textarea.style.boxSizing = "border-box";
+            wrapper.appendChild(textarea);
+            form.appendChild(wrapper);
+          } else if (p.type === "file" && p.dragdrop) {
+            // Drag & drop con input file SIEMPRE dentro del <form>
+            const wrapper = document.createElement("div");
+            wrapper.style.background = "transparent";
+            wrapper.style.border = "none";
+            wrapper.style.borderRadius = "0";
+            wrapper.style.padding = "0";
+            wrapper.style.margin = "0 auto 16px auto";
+            wrapper.style.maxWidth = "900px";
+            wrapper.style.boxShadow = "none";
+            wrapper.style.display = "flex";
+            wrapper.style.alignItems = "center";
+            wrapper.style.gap = "0";
+            const dropZone = document.createElement("div");
+            dropZone.className = "file-drop-zone";
+            dropZone.style.flex = "1 1 0%";
+            dropZone.style.padding = "18px";
+            dropZone.style.border = "2px dashed rgb(37, 99, 235)";
+            dropZone.style.borderRadius = "6px";
+            dropZone.style.background = "rgb(224, 231, 239)";
+            dropZone.style.textAlign = "center";
+            dropZone.style.color = "rgb(37, 99, 235)";
+            dropZone.style.cursor = "pointer";
+            dropZone.style.fontSize = "16px";
+            dropZone.style.marginBottom = "0";
+            dropZone.style.width = "100%";
+            dropZone.textContent = "Arrastra aquí el archivo o haz clic para seleccionar";
+            // El input file debe estar en el <form> y visible para FormData
+            const input = document.createElement("input");
+            input.type = "file";
+            input.name = p.name;
+            if (p.accept) input.accept = p.accept;
+            input.style.display = "none";
+            // Añadir el input file al form (no solo al dropZone)
+            form.appendChild(input);
+            dropZone.addEventListener("click", () => input.click());
+            dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.style.borderColor = "#2563eb"; });
+            dropZone.addEventListener("dragleave", e => { e.preventDefault(); dropZone.style.borderColor = "#2563eb"; });
+            dropZone.addEventListener("drop", e => {
+              e.preventDefault();
+              dropZone.style.borderColor = "#2563eb";
+              if (e.dataTransfer.files && e.dataTransfer.files.length) {
+                input.files = e.dataTransfer.files;
+                dropZone.textContent = `Archivo seleccionado: ${e.dataTransfer.files[0].name}`;
+              }
+            });
+            input.addEventListener("change", e => {
+              if (input.files && input.files.length) {
+                dropZone.textContent = `Archivo seleccionado: ${input.files[0].name}`;
+              } else {
+                dropZone.textContent = "Arrastra aquí el archivo o haz clic para seleccionar";
+              }
+            });
+            wrapper.appendChild(dropZone);
+            form.appendChild(wrapper);
+          } else {
+            // ...existing code for other input types...
+            const input = document.createElement("input");
+            input.name = p.name;
+            input.placeholder = p.placeholder || "";
+            input.style.width = "100%";
+            input.style.padding = "8px";
+            input.style.boxSizing = "border-box";
+            input.style.marginBottom = "6px";
+            label.appendChild(input);
+            form.appendChild(label);
+          }
         });
       }
 
@@ -1168,7 +1392,7 @@ document.addEventListener('DOMContentLoaded', function () {
           for (const [k, v] of formData.entries()) if (v) params.append(k, v);
           const final = params.toString() ? url + "?" + params.toString() : url;
           resp = await fetch(final);
-        } else if (op.path === "/hashed/unhash-file" || op.path === "/hashed/upload-hash-file" || op.path === "/hashed/hash-file") {
+        } else if (op.path === "/hashed/unhash-file" || op.path === "/hashed/upload-hash-file" || op.path === "/hashed/hash-file" || op.path === "/code/scan-file") {
           // Envío especial para archivos: usar FormData y no establecer Content-Type
           const fileInput = formData.get('file');
           const fd = new FormData();
@@ -1208,9 +1432,37 @@ document.addEventListener('DOMContentLoaded', function () {
           }
           resp = await fetch(url, { method: op.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
         }
-        const text = await resp.text();
+        // Prefer JSON parsing when server sets application/json; fallback to text.
+        let text = null;
+        let j = null;
+        const contentType = resp.headers && resp.headers.get ? (resp.headers.get('content-type') || '') : '';
+        if (contentType.toLowerCase().includes('application/json')) {
+          try { j = await resp.json(); }
+          catch (e) { text = await resp.text(); }
+        } else {
+          // Not JSON according to headers — try to parse as text and then JSON.
+          text = await resp.text();
+          try { j = JSON.parse(text); } catch (e) { j = null; }
+        }
+
+        // Manejo de errores HTTP (especialmente 400 de validación)
+        if (!resp.ok) {
+          let msg = 'Error desconocido.';
+          try {
+            if (j && typeof j === 'object') msg = j.detail || j.message || JSON.stringify(j);
+            else if (text) msg = text;
+          } catch (e) { msg = text || String(e); }
+          if (opResult) {
+            opResult.innerHTML = `<div style="background:#fee2e2;color:#b91c1c;padding:16px 18px;border-radius:8px;margin-bottom:18px;font-size:16px;font-weight:600;max-width:900px;margin:0 auto 18px auto;">${escapeHtml(msg)}</div>`;
+          }
+          return;
+        }
         try {
-          const j = JSON.parse(text);
+          // If we already have parsed JSON in `j`, use it. Otherwise, if we have `text`, attempt
+          // to detect markdown vs raw text. If neither, fallback to renderRawJson of resp.json()
+          if (!j && text) {
+            try { j = JSON.parse(text); } catch (e) { /* leave j null */ }
+          }
           // Renderizado especial para /hashed/hash
           if (op.path === '/hashed/hash') {
             if (opResult && j.hashed_value && formData.get && typeof formData.get === 'function') {
@@ -1231,7 +1483,92 @@ document.addEventListener('DOMContentLoaded', function () {
             }
           }
 
-          // Renderizado especial para /network/scan (forzar tarjetas aunque la estructura no sea perfecta)
+          // Renderizado especial para /code/scan-text y /code/scan-file
+          if (op.path === '/code/scan-text' || op.path === '/code/scan-file') {
+            if (opResult) {
+              // Debug console to help determine why cards may not appear
+              try { console.debug('[UI] CodeScan response content-type:', contentType, 'parsed:', j); } catch (e) {}
+
+              // Normalize response shapes: accept array or object with vulnerabilities/vulnerabilities_full
+              let payload = null;
+              if (j === null) {
+                payload = { vulnerabilities: [] };
+              } else if (Array.isArray(j)) {
+                payload = { vulnerabilities: j, vulnerabilities_full: j };
+              } else if (typeof j === 'object') {
+                if (Array.isArray(j.vulnerabilities)) payload = j;
+                else if (Array.isArray(j.vulnerabilities_full)) payload = { vulnerabilities: j.vulnerabilities_full, vulnerabilities_full: j.vulnerabilities_full, pdf_base64: j.pdf_base64 };
+                else {
+                  const arr = Object.values(j).find(v => Array.isArray(v));
+                  payload = { vulnerabilities: Array.isArray(arr) ? arr : [], vulnerabilities_full: Array.isArray(arr) ? arr : [], pdf_base64: j.pdf_base64 };
+                }
+              } else {
+                payload = { vulnerabilities: [] };
+              }
+
+              try {
+                opResult.innerHTML = renderCodeScanResult(payload);
+              } catch (err) {
+                console.error('[UI] Error rendering code scan result:', err, 'payload:', payload);
+                // Fallback: show raw JSON but keep console log for debugging
+                opResult.innerHTML = `<div style='color:#fca5a5;margin-bottom:8px'>Error rendering resultados, mostrando JSON crudo:</div>` + renderRawJson(payload);
+              }
+              // PDF button behavior: download if backend included base64, otherwise generate on-demand
+              const btn = document.getElementById('btn-download-pdf');
+              if (btn) {
+                if (payload && payload.pdf_base64) {
+                  btn.onclick = function() {
+                    const b64 = payload.pdf_base64;
+                    const blob = new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], {type: 'application/pdf'});
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'informe_code_scan.pdf';
+                    document.body.appendChild(link);
+                    link.click();
+                    setTimeout(() => { document.body.removeChild(link); }, 100);
+                  };
+                } else {
+                  btn.onclick = async function() {
+                    try {
+                      btn.disabled = true; const old = btn.textContent; btn.textContent = 'Generando informe...';
+                      // Prefer the full results (with LLM explanations) when available
+                      const payloadVulns = (payload && payload.vulnerabilities_full) || (payload && payload.vulnerabilities) || [];
+                      const resp = await fetch('/code/generate-pdf', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ vulnerabilities: payloadVulns }) });
+                      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                      const data = await resp.json();
+                      const b64 = data && data.pdf_base64;
+                      if (!b64) throw new Error('No se recibió PDF');
+                      const blob = new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], {type: 'application/pdf'});
+                      const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'informe_code_scan.pdf'; document.body.appendChild(link); link.click(); setTimeout(() => { document.body.removeChild(link); }, 100);
+                      // Update button to allow direct download next time
+                      btn.dataset.hasPdf = '1'; btn.textContent = 'Descargar informe PDF';
+                    } catch (err) {
+                      showToast('Error generando PDF: ' + String(err));
+                    } finally { btn.disabled = false; }
+                  };
+                }
+              }
+
+              // Attach copy handlers for each vulnerability card
+              const copyBtns = opResult.querySelectorAll('.copy-vuln-details');
+              copyBtns.forEach(cb => {
+                cb.addEventListener('click', () => {
+                  try {
+                    const line = cb.dataset.line || '-';
+                    const parent = cb.closest('div');
+                    const desc = parent ? parent.querySelector('div') && parent.querySelector('div').textContent : '';
+                    const text = `Línea: ${line}\n${desc || ''}`;
+                    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text);
+                    else {
+                      const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+                    }
+                    showToast('Detalles copiados');
+                  } catch (e) { showToast('Error copiando'); }
+                });
+              });
+              return;
+            }
+          }
           if (op.path === '/network/scan') {
             if (opResult) {
               // Si la respuesta ya tiene host y results, usar normalmente

@@ -1,3 +1,7 @@
+## [Unreleased] - 2026-03-15
+### Added
+- Sección "Code Scanning" en la UI bajo "Services" con soporte para análisis de código por texto y archivo, mostrando resultados en tarjetas visuales y descarga de informe PDF.
+- Documentación de endpoints de code scanning en `api_endpoints.md`.
 ### Changed (2026-02-13)
 - Ampliados los tests unitarios para `src/app/services/hashed/bruteforce_utils.py`, cubriendo la función interna `_bruteforce_worker` (timeout, max_combinations, chunking, caracteres especiales, detección exitosa y fallida). La cobertura del módulo supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
 Archivos modificados:
@@ -342,21 +346,3 @@ Files modificados:
 
 - Sección de documentación accesible desde la UI: permite visualizar `README.md` y todos los archivos Markdown de la carpeta `Docs/` desde la interfaz web.
 - Endpoints REST para exponer archivos de documentación (`/docs/list`, `/docs/readme`, `/docs/file/{filename}`).
-- Actualización de estilos y lógica de la UI para soporte de documentación.
-
-- Ahora la cobertura de tests puede visualizarse directamente en la UI web, accediendo a la sección "Cobertura" (🧪) en la barra lateral. El reporte HTML generado por pytest-cov se muestra embebido y navegable tras cada ejecución de tests.
-- Se ha documentado en [Docs/llm.md](Docs/llm.md) y en [README.md](README.md) que la IA del proyecto utiliza un modelo restringido **LLama3** mediante un archivo Model file, con conocimiento limitado hasta 2023 y sin finetuning con datos propios. Se indica que el finetuning es una función futura por la alta demanda de recursos.
-
-Archivos modificados:
- - Docs/llm.md
- - README.md
- - README.md: Se ha añadido en README.md que el archivo JSON para el finetuning sí se genera automáticamente (outputs/finetune_data.jsonl), aunque no se utiliza aún para entrenar el modelo.
-
-## [0.0.0] - 2026-01-14
-- Entrada inicial de notas de la versión (desarrollo interno)
-
-### Changed
-- Se ha uniformado y ampliado la documentación de los endpoints LLM en Docs/api_endpoints.md, incluyendo descripción del modelo LLama3, restricciones, generación de archivo JSON para finetuning y formato tabular para los endpoints.
-
-Archivos modificados:
- - Docs/api_endpoints.md

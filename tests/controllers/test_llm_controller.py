@@ -39,7 +39,10 @@ def test_llm_query_post(monkeypatch):
     '''
     from main import app
     client = TestClient(app)
-    monkeypatch.setattr(llm_mod, 'query_llm', lambda prompt: f"Echo: {prompt}")
+    def _fake_query(*args, **kwargs):
+        prompt = args[0] if args else kwargs.get('prompt') or ''
+        return f"Echo: {prompt}"
+    monkeypatch.setattr(llm_mod, 'query_llm', _fake_query)
     resp = client.post('/llm/query', json={"prompt": "test"})
     assert resp.status_code == 200
     data = resp.json()
