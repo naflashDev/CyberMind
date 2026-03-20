@@ -18,8 +18,10 @@ def test_scan_text_happy(monkeypatch):
     # Patch the scanner using the runtime import path used by the app
     def _fake_scan_text(self, code, *args, **kwargs):
         return [{"line":1,"severity":"HIGH","description":"Vuln test.","cwe":"CWE-1","explanation":"Exp."}]
-    monkeypatch.setattr('src.app.services.code_analysis.scanner.CodeScanner.scan_text', _fake_scan_text)
-    monkeypatch.setattr('src.app.services.code_analysis.scanner.CodeScanner.generate_pdf_report', lambda self, v: base64.b64encode(b'PDF').decode())
+    # Patch the scanner implementation used by the running app (package `app`) so
+    # the TestClient receives the monkeypatched behavior.
+    monkeypatch.setattr('app.services.code_analysis.scanner.CodeScanner.scan_text', _fake_scan_text)
+    monkeypatch.setattr('app.services.code_analysis.scanner.CodeScanner.generate_pdf_report', lambda self, v: base64.b64encode(b'PDF').decode())
     client = TestClient(app)
     resp = client.post("/code/scan-text", json={"code": "eval('2+2')"})
     assert resp.status_code == 200
@@ -42,8 +44,8 @@ def test_scan_file_happy(monkeypatch, tmp_path):
     # Patch the scanner using the runtime import path used by the app
     def _fake_scan_text(self, code, *args, **kwargs):
         return [{"line":1,"severity":"HIGH","description":"Vuln test.","cwe":"CWE-1","explanation":"Exp."}]
-    monkeypatch.setattr('src.app.services.code_analysis.scanner.CodeScanner.scan_text', _fake_scan_text)
-    monkeypatch.setattr('src.app.services.code_analysis.scanner.CodeScanner.generate_pdf_report', lambda self, v: base64.b64encode(b'PDF').decode())
+    monkeypatch.setattr('app.services.code_analysis.scanner.CodeScanner.scan_text', _fake_scan_text)
+    monkeypatch.setattr('app.services.code_analysis.scanner.CodeScanner.generate_pdf_report', lambda self, v: base64.b64encode(b'PDF').decode())
     file_path = tmp_path / "test.py"
     file_path.write_text("eval('2+2')")
     with open(file_path, "rb") as f:

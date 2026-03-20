@@ -173,6 +173,82 @@ class CodeScanner:
         '''
         if not text:
             return 'Unknown'
+
+    def _severity_rank(self, sev: Any) -> int:
+        '''
+        @brief Convert a severity label into a sortable rank (higher = more severe).
+
+        Accepts common textual severities (critical/high/medium/low/info) or numeric values.
+        @param sev Severity label or numeric value.
+        @return Integer rank where larger means more severe.
+        '''
+        if sev is None:
+            return 0
+        s = str(sev).strip().lower()
+        if not s:
+            return 0
+        # textual mapping
+        if any(x in s for x in ('critical', 'crit', 'cve-critical')):
+            return 5
+        if 'high' in s or s == 'h':
+            return 4
+        if 'medium' in s or s == 'm' or 'med' in s:
+            return 3
+        if 'low' in s or s == 'l':
+            return 2
+        if any(x in s for x in ('info', 'informational', 'notice')):
+            return 1
+        # try numeric
+        try:
+            n = float(''.join(ch for ch in s if (ch.isdigit() or ch == '.')) or 0)
+            # map 0..10 scale into 0..5
+            return min(5, max(0, int(round(n / 2))))
+        except Exception:
+            return 0
+
+    def _group_and_sort_vulnerabilities(self, vulnerabilities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        '''
+        @brief Group identical vulnerabilities and sort groups by importance.
+
+        Identical is defined by the combination of `cwe`, `description` and normalized severity.
+        Groups keep a list of occurrences (filename + line) but include a single explanation.
+
+        @param vulnerabilities List of vulnerability dicts as produced by scanners.
+        @return List of grouped vulnerability dicts sorted by severity (desc) and occurrence count (desc).
+        '''
+        groups: Dict[Tuple[str, str, int], Dict[str, Any]] = {}
+
+        for v in vulnerabilities:
+            sev = v.get('severity')
+            rank = self._severity_rank(sev)
+            cwe = str(v.get('cwe') or '-').strip()
+            desc = str(v.get('description') or '').strip()
+            # key: severity rank + cwe + description
+            key = (cwe, desc, rank)
+
+            occ = {
+                'filename': v.get('filename', '-'),
+                'line': v.get('line', '-')
+            }
+
+            if key not in groups:
+                groups[key] = {
+                    'severity': sev or '-',
+                    'severity_rank': rank,
+                    'cwe': cwe,
+                    'description': desc or '-',
+                    'explanation': str(v.get('explanation') or '-'),
+                    'occurrences': [occ],
+                    'count': 1,
+                }
+            else:
+                groups[key]['occurrences'].append(occ)
+                groups[key]['count'] += 1
+
+        # Convert to list and sort: primary by severity_rank desc, then by count desc
+        grouped_list = list(groups.values())
+        grouped_list.sort(key=lambda g: (g['severity_rank'], g['count']), reverse=True)
+        return grouped_list
         t = text.lower()
         high_keywords = ('expos', 'leak', 'information disclosure', 'sensitive', 'secret', 'credentials', 'password', 'token', 'key', 'ssn', 'pii', 'personal data')
         medium_keywords = ('access control', 'authorization', 'auth bypass', 'insecure direct object', 'idor', 'privacy')
@@ -519,29 +595,45 @@ class CodeScanner:
         pdf.multi_cell(0, 6, " | ".join(conf_parts) or "-")
         pdf.ln(6)
 
-        # Detailed entries: use a clean block layout per vulnerability
-        for idx, v in enumerate(vulnerabilities, start=1):
-            filename = v.get('filename', '-')
-            line = v.get('line', '-')
-            severity = v.get('severity', '-')
-            cwe = v.get('cwe', '-')
-            description = str(v.get('description', '-'))
-            explanation = str(v.get('explanation', '-'))
-
-            pdf.set_font("Arial", 'B', 11)
-            pdf.cell(0, 6, f"{idx}. Archivo: {filename} | Línea {line} - Severidad: {severity} - CWE: {cwe}", ln=True)
+        # Detailed entries: group identical vulnerabilities and show explanation once per group
+        grouped = self._group_and_sort_vulnerabilities(vulnerabilities)
+        if not grouped:
             pdf.set_font("Arial", size=10)
-            try:
-                pdf.multi_cell(0, 6, f"Descripción: {description}")
-            except FPDFException:
-                pdf.multi_cell(0, 6, f"Descripción: {description[:200]}")
-            pdf.ln(1)
-            pdf.set_font("Arial", 'I', 10)
-            try:
-                pdf.multi_cell(0, 6, f"Explicación LLM: {explanation}")
-            except FPDFException:
-                pdf.multi_cell(0, 6, f"Explicación LLM: {explanation[:300]}")
-            pdf.ln(4)
+            pdf.cell(0, 6, "No hay vulnerabilidades detalladas.", ln=True)
+        else:
+            for idx, g in enumerate(grouped, start=1):
+                severity = g.get('severity', '-')
+                cwe = g.get('cwe', '-')
+                description = g.get('description', '-')
+                explanation = g.get('explanation', '-')
+                occs = g.get('occurrences', [])
+                count = g.get('count', len(occs))
+
+                # Header for the grouped vulnerability
+                pdf.set_font("Arial", 'B', 11)
+                pdf.cell(0, 6, f"{idx}. Severidad: {severity} - CWE: {cwe} - Ocurrencias: {count}", ln=True)
+                pdf.set_font("Arial", size=10)
+                try:
+                    pdf.multi_cell(0, 6, f"Descripción: {description}")
+                except FPDFException:
+                    pdf.multi_cell(0, 6, f"Descripción: {description[:200]}")
+                pdf.ln(1)
+
+                # List occurrences (file:line), but keep it compact
+                try:
+                    occ_lines = [f"{o.get('filename','-')}:{o.get('line','-')}" for o in occs]
+                    pdf.multi_cell(0, 6, "Ubicaciones: " + (", ".join(occ_lines) or "-"))
+                except FPDFException:
+                    pdf.multi_cell(0, 6, "Ubicaciones: -")
+                pdf.ln(1)
+
+                # Single explanation per grouped vulnerability
+                pdf.set_font("Arial", 'I', 10)
+                try:
+                    pdf.multi_cell(0, 6, f"Explicación LLM: {explanation}")
+                except FPDFException:
+                    pdf.multi_cell(0, 6, f"Explicación LLM: {explanation[:300]}")
+                pdf.ln(4)
 
         # Write to temporary file and return base64
         with tempfile.NamedTemporaryFile("wb", delete=False, suffix=".pdf") as tmp_pdf:

@@ -8,12 +8,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
 from fastapi.responses import JSONResponse
 from loguru import logger
-# Try importing CodeScanner using the 'src' package path (test environment),
-# fall back to the plain 'app' package when not available.
-try:
-    from src.app.services.code_analysis.scanner import CodeScanner  # type: ignore
-except Exception:
-    from app.services.code_analysis.scanner import CodeScanner
+from app.services.code_analysis.scanner import CodeScanner
 from typing import Any, Dict
 import base64
 from fastapi import Body

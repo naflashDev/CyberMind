@@ -10,6 +10,37 @@
       function renderCodeScanResult(obj) {
         if (!obj || typeof obj !== 'object') return renderRawJson(obj);
         const vulns = Array.isArray(obj.vulnerabilities) ? obj.vulnerabilities : [];
+        // Order vulnerabilities by severity (highest -> lowest) before rendering cards
+        const severityRank = (s) => {
+          if (!s && s !== 0) return 0;
+          const v = String(s).toLowerCase();
+          if (/critical|crit|cve-critical/.test(v)) return 5;
+          if (/high|h/.test(v)) return 4;
+          if (/medium|med|m/.test(v)) return 3;
+          if (/low|l/.test(v)) return 2;
+          if (/info|informational|notice/.test(v)) return 1;
+          // Try to parse numeric severities (e.g., '7.5')
+          const n = Number(String(s).replace(/[^0-9.]/g, ''));
+          if (!Number.isNaN(n)) return Math.min(5, Math.max(0, Math.round(n)));
+          return 0;
+        };
+        try {
+          vulns.sort((a, b) => {
+            const ra = severityRank(a && a.severity);
+            const rb = severityRank(b && b.severity);
+            if (rb !== ra) return rb - ra; // descending
+            // Tie-breaker: severity equal -> file name then line number
+            const fa = (a && a.filename) ? String(a.filename) : '';
+            const fb = (b && b.filename) ? String(b.filename) : '';
+            const cmp = fa.localeCompare(fb);
+            if (cmp !== 0) return cmp;
+            const la = Number((a && a.line) || 0) || 0;
+            const lb = Number((b && b.line) || 0) || 0;
+            return la - lb;
+          });
+        } catch (e) {
+          console.warn('[UI] Error sorting vulnerabilities by severity', e);
+        }
         if (!vulns.length) return `<div style='color:#16a34a'>No se encontraron vulnerabilidades.</div>`;
 
           // Render each vulnerability as a nice card. Include CVE (if present), file and line.
