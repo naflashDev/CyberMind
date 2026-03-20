@@ -18,6 +18,8 @@ def test_scan_text_happy(monkeypatch):
     scanner = CodeScanner()
     # Monkeypatch LLM y bandit
     monkeypatch.setattr(scanner, 'llm', DummyLLM())
+    # Ensure the scanner believes the LLM is enabled in config for this test
+    monkeypatch.setattr('src.app.services.code_analysis.scanner.is_llm_enabled_src', lambda: True)
     monkeypatch.setattr('subprocess.run', lambda *a, **kw: type('R', (), {'returncode':0,'stdout':'{"results":[{"line_number":1,"issue_severity":"HIGH","issue_text":"Uso de eval() inseguro.","cwe":{"id":"CWE-95"}}]}','stderr':''})() )
     vulns = scanner.scan_text('eval("2+2")')
     assert len(vulns) == 1
