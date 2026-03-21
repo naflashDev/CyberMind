@@ -1,9 +1,48 @@
       /**
-       * @brief Renderiza el resultado de code scanning (vulnerabilidades y PDF).
-       * @param obj Objeto de respuesta del backend.
-       * @return HTML string.
+      /**
+       * @brief Clear a form's inputs and its associated result container.
+       * @param form The form element to clear.
+       * @param resultContainer The result container element to clear.
+       * @return void
        */
-      // Ensure escapeHtml is available at global scope for early functions
+      function clearFormAndResult(form, resultContainer) {
+        try {
+          if (!form) return;
+          const fields = form.querySelectorAll('input, textarea, select');
+          fields.forEach(el => {
+            const tag = (el.tagName || '').toLowerCase();
+            if (el.type === 'file') {
+              try { el.value = ''; } catch (e) {}
+              const prev = el.previousElementSibling;
+              if (prev && prev.tagName === 'DIV') prev.textContent = 'Arrastra aquí el archivo o haz clic para seleccionar';
+            } else if (tag === 'input') {
+              if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
+              else el.value = '';
+            } else if (tag === 'textarea' || tag === 'select') {
+              el.value = '';
+            }
+          });
+          if (resultContainer) {
+            try {
+              const txt = String(resultContainer.textContent || '').trim();
+              // If the result container shows the default placeholder ("Respuesta aquí", "Respuesta aqui", or with trailing dots), do not clear it
+              const placeholderRe = /^Respuesta\s+aqu[íi](?:\.{0,3})?$/i;
+              if (!txt || !placeholderRe.test(txt)) {
+                resultContainer.innerHTML = '';
+              }
+            } catch (e) {
+              resultContainer.innerHTML = '';
+            }
+          }
+        } catch (e) {
+          console.warn('[UI] Error clearing form/result', e);
+        }
+      }
+
+      /**
+       * @brief Ensure the 'marked' markdown parser is loaded.
+       * @return Promise resolving to window.marked
+       */
       if (typeof escapeHtml !== 'function') {
         function escapeHtml(unsafe) { return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#039;"); }
       }
@@ -98,8 +137,9 @@
             }
           }).join('');
 
-          const pdfBtn = obj.pdf_base64 ? `<button id="btn-download-pdf" data-has-pdf="1" style="margin-bottom:18px;padding:8px 18px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;">Descargar informe PDF</button>` : `<button id="btn-download-pdf" data-has-pdf="0" style="margin-bottom:18px;padding:8px 18px;background:#0ea5e9;color:#04263a;border:none;border-radius:8px;cursor:pointer;font-weight:700;">Generar y descargar informe PDF</button>`;
-          return `${pdfBtn}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
+            // Use class for PDF button to avoid global id collisions when forms are cached
+            const pdfBtn = obj.pdf_base64 ? `<button class="btn-download-pdf" data-has-pdf="1" style="margin-bottom:18px;padding:8px 18px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;">Descargar informe PDF</button>` : `<button class="btn-download-pdf" data-has-pdf="0" style="margin-bottom:18px;padding:8px 18px;background:#0ea5e9;color:#04263a;border:none;border-radius:8px;cursor:pointer;font-weight:700;">Generar y descargar informe PDF</button>`;
+            return `${pdfBtn}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
       }
   // --- Botón de apagado de la app ---
   const btnShutdown = document.getElementById('btn-shutdown');
@@ -571,7 +611,11 @@ document.addEventListener('DOMContentLoaded', function () {
   // Handles rendering and interaction for API operation controls
   (function () {
     const API_BASE = window.__CYBERMIND_API_BASE__ || "http://127.0.0.1:8000";
-
+    // Caches to preserve form DOM, result containers and request metadata per operation
+    const formsCache = {}; // key: op.id -> { infoEl, formEl, resultContainer, uid }
+    const requestsMap = {}; // key: requestId -> { opId, viewName, containerUid, start }
+    const formState = {}; // optional serialized state per op.id
+    let uidCounter = 1;
     const controllers = {
       "Code Scanning": [
         { id: "scan-code-text", title: "Analizar código (texto)", method: "POST", path: "/code/scan-text", params: [
@@ -741,11 +785,32 @@ document.addEventListener('DOMContentLoaded', function () {
       if (opTitle) opTitle.textContent = controllerName + " — " + op.title + " (" + op.method + ")";
       renderForm(op);
       const opResultEl = document.getElementById('op-result');
-      if (op.path === '/status') {
-        if (opResultEl) opResultEl.style.display = 'none';
-      } else {
-        if (opResultEl) { opResultEl.style.display = 'block'; opResultEl.textContent = 'Respuesta aquí...'; }
+      // Show/hide global result panel for status endpoints
+      if (opResultEl) {
+        if (op.path === '/status') {
+          opResultEl.style.display = 'none';
+        } else {
+          opResultEl.style.display = 'block';
+        }
       }
+      // If we have a cached per-op result container, move it into the global opResult
+      try {
+        const cached = formsCache[op.id];
+        if (opResultEl) {
+          // clear previous content so only one result container is visible
+          opResultEl.innerHTML = '';
+          if (cached && cached.resultContainer) {
+            opResultEl.appendChild(cached.resultContainer);
+            // If the cached container is empty, show the placeholder text
+            try {
+              if (!cached.resultContainer.innerHTML || !String(cached.resultContainer.innerHTML).trim()) {
+                cached.resultContainer.innerHTML = 'Respuesta aquí...';
+              }
+            } catch (e) {}
+            cached.resultContainer.style.display = (op.path === '/status') ? 'none' : 'block';
+          }
+        }
+      } catch (e) { /* ignore */ }
     }
 
     /**
@@ -755,6 +820,17 @@ document.addEventListener('DOMContentLoaded', function () {
      */
     function renderForm(op) {
       if (!opForm) return;
+      // If we have a cached form for this op, re-attach it (preserves inputs/files)
+      if (formsCache[op.id]) {
+        const cached = formsCache[op.id];
+        opForm.innerHTML = "";
+        if (cached.infoEl) opForm.appendChild(cached.infoEl);
+        if (cached.formEl) opForm.appendChild(cached.formEl);
+        // NOTE: do not append the cached.resultContainer here. The cached container
+        // will be moved into the global `#op-result` area when the operation is selected,
+        // ensuring only one visible result container at a time.
+        return;
+      }
       opForm.innerHTML = "";
       const info = document.createElement("div");
       info.style.marginBottom = "8px";
@@ -772,19 +848,24 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       opForm.appendChild(info);
       const form = document.createElement("form");
+      // per-form feedback element (shows validation/errors scoped to this form)
+      const feedback = document.createElement('div');
+      feedback.className = 'form-feedback';
+      feedback.style.marginBottom = '8px';
+      form.appendChild(feedback);
+      // resultContainer will be created and cached after form creation
+      let resultContainer = null;
       form.onsubmit = async (e) => {
         e.preventDefault();
         // Validación para endpoints de archivo drag & drop
         if (op.params && op.params.some(p => p.type === 'file' && p.dragdrop)) {
           const fileInput = form.querySelector('input[type="file"]');
           if (!fileInput || !fileInput.files || !fileInput.files.length) {
-            if (opResult) {
-              opResult.innerHTML = `<div style="background:#fee2e2;color:#b91c1c;padding:16px 18px;border-radius:8px;margin-bottom:18px;font-size:16px;font-weight:600;max-width:900px;margin:0 auto 18px auto;">Debes seleccionar un archivo antes de enviar.</div>`;
-            }
+            feedback.innerHTML = `<div style="background:#fee2e2;color:#b91c1c;padding:12px 14px;border-radius:8px;margin-bottom:12px;font-size:14px;font-weight:600;">Debes seleccionar un archivo antes de enviar.</div>`;
             return;
           }
         }
-        await submitOperation(op, new FormData(form));
+        await submitOperation(op, new FormData(form), resultContainer);
       };
 
       // Render custom fields para endpoints Hashed (incluyendo drag & drop de archivo)
@@ -924,6 +1005,8 @@ document.addEventListener('DOMContentLoaded', function () {
           form.appendChild(row);
         });
         // Only custom fields, do not render anything else for these endpoints
+        const btnRow = document.createElement('div');
+        btnRow.style.display = 'flex'; btnRow.style.gap = '8px'; btnRow.style.alignItems = 'center'; btnRow.style.marginTop = '8px';
         const submit = document.createElement("button");
         submit.textContent = "Ejecutar";
         submit.type = "submit";
@@ -934,8 +1017,31 @@ document.addEventListener('DOMContentLoaded', function () {
         submit.style.border = "none";
         submit.style.borderRadius = "6px";
         submit.style.cursor = "pointer";
-        form.appendChild(submit);
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.innerHTML = '<span style="margin-right:6px;">🗑️</span>Limpiar';
+        clearBtn.className = 'clear-btn';
+        clearBtn.style.padding = '8px 12px';
+        clearBtn.style.background = '#374151';
+        clearBtn.style.color = '#fff';
+        clearBtn.style.border = 'none';
+        clearBtn.style.borderRadius = '6px';
+        clearBtn.style.cursor = 'pointer';
+        btnRow.appendChild(submit);
+        btnRow.appendChild(clearBtn);
+        form.appendChild(btnRow);
+        // append and cache the form + its result container so inputs (including files) persist
         opForm.appendChild(form);
+        // create per-op result container (cached, not attached to opForm)
+        resultContainer = document.createElement('div');
+        resultContainer.className = 'op-result-local';
+        resultContainer.dataset.opUid = op.id + '-' + (uidCounter++);
+        // initial state (hidden for status endpoints), no default placeholder text
+        resultContainer.style.display = (op.path === '/status') ? 'none' : 'block';
+        resultContainer.innerHTML = '';
+        // cache but DO NOT append here; selectOperation will attach it into #op-result
+        formsCache[op.id] = { infoEl: info, formEl: form, resultContainer: resultContainer, uid: resultContainer.dataset.opUid };
+        try { if (typeof clearBtn !== 'undefined' && clearBtn) clearBtn.addEventListener('click', () => clearFormAndResult(form, resultContainer)); } catch (e) { console.warn('[UI] could not attach clear handler', e); }
         return;
       } else if (op.path === "/status") {
         const panel = document.createElement('div');
@@ -1147,8 +1253,20 @@ document.addEventListener('DOMContentLoaded', function () {
         form.appendChild(nmLabel);
       }
 
+      const btnRow = document.createElement('div'); btnRow.style.display = 'flex'; btnRow.style.gap = '8px'; btnRow.style.alignItems = 'center'; btnRow.style.marginTop = '8px';
       const submit = document.createElement("button"); submit.textContent = "Ejecutar"; submit.type = "submit"; submit.className = "exec-btn"; submit.style.padding = "8px 12px"; submit.style.background = "#2563eb"; submit.style.color = "#fff"; submit.style.border = "none"; submit.style.borderRadius = "6px"; submit.style.cursor = "pointer";
-      form.appendChild(submit); opForm.appendChild(form);
+      const clearBtn = document.createElement('button'); clearBtn.type = 'button'; clearBtn.innerHTML = '<span style="margin-right:6px;">🗑️</span>Limpiar'; clearBtn.className = 'clear-btn'; clearBtn.style.padding = '8px 12px'; clearBtn.style.background = '#374151'; clearBtn.style.color = '#fff'; clearBtn.style.border = 'none'; clearBtn.style.borderRadius = '6px'; clearBtn.style.cursor = 'pointer';
+      btnRow.appendChild(submit); btnRow.appendChild(clearBtn); form.appendChild(btnRow);
+      opForm.appendChild(form);
+      // common result container creation and cache for the normal path
+      resultContainer = document.createElement('div');
+      resultContainer.className = 'op-result-local';
+      resultContainer.dataset.opUid = op.id + '-' + (uidCounter++);
+      resultContainer.style.display = (op.path === '/status') ? 'none' : 'block';
+      // no default placeholder text; attach the cached container into #op-result when selected
+      resultContainer.innerHTML = '';
+      formsCache[op.id] = { infoEl: info, formEl: form, resultContainer: resultContainer, uid: resultContainer.dataset.opUid };
+      try { if (typeof clearBtn !== 'undefined' && clearBtn) clearBtn.addEventListener('click', () => clearFormAndResult(form, resultContainer)); } catch (e) { console.warn('[UI] could not attach clear handler', e); }
     }
 
     /**
@@ -1383,8 +1501,10 @@ document.addEventListener('DOMContentLoaded', function () {
      * @param formData The form data to submit.
      * @return void
      */
-    async function submitOperation(op, formData) {
-      const url = API_BASE + op.path; if (opResult) { opResult.style.display = 'block'; opResult.innerHTML = `<div class="response-meta">Cargando...</div>`; }
+    async function submitOperation(op, formData, resultContainer = null) {
+      const url = API_BASE + op.path;
+      const target = resultContainer || opResult;
+      if (target) { target.style.display = 'block'; target.innerHTML = `<div class="response-meta">Cargando...</div>`; }
       try {
         let resp;
         if (op.method === "GET") {
@@ -1452,8 +1572,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (j && typeof j === 'object') msg = j.detail || j.message || JSON.stringify(j);
             else if (text) msg = text;
           } catch (e) { msg = text || String(e); }
-          if (opResult) {
-            opResult.innerHTML = `<div style="background:#fee2e2;color:#b91c1c;padding:16px 18px;border-radius:8px;margin-bottom:18px;font-size:16px;font-weight:600;max-width:900px;margin:0 auto 18px auto;">${escapeHtml(msg)}</div>`;
+          if (target) {
+            target.innerHTML = `<div style="background:#fee2e2;color:#b91c1c;padding:16px 18px;border-radius:8px;margin-bottom:18px;font-size:16px;font-weight:600;max-width:900px;margin:0 auto 18px auto;">${escapeHtml(msg)}</div>`;
           }
           return;
         }
@@ -1465,11 +1585,11 @@ document.addEventListener('DOMContentLoaded', function () {
           }
           // Renderizado especial para /hashed/hash
           if (op.path === '/hashed/hash') {
-            if (opResult && j.hashed_value && formData.get && typeof formData.get === 'function') {
+            if (target && j.hashed_value && formData.get && typeof formData.get === 'function') {
               // Visualización tipo tarjeta como en la imagen adjunta
               const phrase = formData.get('phrase') || '';
               const algorithm = formData.get('algorithm') || '';
-              opResult.innerHTML = `
+              target.innerHTML = `
                 <div style="background:#181e26;border-radius:10px;padding:24px 32px;margin:0 auto 16px auto;max-width:900px;box-shadow:0 2px 8px #0002;display:flex;align-items:center;gap:18px;">
                   <span style="font-size:2.1em;vertical-align:middle;">🔑</span>
                   <div style="display:flex;flex-direction:column;gap:6px;">
@@ -1485,7 +1605,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
           // Renderizado especial para /code/scan-text y /code/scan-file
           if (op.path === '/code/scan-text' || op.path === '/code/scan-file') {
-            if (opResult) {
+            if (target) {
               // Debug console to help determine why cards may not appear
               try { console.debug('[UI] CodeScan response content-type:', contentType, 'parsed:', j); } catch (e) {}
 
@@ -1507,14 +1627,14 @@ document.addEventListener('DOMContentLoaded', function () {
               }
 
               try {
-                opResult.innerHTML = renderCodeScanResult(payload);
+                target.innerHTML = renderCodeScanResult(payload);
               } catch (err) {
                 console.error('[UI] Error rendering code scan result:', err, 'payload:', payload);
                 // Fallback: show raw JSON but keep console log for debugging
-                opResult.innerHTML = `<div style='color:#fca5a5;margin-bottom:8px'>Error rendering resultados, mostrando JSON crudo:</div>` + renderRawJson(payload);
+                target.innerHTML = `<div style='color:#fca5a5;margin-bottom:8px'>Error rendering resultados, mostrando JSON crudo:</div>` + renderRawJson(payload);
               }
               // PDF button behavior: download if backend included base64, otherwise generate on-demand
-              const btn = document.getElementById('btn-download-pdf');
+              const btn = target.querySelector('.btn-download-pdf');
               if (btn) {
                 if (payload && payload.pdf_base64) {
                   btn.onclick = function() {
@@ -1550,7 +1670,7 @@ document.addEventListener('DOMContentLoaded', function () {
               }
 
               // Attach copy handlers for each vulnerability card
-              const copyBtns = opResult.querySelectorAll('.copy-vuln-details');
+              const copyBtns = target.querySelectorAll('.copy-vuln-details');
               copyBtns.forEach(cb => {
                 cb.addEventListener('click', () => {
                   try {
@@ -1570,39 +1690,39 @@ document.addEventListener('DOMContentLoaded', function () {
             }
           }
           if (op.path === '/network/scan') {
-            if (opResult) {
+            if (target) {
               // Si la respuesta ya tiene host y results, usar normalmente
               if (j && typeof j === 'object' && Array.isArray(j.results)) {
-                opResult.innerHTML = renderNetworkScanResult(j);
+                target.innerHTML = renderNetworkScanResult(j);
                 return;
               }
               // Si la respuesta es un array de puertos directamente
               if (Array.isArray(j)) {
-                opResult.innerHTML = renderNetworkScanResult({host: '', results: j});
+                target.innerHTML = renderNetworkScanResult({host: '', results: j});
                 return;
               }
               // Si la respuesta es un objeto con claves tipo puerto
               if (j && typeof j === 'object' && Object.keys(j).length > 0) {
                 // Intentar detectar si es un dict de puertos
                 const keys = Object.keys(j);
-                if (keys.every(k => !isNaN(Number(k)))) {
+                  if (keys.every(k => !isNaN(Number(k)))) {
                   const results = keys.map(k => Object.assign({port: k}, j[k]));
-                  opResult.innerHTML = renderNetworkScanResult({host: '', results});
+                  target.innerHTML = renderNetworkScanResult({host: '', results});
                   return;
                 }
               }
               // Si nada coincide, mostrar JSON crudo pero con aviso
-              opResult.innerHTML = `<div style='color:#fca5a5;margin-bottom:8px'>Respuesta inesperada del backend, mostrando JSON crudo:</div>` + renderRawJson(j);
+              target.innerHTML = `<div style='color:#fca5a5;margin-bottom:8px'>Respuesta inesperada del backend, mostrando JSON crudo:</div>` + renderRawJson(j);
               return;
             }
           }
           // Renderizado especial para /hashed/unhash-file
-          if (op.path === '/hashed/unhash-file') {
+              if (op.path === '/hashed/unhash-file') {
             try {
               const j = JSON.parse(text);
               // Renderizado especial para /hashed/unhash-file y /hashed/upload-hash-file
               if (op.path === '/hashed/unhash-file') {
-                if (opResult) {
+                if (target) {
                   if (Array.isArray(j.results)) {
                     const cards = j.results.map(item => {
                       return `<div style="background:#181f2a;padding:14px;border-radius:8px;margin-bottom:12px;border:1px solid #2d3748;">
@@ -1615,12 +1735,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     }).join('');
                     let downloadBtn = '';
                     if (j.found_file_b64 && j.found_file_b64.length > 0) {
-                      downloadBtn = `<button id="btn-download-found" style="margin-bottom:18px;padding:8px 18px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Descargar resultados encontrados (.txt)</button>`;
+                      downloadBtn = `<button class="btn-download-found" style="margin-bottom:18px;padding:8px 18px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Descargar resultados encontrados (.txt)</button>`;
                     }
-                    opResult.innerHTML = `${downloadBtn}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
+                    target.innerHTML = `${downloadBtn}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
                     // Añadir handler para descarga
                     if (downloadBtn) {
-                      const btn = document.getElementById('btn-download-found');
+                      const btn = target.querySelector('.btn-download-found');
                       if (btn) {
                         btn.onclick = function() {
                           const b64 = j.found_file_b64;
@@ -1638,8 +1758,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                   }
                 }
-              } else if (op.path === '/hashed/upload-hash-file') {
-                  if (opResult) {
+                } else if (op.path === '/hashed/upload-hash-file') {
+                  if (target) {
                     if (j.resultados && Array.isArray(j.resultados)) {
                       // Visual feedback por cada hash
                       const cards = j.resultados.map(item => {
@@ -1668,7 +1788,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         <span style="color:#f59e0b"><b>Existentes:</b> ${j.existentes}</span>
                         <span style="color:#ef4444"><b>Errores:</b> ${j.errores}</span>
                       </div>`;
-                      opResult.innerHTML = `${resumen}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
+                      target.innerHTML = `${resumen}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
                       return;
                     }
                   }
@@ -1690,18 +1810,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (a.open === b.open) return (Number(a.port) || 0) - (Number(b.port) || 0);
                 return a.open ? -1 : 1;
               });
-              if (opResult) opResult.innerHTML = renderNetworkScanResult(j);
+              if (target) target.innerHTML = renderNetworkScanResult(j);
             } catch (e) {
-              if (opResult) opResult.innerHTML = renderRawJson(j);
+              if (target) target.innerHTML = renderRawJson(j);
             }
           } else if (op.path === '/network/ports') {
-            if (opResult) opResult.innerHTML = renderPortsList(j);
+            if (target) target.innerHTML = renderPortsList(j);
           } else if (op.path === '/network/scan_range') {
             try {
-              if (opResult) {
-                opResult.innerHTML = renderRangeScanResult(j);
+              if (target) {
+                target.innerHTML = renderRangeScanResult(j);
                 // attach collapse/expand handlers for host cards
-                const hostToggles = opResult.querySelectorAll('.host-toggle');
+                const hostToggles = target.querySelectorAll('.host-toggle');
                 hostToggles.forEach(btn => {
                   btn.addEventListener('click', () => {
                     const hostCard = btn.closest('.host-card');
@@ -1715,11 +1835,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
               }
             } catch (e) {
-              if (opResult) opResult.innerHTML = renderRawJson(j);
+              if (target) target.innerHTML = renderRawJson(j);
             }
           } else if (op.id === "unhash") {
             // Render result as cards per hash
-            if (opResult) {
+            if (target) {
               if (Array.isArray(j)) {
                 const cards = j.map(item => {
                   return `<div style="background:#181f2a;padding:14px;border-radius:8px;margin-bottom:12px;border:1px solid #2d3748;">
@@ -1730,13 +1850,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div><b>Método:</b> <span>${item.method || '-'}</span></div>
                   </div>`;
                 }).join('');
-                opResult.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
+                target.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
               } else {
-                opResult.innerHTML = renderRawJson(j);
+                target.innerHTML = renderRawJson(j);
               }
             }
           } else if (op.path === '/hashed/hash-file') {
-            if (opResult && j.resultados && Array.isArray(j.resultados)) {
+            if (target && j.resultados && Array.isArray(j.resultados)) {
               const cards = j.resultados.map(item => {
                 let color = '#16a34a';
                 let icon = '🔒';
@@ -1757,13 +1877,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 <span style="color:#16a34a"><b>Procesadas:</b> ${j.resultados.filter(x=>!x.error).length}</span>
                 <span style="color:#ef4444"><b>Errores:</b> ${j.resultados.filter(x=>x.error).length}</span>
               </div>`;
-              opResult.innerHTML = `${resumen}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
+              target.innerHTML = `${resumen}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
               return;
-            } else if (opResult) {
-              opResult.innerHTML = renderRawJson(j);
+            } else if (target) {
+              target.innerHTML = renderRawJson(j);
             }
           } else if (op.path === '/hashed/upload-hash-file') {
-            if (opResult && j.resultados && Array.isArray(j.resultados)) {
+            if (target && j.resultados && Array.isArray(j.resultados)) {
               const cards = j.resultados.map(item => {
                 let color = '#16a34a';
                 let icon = '✔️';
@@ -1788,14 +1908,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 <span style="color:#f59e0b"><b>Existentes:</b> ${j.existentes}</span>
                 <span style="color:#ef4444"><b>Errores:</b> ${j.errores}</span>
               </div>`;
-              opResult.innerHTML = `${resumen}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
+              target.innerHTML = `${resumen}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">${cards}</div>`;
               return;
-            } else if (opResult) {
-              opResult.innerHTML = renderRawJson(j);
+            } else if (target) {
+              target.innerHTML = renderRawJson(j);
             }
           } else {
-            if (opResult) opResult.innerHTML = `<div class="response-two-col"><div class="left-pane">${renderResponse(j, resp.status)}</div><div class="right-pane">${renderRawJson(j)}</div></div>`;
-            const copyBtn = opResult && opResult.querySelector('.right-pane .copy-json-btn');
+            if (target) target.innerHTML = `<div class="response-two-col"><div class="left-pane">${renderResponse(j, resp.status)}</div><div class="right-pane">${renderRawJson(j)}</div></div>`;
+            const copyBtn = target && target.querySelector('.right-pane .copy-json-btn');
             if (copyBtn) {
               copyBtn.addEventListener('click', async () => {
                 try {
@@ -1810,23 +1930,23 @@ document.addEventListener('DOMContentLoaded', function () {
               });
             }
           }
-          const toggles = opResult && opResult.querySelectorAll('.panel-toggle'); if (toggles) toggles.forEach(t => { t.addEventListener('click', () => { const panel = t.closest('.panel'); if (!panel) return; const body = panel.querySelector('.panel-body'); const isCollapsed = panel.classList.toggle('collapsed'); if (body) body.style.display = isCollapsed ? 'none' : ''; t.textContent = isCollapsed ? '▸' : '▾'; }); });
+          const toggles = target && target.querySelectorAll('.panel-toggle'); if (toggles) toggles.forEach(t => { t.addEventListener('click', () => { const panel = t.closest('.panel'); if (!panel) return; const body = panel.querySelector('.panel-body'); const isCollapsed = panel.classList.toggle('collapsed'); if (body) body.style.display = isCollapsed ? 'none' : ''; t.textContent = isCollapsed ? '▸' : '▾'; }); });
           try { const workerStartPaths = new Set(['/newsSpider/scrape-news','/newsSpider/start-google-alerts','/newsSpider/scrapy/google-dk/news','/newsSpider/scrapy/google-dk/feeds','/start-spacy','/postgre-ttrss/search-and-insert-rss','/llm/updater']); if (workerStartPaths.has(op.path) && resp.ok) { showToast(op.title + ' iniciada'); } } catch (e) {}
         } catch (e) {
           const t = text || '';
           const maybeMd = t && (t.trim().startsWith('#') || t.includes('\n\n') || t.includes('```'));
           if (maybeMd) {
-            try {
+              try {
               await ensureMarked();
-              if (opResult) opResult.innerHTML = `<div class="response-box">${window.marked.parse(t)}</div>`;
+              if (target) target.innerHTML = `<div class="response-box">${window.marked.parse(t)}</div>`;
             } catch (me) {
-              if (opResult) opResult.innerHTML = `<pre>${escapeHtml(t)}</pre>`;
+              if (target) target.innerHTML = `<pre>${escapeHtml(t)}</pre>`;
             }
           } else {
-            if (opResult) opResult.innerHTML = `<pre>${escapeHtml(t)}</pre>`;
+            if (target) target.innerHTML = `<pre>${escapeHtml(t)}</pre>`;
           }
         }
-      } catch (err) { if (opResult) opResult.innerHTML = `<div class="response-error">Error: ${escapeHtml(String(err))}</div>`; }
+      } catch (err) { if (target) target.innerHTML = `<div class="response-error">Error: ${escapeHtml(String(err))}</div>`; }
       finally { try { if (typeof fetchStatus === 'function') fetchStatus(); } catch (e) {} try { window.dispatchEvent(new Event('status-updated')); } catch (e) {} }
     }
 

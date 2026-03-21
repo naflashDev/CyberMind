@@ -11,6 +11,7 @@ from loguru import logger
 from app.services.code_analysis.scanner import CodeScanner
 from typing import Any, Dict
 import base64
+import asyncio
 from fastapi import Body
 
 router = APIRouter()
@@ -31,7 +32,9 @@ async def scan_code_text(payload: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="El campo 'code' es obligatorio y debe ser texto.")
     try:
         scanner = CodeScanner()
-        results = scanner.scan_text(code)
+        # Offload CPU / blocking work (subprocess.run, file IO, LLM calls) to a thread
+        # to avoid blocking FastAPI main event loop.
+        results = await asyncio.to_thread(scanner.scan_text, code)
         llm_enabled = scanner.is_llm_enabled() if hasattr(scanner, 'is_llm_enabled') else False
         # Keep full results for PDF generation (include LLM explanations).
         # Return a UI-friendly copy without 'explanation' and also include
@@ -75,7 +78,8 @@ async def scan_code_file(file: UploadFile = File(None)):
     try:
         file_bytes = await file.read()
         scanner = CodeScanner()
-        response = scanner.scan_uploaded_file(file_bytes, getattr(file, 'filename', None))
+        # Run uploaded file scanning in a thread to avoid blocking the event loop
+        response = await asyncio.to_thread(scanner.scan_uploaded_file, file_bytes, getattr(file, 'filename', None))
         return JSONResponse(content=response, status_code=200)
     except ValueError as ve:
         logger.error(f"Validation error in scan_code_file: {ve}")
