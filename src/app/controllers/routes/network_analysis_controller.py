@@ -117,10 +117,10 @@ async def scan(req: ScanRequest):
                 timeout_sec = 120
             start = time.monotonic()
             try:
-                results, raw = run_nmap_scan(req.host, ports=req.ports, timeout=timeout_sec)
+                results, raw = await asyncio.to_thread(run_nmap_scan, req.host, req.ports, timeout_sec)
             except FileNotFoundError:
                 logger.warning("nmap not available; falling back to TCP connect scan for host={}", req.host)
-                results = scan_ports(req.host, ports=req.ports, timeout=req.timeout or 0.5)
+                results = await asyncio.to_thread(scan_ports, req.host, req.ports, req.timeout or 0.5)
                 raw = None
                 duration = time.monotonic() - start
                 logger.info("scan fallback finished: host={} duration={}s results={}", req.host, round(duration,2), len(results))
@@ -132,7 +132,7 @@ async def scan(req: ScanRequest):
                 logger.info("nmap scan finished: host={} duration={}s parsed_ports={}", req.host, round(duration,2), len(results))
         else:
             start = time.monotonic()
-            results = scan_ports(req.host, ports=req.ports, timeout=req.timeout)
+            results = await asyncio.to_thread(scan_ports, req.host, req.ports, req.timeout)
             raw = None
             duration = time.monotonic() - start
             logger.info("tcp scan finished: host={} duration={}s results={}", req.host, round(duration,2), len(results))
