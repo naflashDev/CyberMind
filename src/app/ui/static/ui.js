@@ -212,6 +212,246 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
   updateCyberSentinelVisibility();
+  // --- Conversations / LLM chat integration ---
+  let selectedConversationId = null;
+  const convListEl = document.getElementById('conv-list');
+  const btnNewConv = document.getElementById('btn-new-conv');
+  const llmMessagesEl = document.getElementById('llm-messages');
+  const llmPrompt = document.getElementById('llm-prompt');
+  const llmSendBtn = document.getElementById('llm-send-btn');
+  const selectedConvTitleEl = document.getElementById('selected-conv-title');
+
+  async function fetchConversations() {
+    if (!convListEl) return;
+    convListEl.innerHTML = '<div style="color:#9aa6b2;">Cargando...</div>';
+    try {
+      const resp = await fetch('/llm/conversations');
+      if (!resp.ok) throw new Error('Error cargando conversaciones');
+      const data = await resp.json();
+      renderConversationList(data);
+      // NOTE: Do not auto-select any existing conversation on load.
+      // The UI should start with an empty chat; users can choose or create one manually.
+    } catch (e) {
+      convListEl.innerHTML = '<div style="color:#fca5a5">No se pudieron cargar conversaciones</div>';
+    }
+  }
+
+  function renderConversationList(list) {
+    convListEl.innerHTML = '';
+    if (!Array.isArray(list) || list.length === 0) {
+      convListEl.innerHTML = '<div style="color:#9aa6b2">No hay conversaciones. Crea una nueva.</div>';
+      return;
+    }
+    list.forEach(c => {
+      const row = document.createElement('div');
+      row.className = 'conv-row';
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.gap = '8px';
+      row.style.marginBottom = '6px';
+
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'conv-item';
+      b.dataset.convId = String(c.id);
+      b.style.flex = '1';
+      b.style.textAlign = 'left';
+      b.style.padding = '8px';
+      b.style.border = 'none';
+      b.style.background = selectedConversationId === c.id ? '#072033' : 'transparent';
+      b.style.color = '#e6eef8';
+      b.style.cursor = 'pointer';
+      b.style.borderRadius = '6px';
+      b.innerHTML = `<div style="font-weight:700">${escapeHtml(c.title || ('Conversation ' + c.id))}</div><div style="font-size:12px;color:#9aa6b2">${new Date(c.created_at).toLocaleString()}</div>`;
+      b.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const id = Number(ev.currentTarget.dataset.convId);
+        selectedConversationId = id;
+        document.querySelectorAll('.conv-item').forEach(el => el.style.background = (el.dataset.convId == String(selectedConversationId)) ? '#072033' : 'transparent');
+        selectConversation(id).then(() => console.log('[UI] selectConversation resolved for', id)).catch(err => console.error('[UI] selectConversation error for', id, err));
+      });
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'conv-delete-btn';
+      del.title = 'Eliminar conversación';
+      del.style.display = 'none';
+      del.style.minWidth = '34px';
+      del.style.height = '34px';
+      del.style.borderRadius = '6px';
+      del.style.border = 'none';
+      del.style.background = '#ef4444';
+      del.style.color = '#fff';
+      del.style.cursor = 'pointer';
+      del.textContent = '🗑';
+      del.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const id = Number(c.id);
+        const ok = confirm('¿Eliminar conversación? Esta acción no se puede deshacer.');
+        if (!ok) return;
+        try {
+          const resp = await fetch(`/llm/conversations/${id}`, { method: 'DELETE' });
+          if (!resp.ok) throw new Error('Error deleting');
+          if (selectedConversationId === id) {
+            selectedConversationId = null;
+            if (selectedConvTitleEl) selectedConvTitleEl.textContent = '';
+            if (llmMessagesEl) llmMessagesEl.innerHTML = '';
+          }
+          row.remove();
+        } catch (e) {
+          console.error('[UI] Error deleting conversation', e);
+          alert('Error eliminando la conversación');
+        }
+      });
+
+      row.addEventListener('mouseenter', () => { del.style.display = 'block'; });
+      row.addEventListener('mouseleave', () => { del.style.display = 'none'; });
+
+      row.appendChild(b);
+      row.appendChild(del);
+      convListEl.appendChild(row);
+    });
+  }
+
+  async function createConversation() {
+    try {
+      const resp = await fetch('/llm/conversations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Chat' }) });
+      if (!resp.ok) throw new Error('Error creando conversación');
+      const conv = await resp.json();
+      // set selection and refresh list, then load messages
+      selectedConversationId = conv.id;
+      await fetchConversations();
+      await selectConversation(conv.id);
+    } catch (e) {
+      alert('Error creando conversación');
+    }
+  }
+
+  async function selectConversation(id) {
+    // Load messages for the selected conversation id
+    try {
+      const resp = await fetch(`/llm/conversations/${id}`);
+      if (!resp.ok) throw new Error('No encontrada');
+      const conv = await resp.json();
+      console.log('[UI] Conversation data received:', conv);
+      selectedConvTitleEl.textContent = conv.title ? `— ${conv.title}` : '';
+      const msgs = conv.messages || [];
+      if (!Array.isArray(msgs) || msgs.length === 0) {
+        if (llmMessagesEl) llmMessagesEl.innerHTML = '<div style="color:#9aa6b2">No hay mensajes en esta conversación</div>';
+      } else {
+        renderMessages(msgs);
+      }
+      // ensure visual selection
+      document.querySelectorAll('.conv-item').forEach(el => el.style.background = (el.dataset.convId == String(id)) ? '#072033' : 'transparent');
+    } catch (e) {
+      console.error('[UI] Error loading conversation', e);
+      alert('Error cargando la conversación: ' + (e && e.message ? e.message : e));
+    }
+  }
+
+  function renderMessages(messages) {
+    if (!llmMessagesEl) return;
+    llmMessagesEl.innerHTML = '';
+    messages.forEach(m => {
+      const el = document.createElement('div');
+      el.style.marginBottom = '10px';
+      el.style.padding = '10px';
+      el.style.borderRadius = '8px';
+      el.style.maxWidth = '80%';
+      if (m.role === 'user') {
+        el.style.background = '#04263a';
+        el.style.marginLeft = 'auto';
+        el.style.textAlign = 'right';
+      } else {
+        el.style.background = '#0b2a2f';
+        el.style.marginRight = 'auto';
+        el.style.textAlign = 'left';
+      }
+      el.innerHTML = `<div style="white-space:pre-wrap;">${escapeHtml(m.text)}</div><div style="font-size:11px;color:#9aa6b2;margin-top:6px;text-align:${m.role === 'user' ? 'right' : 'left'}">${new Date(m.timestamp).toLocaleString()}</div>`;
+      llmMessagesEl.appendChild(el);
+    });
+    llmMessagesEl.scrollTop = llmMessagesEl.scrollHeight;
+  }
+
+  if (btnNewConv) btnNewConv.addEventListener('click', createConversation);
+
+  // Send message handler: ensures a conversation exists, posts the prompt, and renders response.
+  async function sendMessage() {
+    if (!llmPrompt) return;
+    const text = (llmPrompt.value || '').trim();
+    if (!text) return;
+    try {
+      // Ensure there is a conversation to attach the message to
+      if (selectedConversationId == null) {
+        await createConversation();
+        // createConversation sets selectedConversationId and loads the conversation
+      }
+
+      // Optimistically render user's message
+      const userMsg = { role: 'user', text, timestamp: new Date().toISOString() };
+      if (llmMessagesEl) {
+        const el = document.createElement('div');
+        el.style.marginBottom = '10px';
+        el.style.padding = '10px';
+        el.style.borderRadius = '8px';
+        el.style.maxWidth = '80%';
+        el.style.background = '#04263a';
+        el.style.marginLeft = 'auto';
+        el.style.textAlign = 'right';
+        el.innerHTML = `<div style="white-space:pre-wrap;">${escapeHtml(text)}</div><div style="font-size:11px;color:#9aa6b2;margin-top:6px;text-align:right">${new Date(userMsg.timestamp).toLocaleString()}</div>`;
+        llmMessagesEl.appendChild(el);
+        llmMessagesEl.scrollTop = llmMessagesEl.scrollHeight;
+      }
+      llmPrompt.value = '';
+
+      // Send to backend
+      const payload = { prompt: text, conversation_id: selectedConversationId, top_k: 5 };
+      const resp = await fetch('/llm/query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (!resp.ok) throw new Error('LLM query failed');
+      const data = await resp.json();
+      const assistantText = data && (data.response || data.result) ? (data.response || data.result) : 'Sin respuesta del LLM';
+
+      // Render assistant reply
+      if (llmMessagesEl) {
+        const msgEl = document.createElement('div');
+        msgEl.style.marginBottom = '10px';
+        msgEl.style.padding = '10px';
+        msgEl.style.borderRadius = '8px';
+        msgEl.style.maxWidth = '80%';
+        msgEl.style.background = '#0b2a2f';
+        msgEl.style.marginRight = 'auto';
+        msgEl.style.textAlign = 'left';
+        msgEl.innerHTML = `<div style="white-space:pre-wrap;">${escapeHtml(assistantText)}</div><div style="font-size:11px;color:#9aa6b2;margin-top:6px;text-align:left">${new Date().toLocaleString()}</div>`;
+        llmMessagesEl.appendChild(msgEl);
+        llmMessagesEl.scrollTop = llmMessagesEl.scrollHeight;
+      }
+
+      // Optionally refresh conversation from server to sync persisted messages
+      // await selectConversation(selectedConversationId);
+    } catch (e) {
+      console.error('[UI] sendMessage error', e);
+      alert('Error enviando mensaje: ' + (e && e.message ? e.message : e));
+    }
+  }
+
+  // Wire up Send button and Enter key (Enter = send, Shift+Enter = newline)
+  if (llmSendBtn) {
+    llmSendBtn.addEventListener('click', (ev) => { ev.preventDefault(); sendMessage(); });
+  }
+  if (llmPrompt) {
+    llmPrompt.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' && !ev.shiftKey) {
+        ev.preventDefault();
+        sendMessage();
+      }
+    });
+  }
+
+  // Load initial conversations when LLM view activated
+  // If the LLM view is active by default, fetch now
+  if (views.llm && views.llm.classList.contains('active')) {
+    fetchConversations();
+  }
     // --- Configuración editable de archivos .ini ---
     let configCache = null;
     const configFilesEl = document.getElementById('config-files');
@@ -552,6 +792,8 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     // lazy-load any iframe placeholder inside the activated view
     try { ensureFrameLoaded(viewName); } catch (e) { /* ignore */ }
+    // If activating the LLM view, ensure conversations are loaded
+    try { if (viewName === 'llm') fetchConversations(); } catch (e) { /* ignore */ }
   }
 
   /**

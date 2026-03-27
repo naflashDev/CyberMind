@@ -39,7 +39,10 @@ def test_save_and_load_worker_settings(temp_settings_file):
     }
     worker_control.save_worker_settings(settings)
     loaded = worker_control.load_worker_settings()
-    assert loaded == settings
+    # The persistence layer merges with defaults; ensure expected reflects that
+    expected = worker_control.default_settings()
+    expected.update(settings)
+    assert loaded == expected
 
 
 def test_load_defaults_on_missing_file(monkeypatch, temp_settings_file):

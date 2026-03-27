@@ -108,14 +108,27 @@
 
       <!-- Vista LLM full-size -->
       <div class="view" id="view-llm">
-        <div id="llm-panel">
-          <h2>LLM Console (Cyberintelligence)</h2>
-          <p>Interactúa con el modelo local (llama3 en Ollama) para consultar CVE y noticias procesadas.</p>
-          <div id="llm-messages"></div>
-          <div id="llm-input-row">
-            <input id="llm-prompt" type="text"
-              placeholder="Escribe tu pregunta al LLM (por ejemplo, explica un CVE o resume una noticia)..." />
-            <button id="llm-send-btn">Enviar</button>
+        <div id="llm-panel" style="display:flex; height:100%; gap:12px;">
+          <div class="conv-list" style="width:260px; background:#071127; color:#e6eef8; padding:12px; box-sizing:border-box; border-radius:8px; display:flex; flex-direction:column; height:100%;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+              <h3 style="margin:0; font-size:16px;">Conversaciones</h3>
+              <button id="btn-new-conv" title="Nueva conversación" style="background:#0ea5e9;border:none;color:#04263a;padding:6px 10px;border-radius:6px;cursor:pointer;">Nueva</button>
+            </div>
+            <div id="conv-list" style="overflow:auto; flex:1; min-height:0;"></div>
+            <div style="font-size:12px;color:#9aa6b2;margin-top:12px;">Las conversaciones se eliminarán automáticamente a la semana.</div>
+          </div>
+
+          <div class="conv-chat" style="flex:1; display:flex; flex-direction:column;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <h2 style="margin:0;">CyberSentinel IA</h2>
+              <div id="selected-conv-title" style="color:#9aa6b2;font-size:13px;"></div>
+            </div>
+            <p style="color:#9aa6b2; margin-top:6px;">Interactúa con el modelo local (Ollama) y revisa el historial.</p>
+            <div id="llm-messages" style="flex:1; overflow:auto; background:#08131a; padding:12px; border-radius:8px; margin-top:12px;"></div>
+            <div id="llm-input-row" style="display:flex; gap:8px; margin-top:12px;">
+              <input id="llm-prompt" type="text" style="flex:1; padding:10px; border-radius:8px; border:1px solid #233044; background:#071127; color:#e6eef8;" placeholder="Escribe tu pregunta al LLM (por ejemplo, explica un CVE o resume una noticia)..." />
+              <button id="llm-send-btn" style="padding:10px 14px; border-radius:8px; border:none; background:#2563eb; color:#fff; cursor:pointer;">Enviar</button>
+            </div>
           </div>
         </div>
       </div>

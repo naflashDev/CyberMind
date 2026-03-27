@@ -6,13 +6,30 @@
 """
 
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 from pydantic import BaseModel
 from loguru import logger
 from app.services.llm.llm_client import query_llm
 from app.services.llm.llm_trainer import run_periodic_training
-from typing import Optional
+from typing import Optional, List
 import threading
+
+from sqlalchemy.orm import Session
+from app.models.conversation_db import get_conv_db
+from app.models.conversation import Conversation, Message
+
+# Optional Chroma client (scaffold). If chromadb not installed, operations will be skipped.
+try:
+    import app.services.vectorstore.chroma_client as chroma_mod
+    if getattr(chroma_mod, "CHROMA_AVAILABLE", False):
+        try:
+            _chroma_client = chroma_mod.ChromaClient()
+        except Exception:
+            _chroma_client = None
+    else:
+        _chroma_client = None
+except Exception:
+    _chroma_client = None
 
 
 class UpdaterToggle(BaseModel):
@@ -26,18 +43,195 @@ class LLMQuery(BaseModel):
     @brief Request model for LLM query endpoint.
     """
     prompt: str
+    conversation_id: Optional[int] = None
+    top_k: int = 5
+
+
+class ConversationCreate(BaseModel):
+    title: Optional[str] = None
+
+
+class MessageCreate(BaseModel):
+    role: str
+    text: str
+
+
+class MessageOut(BaseModel):
+    id: int
+    role: str
+    text: str
+    timestamp: str
+    vector_id: Optional[str]
+
+
+class ConversationOut(BaseModel):
+    id: int
+    title: Optional[str]
+    created_at: str
+    messages: List[MessageOut] = []
 
 
 @router.post("/query")
-async def llm_query(payload: LLMQuery):
+async def llm_query(payload: LLMQuery, db: Session = Depends(get_conv_db)):
     """
-    @brief Receives a prompt and returns the LLM response.
-    @param payload JSON body with a 'prompt' field.
-    @return JSON object containing 'response' string.
+    @brief Receives a prompt, retrieves context via vectorstore, persists turns and returns the LLM response.
+    @param payload JSON body with 'prompt', optional 'conversation_id' and 'top_k'.
+    @return JSON object containing 'response' string and optional 'retrieved' list.
     """
-    response = query_llm(payload.prompt)
+    retrieved = []
+
+    # Persist user message if conversation provided
+    user_msg = None
+    if payload.conversation_id is not None:
+        try:
+            user_msg = Message(conversation_id=payload.conversation_id, role='user', text=payload.prompt)
+            db.add(user_msg)
+            db.commit()
+            db.refresh(user_msg)
+            # optionally upsert the user message as a vector (handled in add_message route normally)
+        except Exception:
+            logger.exception("[LLM] Could not persist user message")
+
+    # If conversation_id provided, build conversation history to include as context
+    conv_history_text = ''
+    if payload.conversation_id is not None:
+        try:
+            msgs = db.query(Message).filter(Message.conversation_id == payload.conversation_id).order_by(Message.timestamp.asc()).all()
+            # keep last N messages to avoid huge prompts
+            N = 30
+            msgs = msgs[-N:]
+            parts = []
+            for m in msgs:
+                role = m.role.capitalize()
+                parts.append(f"[{role}] {m.text}")
+            if parts:
+                conv_history_text = "\n---\n".join(parts)
+        except Exception:
+            logger.exception("[LLM] Could not load conversation history")
+
+    # Retrieve context from Chroma if available
+    # Start composing the context prompt with conversation history (if any)
+    context_parts = []
+    if conv_history_text:
+        context_parts.append("Conversation history:\n" + conv_history_text)
+    context_prompt = payload.prompt
+    if _chroma_client is not None:
+        try:
+            docs = _chroma_client.query_retriever(payload.prompt, k=payload.top_k)
+            retrieved = docs
+            if docs:
+                # assemble context
+                parts = []
+                for i, d in enumerate(docs, start=1):
+                    md = d.get('metadata') or {}
+                    src = md.get('source') or md.get('conversation_id') or md.get('id') or 'unknown'
+                    parts.append(f"[{i}] Source: {src}\n{d.get('text')}\n")
+                context_text = "\n---\n".join(parts)
+                context_parts.append(context_text)
+                # assemble final prompt from conversation history + retrieved docs
+                combined_context = "\n\n".join(context_parts + [f"Retrieved context:\n{context_text}"])
+                context_prompt = f"Use the following context to answer the question. Only use the information present in the context when relevant.\n\n{combined_context}\n\nQuestion:\n{payload.prompt}"
+        except Exception:
+            logger.exception("[LLM] Error querying retriever; continuing without context")
+
+    # If we didn't already build a combined prompt including retrieved docs, combine conversation history + prompt
+    if 'context_prompt' not in locals() or not context_prompt:
+        if conv_history_text:
+            context_prompt = f"Conversation history:\n{conv_history_text}\n\nQuestion:\n{payload.prompt}"
+        else:
+            context_prompt = payload.prompt
+
+    # Call the LLM with the assembled prompt
+    try:
+        response = query_llm(context_prompt)
+    except Exception:
+        logger.exception("[LLM] Error calling LLM")
+        raise HTTPException(status_code=500, detail="LLM generation failed")
+
+    # Persist assistant message
+    if payload.conversation_id is not None:
+        try:
+            assistant_msg = Message(conversation_id=payload.conversation_id, role='assistant', text=response)
+            db.add(assistant_msg)
+            db.commit()
+            db.refresh(assistant_msg)
+        except Exception:
+            logger.exception("[LLM] Could not persist assistant message")
+
     logger.debug(f"[LLM Client] Sending response to the user.")
-    return {"response": response}
+    return {"response": response, "retrieved": retrieved}
+
+
+@router.post("/conversations", response_model=ConversationOut)
+def create_conversation(payload: ConversationCreate, db: Session = Depends(get_conv_db)):
+    conv = Conversation(title=payload.title)
+    db.add(conv)
+    db.commit()
+    db.refresh(conv)
+    return ConversationOut(id=conv.id, title=conv.title, created_at=conv.created_at.isoformat(), messages=[])
+
+
+@router.get("/conversations", response_model=List[ConversationOut])
+def list_conversations(db: Session = Depends(get_conv_db)):
+    convs = db.query(Conversation).order_by(Conversation.created_at.desc()).all()
+    out = []
+    for c in convs:
+        out.append(ConversationOut(id=c.id, title=c.title, created_at=c.created_at.isoformat(), messages=[]))
+    return out
+
+
+@router.get("/conversations/{conv_id}", response_model=ConversationOut)
+def get_conversation(conv_id: int, db: Session = Depends(get_conv_db)):
+    conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    msgs = []
+    for m in conv.messages:
+        msgs.append(MessageOut(id=m.id, role=m.role, text=m.text, timestamp=m.timestamp.isoformat(), vector_id=m.vector_id))
+    return ConversationOut(id=conv.id, title=conv.title, created_at=conv.created_at.isoformat(), messages=msgs)
+
+
+@router.post("/conversations/{conv_id}/messages", response_model=MessageOut)
+def add_message(conv_id: int, payload: MessageCreate, db: Session = Depends(get_conv_db)):
+    conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    msg = Message(conversation_id=conv.id, role=payload.role, text=payload.text)
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+
+    # If Chroma client available, upsert the message text as a vector and persist vector_id
+    if _chroma_client is not None:
+        try:
+            doc_id = f"conv-{conv.id}-msg-{msg.id}"
+            _chroma_client.upsert_document(doc_id=doc_id, text=msg.text, metadata={
+                "timestamp": msg.timestamp.isoformat(),
+                "conversation_id": conv.id,
+                "role": msg.role,
+            })
+            msg.vector_id = doc_id
+            db.add(msg)
+            db.commit()
+            db.refresh(msg)
+        except Exception:
+            logger.exception("Failed to upsert message to Chroma (continuing)")
+
+    return MessageOut(id=msg.id, role=msg.role, text=msg.text, timestamp=msg.timestamp.isoformat(), vector_id=msg.vector_id)
+
+
+@router.delete('/conversations/{conv_id}')
+def delete_conversation(conv_id: int, db: Session = Depends(get_conv_db)):
+    conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    try:
+        db.delete(conv)
+        db.commit()
+        return {"deleted": True}
+    except Exception:
+        logger.exception("[LLM] Could not delete conversation")
+        raise HTTPException(status_code=500, detail="Could not delete conversation")
 
 def background_cve_and_finetune_loop(stop_event: Optional[threading.Event] = None) -> None:
     """

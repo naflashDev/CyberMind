@@ -88,7 +88,15 @@ async def lifespan(app: FastAPI):
     try:
         from app.models.db import Base, engine
         from app.models.hash_models import MD5Hash, SHA256Hash, SHA512Hash
+        # Create hash DB tables
         Base.metadata.create_all(bind=engine)
+        # Ensure conversation models are imported and create separate conversation DB tables
+        try:
+            from app.models.conversation import Conversation, Message  # noqa: F401
+            from app.models.conversation_db import ConversationBase, engine as conv_engine
+            ConversationBase.metadata.create_all(bind=conv_engine)
+        except Exception:
+            pass
     except Exception as e:
         logger.warning(f"[Startup] Could not auto-create hash tables: {e}")
 
@@ -398,6 +406,28 @@ async def initialize_background_tasks(app: FastAPI):
         logger.info("[UI-init] spaCy NLP labeling scheduled every 24h.")
     else:
         app.state.worker_status["spacy_nlp"] = False
+
+    # Vector retention worker (remove vectors and conversations older than TTL)
+    if settings.get("vector_retention", False):
+        app.state.worker_status["vector_retention"] = True
+        evt = threading.Event()
+        app.state.worker_stop_events["vector_retention"] = evt
+        def _reg_retention(t):
+            app.state.worker_timers["vector_retention"] = t
+
+        try:
+            mod = __import__("app.controllers.routes.retention_worker", fromlist=["vector_and_message_retention"])
+            target_fn = getattr(mod, "vector_and_message_retention")
+            threading.Thread(
+                target=target_fn,
+                args=(evt, 7, 24),
+                daemon=True,
+            ).start()
+            logger.info("[UI-init] vector_retention worker started.")
+        except Exception:
+            logger.exception("[UI-init] Failed to start vector_retention worker")
+    else:
+        app.state.worker_status["vector_retention"] = False
         logger.warning("[UI-init] result.json not found or worker disabled in settings. NLP not launched.")
 
     # LLM CVE + dataset updater (every 7 days)
