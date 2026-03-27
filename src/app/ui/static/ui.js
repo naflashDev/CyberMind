@@ -214,6 +214,8 @@ document.addEventListener('DOMContentLoaded', function () {
   updateCyberSentinelVisibility();
   // --- Conversations / LLM chat integration ---
   let selectedConversationId = null;
+  // expose current selection to other UI modules
+  window.__selectedConversationId = null;
   const convListEl = document.getElementById('conv-list');
   const btnNewConv = document.getElementById('btn-new-conv');
   const llmMessagesEl = document.getElementById('llm-messages');
@@ -267,6 +269,7 @@ document.addEventListener('DOMContentLoaded', function () {
         ev.preventDefault();
         const id = Number(ev.currentTarget.dataset.convId);
         selectedConversationId = id;
+        window.__selectedConversationId = selectedConversationId;
         document.querySelectorAll('.conv-item').forEach(el => el.style.background = (el.dataset.convId == String(selectedConversationId)) ? '#072033' : 'transparent');
         selectConversation(id).then(() => console.log('[UI] selectConversation resolved for', id)).catch(err => console.error('[UI] selectConversation error for', id, err));
       });
@@ -294,6 +297,7 @@ document.addEventListener('DOMContentLoaded', function () {
           if (!resp.ok) throw new Error('Error deleting');
           if (selectedConversationId === id) {
             selectedConversationId = null;
+            window.__selectedConversationId = null;
             if (selectedConvTitleEl) selectedConvTitleEl.textContent = '';
             if (llmMessagesEl) llmMessagesEl.innerHTML = '';
           }
@@ -313,13 +317,16 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  async function createConversation() {
+  async function createConversation(pTitle) {
+    // pTitle: optional string title for the conversation. If undefined, default to 'Chat'.
     try {
-      const resp = await fetch('/llm/conversations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Chat' }) });
+      const titleToSend = (typeof pTitle === 'string' && pTitle.trim()) ? String(pTitle).trim() : 'Chat';
+      const resp = await fetch('/llm/conversations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: titleToSend }) });
       if (!resp.ok) throw new Error('Error creando conversación');
       const conv = await resp.json();
       // set selection and refresh list, then load messages
       selectedConversationId = conv.id;
+      window.__selectedConversationId = selectedConversationId;
       await fetchConversations();
       await selectConversation(conv.id);
     } catch (e) {
@@ -336,10 +343,36 @@ document.addEventListener('DOMContentLoaded', function () {
       console.log('[UI] Conversation data received:', conv);
       selectedConvTitleEl.textContent = conv.title ? `— ${conv.title}` : '';
       const msgs = conv.messages || [];
-      if (!Array.isArray(msgs) || msgs.length === 0) {
-        if (llmMessagesEl) llmMessagesEl.innerHTML = '<div style="color:#9aa6b2">No hay mensajes en esta conversación</div>';
-      } else {
+      // Clear messages area first
+      if (llmMessagesEl) llmMessagesEl.innerHTML = '';
+
+      // If there are messages, render them and generate a conversation title
+      if (Array.isArray(msgs) && msgs.length > 0) {
+        // If the conversation has no explicit title, derive one from the first message
+        try {
+          if (!conv.title || !String(conv.title).trim()) {
+            const firstText = msgs[0] && msgs[0].text ? String(msgs[0].text).trim() : '';
+            if (firstText) {
+              // Use the first line and the first few words as a lightweight title
+              const firstLine = firstText.split(/\r?\n/)[0].trim();
+              const words = firstLine.split(/\s+/).slice(0, 8).join(' ');
+              const short = words.length > 60 ? words.slice(0, 57) + '...' : words;
+              if (selectedConvTitleEl) selectedConvTitleEl.textContent = `— ${short}`;
+            } else {
+              if (selectedConvTitleEl) selectedConvTitleEl.textContent = '';
+            }
+          } else {
+            if (selectedConvTitleEl) selectedConvTitleEl.textContent = `— ${conv.title}`;
+          }
+        } catch (e) {
+          console.warn('[UI] Error generating title from first message', e);
+          if (selectedConvTitleEl) selectedConvTitleEl.textContent = conv.title ? `— ${conv.title}` : '';
+        }
+
         renderMessages(msgs);
+      } else {
+        // No messages: keep messages area empty and preserve conversation title if provided
+        if (selectedConvTitleEl) selectedConvTitleEl.textContent = conv.title ? `— ${conv.title}` : '';
       }
       // ensure visual selection
       document.querySelectorAll('.conv-item').forEach(el => el.style.background = (el.dataset.convId == String(id)) ? '#072033' : 'transparent');
@@ -357,13 +390,20 @@ document.addEventListener('DOMContentLoaded', function () {
       el.style.marginBottom = '10px';
       el.style.padding = '10px';
       el.style.borderRadius = '8px';
-      el.style.maxWidth = '80%';
       if (m.role === 'user') {
+        // user bubbles: shorter and adaptive up to 50%
+        el.style.display = 'block';
+        el.style.maxWidth = '50%';
+        el.style.whiteSpace = 'pre-wrap';
+        el.style.wordBreak = 'break-word';
         el.style.background = '#04263a';
         el.style.marginLeft = 'auto';
         el.style.textAlign = 'right';
       } else {
-        el.style.background = '#0b2a2f';
+        // assistant bubbles keep previous max width
+        el.style.maxWidth = '80%';
+        // Use the same background as user messages for visual coherence
+        el.style.background = '#04263a';
         el.style.marginRight = 'auto';
         el.style.textAlign = 'left';
       }
@@ -373,7 +413,7 @@ document.addEventListener('DOMContentLoaded', function () {
     llmMessagesEl.scrollTop = llmMessagesEl.scrollHeight;
   }
 
-  if (btnNewConv) btnNewConv.addEventListener('click', createConversation);
+  if (btnNewConv) btnNewConv.addEventListener('click', () => createConversation());
 
   // Send message handler: ensures a conversation exists, posts the prompt, and renders response.
   async function sendMessage() {
@@ -383,7 +423,11 @@ document.addEventListener('DOMContentLoaded', function () {
     try {
       // Ensure there is a conversation to attach the message to
       if (selectedConversationId == null) {
-        await createConversation();
+        // Derive a short title from the prompt text and persist it when creating the conversation
+        const firstLine = text.split(/\r?\n/)[0].trim();
+        const words = firstLine.split(/\s+/).slice(0, 8).join(' ');
+        const short = words.length > 60 ? words.slice(0, 57) + '...' : words;
+        await createConversation(short || 'Chat');
         // createConversation sets selectedConversationId and loads the conversation
       }
 
@@ -391,13 +435,17 @@ document.addEventListener('DOMContentLoaded', function () {
       const userMsg = { role: 'user', text, timestamp: new Date().toISOString() };
       if (llmMessagesEl) {
         const el = document.createElement('div');
-        el.style.marginBottom = '10px';
-        el.style.padding = '10px';
-        el.style.borderRadius = '8px';
-        el.style.maxWidth = '80%';
-        el.style.background = '#04263a';
-        el.style.marginLeft = 'auto';
-        el.style.textAlign = 'right';
+          el.style.marginBottom = '10px';
+          el.style.padding = '10px';
+          el.style.borderRadius = '8px';
+          // optimistic user bubble: shorter and adaptive up to 50%
+          el.style.display = 'block';
+          el.style.maxWidth = '50%';
+          el.style.whiteSpace = 'pre-wrap';
+          el.style.wordBreak = 'break-word';
+          el.style.background = '#04263a';
+          el.style.marginLeft = 'auto';
+          el.style.textAlign = 'right';
         el.innerHTML = `<div style="white-space:pre-wrap;">${escapeHtml(text)}</div><div style="font-size:11px;color:#9aa6b2;margin-top:6px;text-align:right">${new Date(userMsg.timestamp).toLocaleString()}</div>`;
         llmMessagesEl.appendChild(el);
         llmMessagesEl.scrollTop = llmMessagesEl.scrollHeight;
@@ -418,7 +466,8 @@ document.addEventListener('DOMContentLoaded', function () {
         msgEl.style.padding = '10px';
         msgEl.style.borderRadius = '8px';
         msgEl.style.maxWidth = '80%';
-        msgEl.style.background = '#0b2a2f';
+        // Use the same background as user messages for visual coherence
+        msgEl.style.background = '#04263a';
         msgEl.style.marginRight = 'auto';
         msgEl.style.textAlign = 'left';
         msgEl.innerHTML = `<div style="white-space:pre-wrap;">${escapeHtml(assistantText)}</div><div style="font-size:11px;color:#9aa6b2;margin-top:6px;text-align:left">${new Date().toLocaleString()}</div>`;
@@ -2221,6 +2270,16 @@ document.addEventListener('DOMContentLoaded', function () {
       const wrapper = document.createElement("div"); const span = document.createElement("span");
       if (role === "user") {
         wrapper.className = "user-message"; span.textContent = text;
+        // user bubble: shorter and adapt to content up to 50%
+        wrapper.style.display = 'block';
+        wrapper.style.maxWidth = '50%';
+        wrapper.style.whiteSpace = 'pre-wrap';
+        wrapper.style.wordBreak = 'break-word';
+        wrapper.style.padding = '10px';
+        wrapper.style.borderRadius = '8px';
+        wrapper.style.background = '#04263a';
+        wrapper.style.marginLeft = 'auto';
+        wrapper.style.textAlign = 'right';
       } else {
         wrapper.className = "bot-message";
         const html = window.marked ? window.marked.parse(text) : escapeHtml(text);
@@ -2228,6 +2287,14 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!window.marked && text && (text.trim().startsWith('#') || text.includes('\n\n') || text.includes('```'))) {
           ensureMarked().then(() => { try { span.innerHTML = window.marked.parse(text); messagesEl.scrollTop = messagesEl.scrollHeight; } catch (e) {} });
         }
+        // assistant bubble default styling (keeps wider appearance)
+        wrapper.style.padding = '10px';
+        wrapper.style.borderRadius = '8px';
+        wrapper.style.maxWidth = '80%';
+        // Use the same background as user messages for visual coherence
+        wrapper.style.background = '#04263a';
+        wrapper.style.marginRight = 'auto';
+        wrapper.style.textAlign = 'left';
       }
       wrapper.appendChild(span); messagesEl.appendChild(wrapper); messagesEl.scrollTop = messagesEl.scrollHeight;
     }
@@ -2237,10 +2304,18 @@ document.addEventListener('DOMContentLoaded', function () {
      * @return void
      */
     async function sendPrompt() {
-      const prompt = promptEl.value.trim(); if (!prompt) return; appendMessage("Tú: " + prompt, "user"); promptEl.value = ""; sendBtn.disabled = true;
-      try { const response = await fetch(LLM_API_BASE + "/llm/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: prompt }) }); const data = await response.json(); appendMessage(data.response || "[Respuesta vacía]", "bot"); }
-      catch (err) { appendMessage("Error llamando al LLM: " + err, "bot"); }
-      finally { sendBtn.disabled = false; promptEl.focus(); }
+      const prompt = promptEl.value.trim(); if (!prompt) return; appendMessage(prompt, "user"); promptEl.value = ""; sendBtn.disabled = true;
+      try {
+        const payload = { prompt: prompt, conversation_id: (window.__selectedConversationId || null) };
+        const response = await fetch(LLM_API_BASE + "/llm/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const data = await response.json();
+        appendMessage(data.response || "[Respuesta vacía]", "bot");
+      } catch (err) {
+        appendMessage("Error llamando al LLM: " + err, "bot");
+      } finally {
+        sendBtn.disabled = false;
+        promptEl.focus();
+      }
     }
     sendBtn.addEventListener("click", sendPrompt);
     promptEl.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendPrompt(); } });

@@ -26,7 +26,7 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 OLLAMA_MODEL_NAME = os.getenv("OLLAMA_MODEL_NAME", "cybersentinel")
 
 
-def query_llm(prompt: str, system_prompt: str | None = None) -> str:
+def query_llm(prompt: str | None = None, messages: list | None = None, system_prompt: str | None = None) -> str:
     '''
     @brief Sends a prompt to the local Ollama server and returns its response.
 
@@ -39,10 +39,13 @@ def query_llm(prompt: str, system_prompt: str | None = None) -> str:
     try:
         url = f"{OLLAMA_BASE_URL}/api/chat"
 
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        # If explicit messages are provided, use them (preferred for chat-style context)
+        if messages is None:
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            if prompt is not None:
+                messages.append({"role": "user", "content": prompt})
 
         payload = {
             "model": OLLAMA_MODEL_NAME,

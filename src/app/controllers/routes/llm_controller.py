@@ -92,58 +92,57 @@ async def llm_query(payload: LLMQuery, db: Session = Depends(get_conv_db)):
         except Exception:
             logger.exception("[LLM] Could not persist user message")
 
-    # If conversation_id provided, build conversation history to include as context
+    # If conversation_id provided, load conversation history (as ordered messages)
     conv_history_text = ''
+    conversation_messages = []
     if payload.conversation_id is not None:
         try:
             msgs = db.query(Message).filter(Message.conversation_id == payload.conversation_id).order_by(Message.timestamp.asc()).all()
             # keep last N messages to avoid huge prompts
             N = 30
             msgs = msgs[-N:]
-            parts = []
             for m in msgs:
-                role = m.role.capitalize()
-                parts.append(f"[{role}] {m.text}")
-            if parts:
+                # map DB role directly to chat role (expect 'user'/'assistant')
+                conversation_messages.append({
+                    "role": m.role if m.role in ('user', 'assistant', 'system') else 'user',
+                    "content": m.text
+                })
+            # also keep a compact text version for logging/debugging
+            if conversation_messages:
+                parts = [f"[{c['role'].capitalize()}] {c['content']}" for c in conversation_messages]
                 conv_history_text = "\n---\n".join(parts)
         except Exception:
             logger.exception("[LLM] Could not load conversation history")
 
-    # Retrieve context from Chroma if available
-    # Start composing the context prompt with conversation history (if any)
-    context_parts = []
-    if conv_history_text:
-        context_parts.append("Conversation history:\n" + conv_history_text)
-    context_prompt = payload.prompt
+    # Retrieve context from Chroma if available and assemble chat messages
+    messages = []
+    # If we have retrieved documents, add them as an initial system message to provide grounding
     if _chroma_client is not None:
         try:
             docs = _chroma_client.query_retriever(payload.prompt, k=payload.top_k)
             retrieved = docs
             if docs:
-                # assemble context
                 parts = []
                 for i, d in enumerate(docs, start=1):
                     md = d.get('metadata') or {}
                     src = md.get('source') or md.get('conversation_id') or md.get('id') or 'unknown'
                     parts.append(f"[{i}] Source: {src}\n{d.get('text')}\n")
                 context_text = "\n---\n".join(parts)
-                context_parts.append(context_text)
-                # assemble final prompt from conversation history + retrieved docs
-                combined_context = "\n\n".join(context_parts + [f"Retrieved context:\n{context_text}"])
-                context_prompt = f"Use the following context to answer the question. Only use the information present in the context when relevant.\n\n{combined_context}\n\nQuestion:\n{payload.prompt}"
+                # Add retrieved docs as a system-level context message
+                messages.append({"role": "system", "content": f"Retrieved context:\n{context_text}"})
         except Exception:
             logger.exception("[LLM] Error querying retriever; continuing without context")
 
-    # If we didn't already build a combined prompt including retrieved docs, combine conversation history + prompt
-    if 'context_prompt' not in locals() or not context_prompt:
-        if conv_history_text:
-            context_prompt = f"Conversation history:\n{conv_history_text}\n\nQuestion:\n{payload.prompt}"
-        else:
-            context_prompt = payload.prompt
+    # Append conversation history messages (if any)
+    if conversation_messages:
+        messages.extend(conversation_messages)
 
-    # Call the LLM with the assembled prompt
+    # Finally append the current user prompt as the last message
+    messages.append({"role": "user", "content": payload.prompt})
+
+    # Call the LLM with the assembled messages (chat format)
     try:
-        response = query_llm(context_prompt)
+        response = query_llm(messages=messages)
     except Exception:
         logger.exception("[LLM] Error calling LLM")
         raise HTTPException(status_code=500, detail="LLM generation failed")
