@@ -116,6 +116,9 @@
             </div>
             <div id="conv-list" style="overflow:auto; flex:1; min-height:0;"></div>
             <div style="font-size:12px;color:#9aa6b2;margin-top:12px;">Las conversaciones se eliminarán automáticamente a la semana.</div>
+            <div style="margin-top:10px; display:flex; justify-content:center;">
+              <button id="btn-manage-docs" title="Gestionar documentos" style="background:#10b981;border:none;color:#04263a;padding:8px 12px;border-radius:6px;cursor:pointer;">📁 Documentos</button>
+            </div>
           </div>
 
           <div class="conv-chat" style="flex:1; display:flex; flex-direction:column;">
@@ -125,6 +128,28 @@
             </div>
             <p style="color:#9aa6b2; margin-top:6px;">Interactúa con el modelo local (Ollama) y revisa el historial.</p>
             <div id="llm-messages" style="flex:1; overflow:auto; background:#08131a; padding:12px; border-radius:8px; margin-top:12px;"></div>
+            <!-- Documents panel (hidden by default) -->
+            <div id="documents-panel" style="display:none; margin-top:12px; background:#06101a; padding:12px; border-radius:8px;">
+              <h3 style="margin:0 0 8px 0;">Documentos para el LLM</h3>
+              <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                <label style="color:#9aa6b2; width:100px;">Carpeta:</label>
+                <select id="docs-folder-select" style="flex:1; padding:8px; border-radius:6px; border:1px solid #233044; background:#071127; color:#e6eef8;"></select>
+                <button id="docs-create-folder-btn" title="Crear carpeta" style="margin-left:6px; background:#0ea5e9;border:none;color:#04263a;padding:6px 8px;border-radius:6px;cursor:pointer;">Crear</button>
+              </div>
+              <div style="font-size:12px;color:#7ea6bf; margin-bottom:8px;">Ruta seleccionada: <span id="docs-selected-path" style="color:#9aa6b2;">(ninguna)</span></div>
+              <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                <label style="color:#9aa6b2; width:100px;">Archivo:</label>
+                <div id="docs-dropzone" style="flex:1; padding:12px; border-radius:8px; border:2px dashed #233044; background:#071127; color:#9aa6b2; display:flex; align-items:center; justify-content:center; cursor:pointer; min-height:56px;">
+                  Arrastra y suelta aquí o haz clic para seleccionar
+                </div>
+                <input id="docs-file-input" type="file" style="display:none;" multiple />
+              </div>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <button id="docs-upload-btn" style="background:#2563eb;border:none;color:#fff;padding:8px 12px;border-radius:6px;cursor:pointer;">Subir</button>
+                <button id="docs-close-btn" style="background:#ef4444;border:none;color:#fff;padding:8px 12px;border-radius:6px;cursor:pointer;">Cerrar</button>
+                <div id="docs-upload-status" style="color:#9aa6b2;margin-left:12px;"></div>
+              </div>
+            </div>
             <div id="llm-input-row" style="display:flex; gap:8px; margin-top:12px;">
               <input id="llm-prompt" type="text" style="flex:1; padding:10px; border-radius:8px; border:1px solid #233044; background:#071127; color:#e6eef8;" placeholder="Escribe tu pregunta al LLM (por ejemplo, explica un CVE o resume una noticia)..." />
               <button id="llm-send-btn" style="padding:10px 14px; border-radius:8px; border:none; background:#2563eb; color:#fff; cursor:pointer;">Enviar</button>

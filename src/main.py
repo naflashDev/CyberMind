@@ -39,6 +39,7 @@ from app.controllers.routes import (
     scrapy_news_controller,
     spacy_controller,
     tiny_postgres_controller,
+    documents_controller,
     llm_controller,
     status_controller,
     worker_controller,
@@ -483,6 +484,7 @@ app = FastAPI(
 app.include_router(scrapy_news_controller.router)
 app.include_router(spacy_controller.router)
 app.include_router(tiny_postgres_controller.router)
+app.include_router(documents_controller.router)
 app.include_router(llm_controller.router)
 app.include_router(status_controller.router)
 app.include_router(worker_controller.router)

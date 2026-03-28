@@ -501,6 +501,175 @@ document.addEventListener('DOMContentLoaded', function () {
   if (views.llm && views.llm.classList.contains('active')) {
     fetchConversations();
   }
+  // --- Documents panel wiring ---
+  const btnManageDocs = document.getElementById('btn-manage-docs');
+  const docsPanel = document.getElementById('documents-panel');
+  const docsCloseBtn = document.getElementById('docs-close-btn');
+  const docsUploadBtn = document.getElementById('docs-upload-btn');
+  const docsFileInput = document.getElementById('docs-file-input');
+  const docsDropzone = document.getElementById('docs-dropzone');
+  const docsFolderSelect = document.getElementById('docs-folder-select');
+  const docsStatus = document.getElementById('docs-upload-status');
+
+  if (btnManageDocs && docsPanel) {
+    btnManageDocs.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      const willShow = (docsPanel.style.display === 'none' || !docsPanel.style.display);
+      if (willShow) {
+        // refresh folder list when opening
+        await loadDocumentFolders();
+      }
+      docsPanel.style.display = willShow ? 'block' : 'none';
+    });
+  }
+  if (docsCloseBtn && docsPanel) {
+    docsCloseBtn.addEventListener('click', (ev) => { ev.preventDefault(); docsPanel.style.display = 'none'; });
+  }
+
+  // Drag & drop + upload handler
+  if (docsDropzone && docsFileInput) {
+    // click on dropzone opens file picker
+    docsDropzone.addEventListener('click', () => docsFileInput.click());
+
+    // highlight on dragover
+    docsDropzone.addEventListener('dragover', (ev) => {
+      ev.preventDefault();
+      docsDropzone.style.borderColor = '#60a5fa';
+      docsDropzone.style.background = '#071833';
+    });
+    docsDropzone.addEventListener('dragleave', (ev) => {
+      ev.preventDefault();
+      docsDropzone.style.borderColor = '#233044';
+      docsDropzone.style.background = '#071127';
+    });
+
+    docsDropzone.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      docsDropzone.style.borderColor = '#233044';
+      docsDropzone.style.background = '#071127';
+      const dt = ev.dataTransfer;
+      if (dt && dt.files && dt.files.length > 0) {
+        docsFileInput.files = dt.files; // set files for upload
+        docsDropzone.textContent = Array.from(dt.files).map(f => f.name).join(', ');
+      }
+    });
+
+    // when files chosen via picker, show names
+    docsFileInput.addEventListener('change', () => {
+      const f = docsFileInput.files;
+      if (f && f.length) docsDropzone.textContent = Array.from(f).map(x => x.name).join(', ');
+      else docsDropzone.textContent = 'Arrastra y suelta aquí o haz clic para seleccionar';
+    });
+  }
+
+  if (docsUploadBtn && docsFileInput) {
+    docsUploadBtn.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      docsStatus.textContent = '';
+      const files = docsFileInput.files;
+      if (!files || files.length === 0) {
+        docsStatus.textContent = 'Selecciona un archivo para subir.';
+        return;
+      }
+      const folder = docsFolderSelect && docsFolderSelect.value ? docsFolderSelect.value.trim() : '';
+      const form = new FormData();
+      // append multiple files
+      for (let i = 0; i < files.length; i++) {
+        form.append('file', files[i]);
+      }
+      if (folder) form.append('folder', folder);
+      if (window.__selectedConversationId) form.append('conversation_id', String(window.__selectedConversationId));
+      docsUploadBtn.disabled = true;
+      docsUploadBtn.textContent = 'Subiendo...';
+      try {
+        const resp = await fetch('/documents/upload', { method: 'POST', body: form });
+        if (!resp.ok) {
+          const txt = await resp.text();
+          throw new Error('Upload failed: ' + txt);
+        }
+        const data = await resp.json();
+        const msg = data && data.results ? data.results.map(r => r.message || r.file || r.doc_id).join('; ') : 'OK';
+        docsStatus.textContent = 'Subido: ' + msg;
+        // Optionally close panel
+        setTimeout(() => { docsPanel.style.display = 'none'; docsDropzone.textContent = 'Arrastra y suelta aquí o haz clic para seleccionar'; docsFileInput.value = ''; }, 900);
+      } catch (e) {
+        console.error('[UI] documents upload error', e);
+        docsStatus.textContent = 'Error subiendo archivo.';
+      }
+      docsUploadBtn.disabled = false;
+      docsUploadBtn.textContent = 'Subir';
+    });
+  }
+
+  // --- Folder list management ---
+  const docsCreateFolderBtn = document.getElementById('docs-create-folder-btn');
+  const docsSelectedPath = document.getElementById('docs-selected-path');
+
+  async function loadDocumentFolders() {
+    try {
+      const resp = await fetch('/documents/folders');
+      if (!resp.ok) throw new Error('Failed to list folders');
+      const data = await resp.json();
+      const folders = (data && data.folders) ? data.folders : [];
+      // Clear select
+      if (docsFolderSelect) {
+        docsFolderSelect.innerHTML = '';
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = '(default)';
+        docsFolderSelect.appendChild(empty);
+        folders.forEach(f => {
+          const opt = document.createElement('option');
+          opt.value = f.name;
+          opt.textContent = f.name;
+          opt.dataset.path = f.path;
+          docsFolderSelect.appendChild(opt);
+        });
+        // restore last selection from localStorage
+        const saved = window.localStorage.getItem('docs_selected_folder') || '';
+        if (saved) docsFolderSelect.value = saved;
+        updateSelectedPath();
+      }
+    } catch (e) {
+      console.error('[UI] loadDocumentFolders error', e);
+    }
+  }
+
+  function updateSelectedPath() {
+    if (!docsFolderSelect) return;
+    const sel = docsFolderSelect.value;
+    const opt = docsFolderSelect.selectedOptions && docsFolderSelect.selectedOptions[0];
+    const path = opt && opt.dataset && opt.dataset.path ? opt.dataset.path : (sel ? ('data/documents/' + sel) : 'data/documents/default');
+    if (docsSelectedPath) docsSelectedPath.textContent = path;
+    // persist
+    try { window.localStorage.setItem('docs_selected_folder', sel || ''); } catch (e) {}
+  }
+
+  if (docsFolderSelect) {
+    docsFolderSelect.addEventListener('change', () => updateSelectedPath());
+  }
+
+  if (docsCreateFolderBtn) {
+    docsCreateFolderBtn.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      const name = prompt('Nombre de la nueva carpeta (solo letras, números, guiones y guion bajo):');
+      if (!name) return;
+      try {
+        const resp = await fetch('/documents/folders?name=' + encodeURIComponent(name), { method: 'POST' });
+        if (!resp.ok) {
+          const txt = await resp.text();
+          throw new Error('Create failed: ' + txt);
+        }
+        // reload list and select new
+        await loadDocumentFolders();
+        if (docsFolderSelect) docsFolderSelect.value = name;
+        updateSelectedPath();
+      } catch (e) {
+        console.error('[UI] create folder error', e);
+        alert('Error creando carpeta');
+      }
+    });
+  }
     // --- Configuración editable de archivos .ini ---
     let configCache = null;
     const configFilesEl = document.getElementById('config-files');

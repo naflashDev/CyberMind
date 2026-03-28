@@ -13,6 +13,9 @@ from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 import os
 from pathlib import Path
+import logging
+import shutil
+from ..vectorstore.ollama_adapter import OllamaEmbeddingAdapter
 
 # Assume chromadb and sentence-transformers are installed
 CHROMA_AVAILABLE = True
@@ -82,23 +85,71 @@ class ChromaClient:
     def __init__(self, persist_directory: str = "data/chroma", collection_name: str = "default", embed_model: Optional[EmbeddingAdapter] = None):
         self.persist_directory = persist_directory
         self.collection_name = collection_name
-        # Prefer explicit embed_model, otherwise instantiate a local-only EmbeddingAdapter
+        # Prefer explicit embed_model. Otherwise, always prefer Ollama as the default
+        # embedding provider (user requested Ollama-only mode). If Ollama is not
+        # available, leave embedder as None and warn.
         if embed_model is not None:
             self.embedder = embed_model
         else:
-            model_path_env = os.getenv('CYBERSENTINEL_MODEL_PATH')
-            # default local model name expected in ./models/cybersentinel
-            try:
-                self.embedder = EmbeddingAdapter(model_name='cybersentinel', model_path=model_path_env)
-            except Exception as e:
-                # Raise early so callers know the local model is missing
-                raise
-        self.client = chromadb.Client(Settings(chroma_db_impl="duckdb+parquet", persist_directory=self.persist_directory))
-        # create or get collection
+            # allow overriding Ollama model name via env var
+            ollama_model = os.getenv('OLLAMA_MODEL_NAME', 'cybersentinel')
+            if shutil.which('ollama'):
+                try:
+                    self.embedder = OllamaEmbeddingAdapter(model_name=ollama_model)
+                    logging.getLogger(__name__).info('Using OllamaEmbeddingAdapter as default embedder (model=%s)', ollama_model)
+                except Exception as e:
+                    logging.getLogger(__name__).warning('Failed to initialize Ollama adapter: %s', e)
+                    self.embedder = None
+            else:
+                logging.getLogger(__name__).warning('ollama CLI not found in PATH; no embedder available')
+                self.embedder = None
+        # Silence chromadb deprecation/info logs and create client. If the
+        # chromadb API raises or logs deprecation warnings, prefer to continue
+        # operating without a collection rather than crash the app.
         try:
-            self.collection = self.client.get_collection(self.collection_name)
+            logging.getLogger('chromadb').setLevel(logging.ERROR)
         except Exception:
-            self.collection = self.client.create_collection(self.collection_name)
+            pass
+
+        # Attempt multiple client construction patterns for compatibility
+        self.client = None
+        self.collection = None
+        try:
+            # Preferred: try a simple, modern constructor first
+            try:
+                self.client = chromadb.Client()
+            except Exception:
+                # Fallback: older API that accepted a Settings object
+                try:
+                    self.client = chromadb.Client(Settings(chroma_db_impl="duckdb+parquet", persist_directory=self.persist_directory))
+                except Exception:
+                    # Final fallback: some environments expose a `chroma` package
+                    try:
+                        import chroma as chroma_mod  # type: ignore
+                        if hasattr(chroma_mod, 'ChromaClient'):
+                            self.client = chroma_mod.ChromaClient(persist_directory=self.persist_directory)
+                    except Exception:
+                        pass
+
+            # If we have a client, attempt to get or create the collection
+            if self.client:
+                try:
+                    if hasattr(self.client, 'get_collection'):
+                        self.collection = self.client.get_collection(self.collection_name)
+                    else:
+                        # Some client variants may expose different collection APIs
+                        self.collection = None
+                    if not self.collection and hasattr(self.client, 'create_collection'):
+                        self.collection = self.client.create_collection(self.collection_name)
+                except Exception:
+                    try:
+                        self.collection = self.client.create_collection(self.collection_name)
+                    except Exception:
+                        self.collection = None
+        except Exception as e:
+            logging.getLogger(__name__).warning('Failed to initialize Chroma client: %s', e)
+            self.client = None
+            self.collection = None
 
     def build_collection(self, docs: List[Dict]):
         """Build or replace collection from list of docs. Each doc must have `id`, `text`, and optional `metadata`.
@@ -110,6 +161,12 @@ class ChromaClient:
         texts = [d["text"] for d in docs]
         ids = [str(d["id"]) for d in docs]
         metadatas = [d.get("metadata", {}) for d in docs]
+        if not self.embedder:
+            logging.getLogger(__name__).warning('No embedder available; skipping Chroma upsert')
+            return
+        if not self.collection:
+            logging.getLogger(__name__).warning('Chroma collection not initialized; skipping upsert')
+            return
         embeddings = self.embedder.embed_texts(texts)
         # Upsert in a single batch
         self.collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=texts)
@@ -121,6 +178,12 @@ class ChromaClient:
 
     def upsert_document(self, doc_id: str, text: str, metadata: Optional[Dict] = None):
         """Upsert a single document into the collection."""
+        if not self.embedder:
+            logging.getLogger(__name__).warning('No embedder available; skipping single document upsert for %s', doc_id)
+            return
+        if not self.collection:
+            logging.getLogger(__name__).warning('Chroma collection not initialized; skipping single document upsert for %s', doc_id)
+            return
         emb = self.embedder.embed_texts([text])[0]
         self.collection.upsert(ids=[str(doc_id)], embeddings=[emb], metadatas=[metadata or {}], documents=[text])
 
@@ -129,6 +192,12 @@ class ChromaClient:
 
         Uses embedding + similarity search.
         """
+        if not self.embedder:
+            logging.getLogger(__name__).warning('No embedder available; query_retriever returning empty')
+            return []
+        if not self.collection:
+            logging.getLogger(__name__).warning('Chroma collection not initialized; query_retriever returning empty')
+            return []
         q_emb = self.embedder.embed_texts([query])[0]
         results = self.collection.query(query_embeddings=[q_emb], n_results=k, include=['metadatas', 'documents', 'distances', 'ids'])
         docs = []
