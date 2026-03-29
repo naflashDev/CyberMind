@@ -314,9 +314,100 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
             logger.error(f"[dynamic_spider] Failed to launch worker: {e}")
             request.app.state.worker_status[name] = False
             # Generic error message for UI, no internal details
-            return {"message": "Ha ocurrido un error interno. Por favor, contacte con el administrador."}
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported worker")
+            return Response(status_code=503, content="Ha ocurrido un error interno. Por favor, contacte con el administrador.")
+
+    # Additional workers that can be started on-demand via the same endpoint
+    elif name == "vector_retention":
+        # Start the retention worker dynamically (purge old vectors and DB messages)
+        try:
+            mod = __import__("app.controllers.routes.retention_worker", fromlist=["vector_and_message_retention"])
+            target_fn = getattr(mod, "vector_and_message_retention")
+            threading.Thread(target=target_fn, args=(evt, 7, 24), daemon=True).start()
+            logger.info("[worker_controller] vector_retention started via UI")
+        except Exception:
+            logger.exception("[worker_controller] Failed to start vector_retention")
+            request.app.state.worker_status[name] = False
+            return {"message": "Failed to start vector_retention"}
+
+    elif name == "vector_ingest":
+        # Periodically scan data/documents and ingest files into the vectorstore
+        folder = "./data/documents"
+        interval_hours = 24
+
+        def vector_ingest_loop(stop_evt, ingest_folder, hours):
+            # Lazy imports inside loop to avoid import-time overhead in tests
+            from hashlib import sha256
+            try:
+                while not stop_evt.is_set():
+                    try:
+                        # Try to construct a Chroma client if available to check existing ids
+                        chroma_client = None
+                        try:
+                            from app.services.vectorstore.chroma_client import ChromaClient
+                            chroma_client = ChromaClient(embed_model=None)
+                        except Exception:
+                            chroma_client = None
+
+                        from app.services.documents.ingest import ingest_document
+
+                        for root, _, files in __import__("os").walk(ingest_folder):
+                            for fname in files:
+                                path = __import__("os").path.join(root, fname)
+                                try:
+                                    with open(path, 'rb') as rf:
+                                        content = rf.read()
+                                except Exception:
+                                    continue
+                                # compute stable doc_id like ingest_document
+                                h = sha256()
+                                h.update(content or b"")
+                                h.update((fname or "").encode("utf-8"))
+                                doc_id = h.hexdigest()
+
+                                skip = False
+                                if chroma_client is not None and getattr(chroma_client, 'collection', None) is not None:
+                                    try:
+                                        rec = chroma_client.collection.get(ids=[doc_id], include=['ids'])
+                                        ids_list = rec.get('ids', [[]])[0] if rec else []
+                                        if ids_list:
+                                            skip = True
+                                    except Exception:
+                                        # if check fails, do not skip ingestion
+                                        skip = False
+
+                                if not skip:
+                                    try:
+                                        ingest_document(content, filename=fname, folder=None)
+                                    except Exception:
+                                        logger.exception(f"[vector_ingest] Error ingesting {path}")
+
+                        # Wait interruptibly
+                        try:
+                            stop_evt.wait(max(1, int(hours)) * 60 * 60)
+                        except Exception:
+                            __import__("time").sleep(60)
+                    except Exception:
+                        logger.exception("[vector_ingest] Unexpected error in loop")
+                        try:
+                            stop_evt.wait(60)
+                        except Exception:
+                            __import__("time").sleep(60)
+            finally:
+                logger.info("[vector_ingest] Stopping ingest loop")
+
+        # Ensure folder exists (no-op if missing; worker will just skip)
+        try:
+            __import__("os").makedirs(folder, exist_ok=True)
+        except Exception:
+            pass
+
+        try:
+            threading.Thread(target=vector_ingest_loop, args=(evt, folder, interval_hours), daemon=True).start()
+            logger.info("[worker_controller] vector_ingest started via UI")
+        except Exception:
+            logger.exception("[worker_controller] Failed to start vector_ingest")
+            request.app.state.worker_status[name] = False
+            return {"message": "Failed to start vector_ingest"}
 
     request.app.state.worker_status[name] = True
     logger.info(f"Worker {name} enabled via UI.")

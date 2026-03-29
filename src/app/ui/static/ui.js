@@ -1535,6 +1535,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 spacy_nlp: { name: 'NLP (spaCy)', info: 'Procesa y etiqueta entidades en textos usando spaCy cada 24h.' },
                 llm_updater: { name: 'LLM Updater', info: 'Actualiza el modelo LLM y el dataset de CVEs cada 7 días.' },
                 dynamic_spider: { name: 'Spider Dinámico', info: 'Ejecuta spiders Scrapy configurados dinámicamente desde la base de datos.' }
+                ,
+                vector_ingest: { name: 'Ingesta de Vectores', info: 'Escanea ./data/documents y normaliza/sube documentos al vectorstore (Chroma) para búsqueda semántica. Evita reindexar documentos ya indexados.' },
+                vector_retention: { name: 'Retención de Vectores', info: 'Elimina vectores y conversaciones antiguas según TTL (por defecto 7 días). Mantiene el tamaño y frescura del índice.' }
               };
               const friendly = WORKER_FRIENDLY[name] || { name, info: '' };
               const status = val ? '<span style="color:#86efac">running</span>' : '<span style="color:#fca5a5">stopped</span>';

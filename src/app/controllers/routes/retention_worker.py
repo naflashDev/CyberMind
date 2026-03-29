@@ -17,6 +17,7 @@ except Exception:
 
 from app.models.db import SessionLocal
 from app.models.conversation import Message, Conversation
+from sqlalchemy.exc import OperationalError
 
 
 def vector_and_message_retention(stop_event: threading.Event, days: int = 7, interval_hours: int = 24):
@@ -62,18 +63,28 @@ def vector_and_message_retention(stop_event: threading.Event, days: int = 7, int
             # DB purge
             try:
                 db = SessionLocal()
-                # delete old messages
-                msg_q = db.query(Message).filter(Message.timestamp < cutoff.replace(tzinfo=None))
-                deleted_msgs = msg_q.delete(synchronize_session=False)
-                db.commit()
-                # delete conversations older than cutoff
-                conv_q = db.query(Conversation).filter(Conversation.created_at < cutoff.replace(tzinfo=None))
-                deleted_convs = conv_q.delete(synchronize_session=False)
-                db.commit()
-                db.close()
-                logger.info(f"[Retention] Deleted {deleted_msgs} messages and {deleted_convs} conversations older than {cutoff.isoformat()}")
+                try:
+                    # delete old messages (if table exists)
+                    msg_q = db.query(Message).filter(Message.timestamp < cutoff.replace(tzinfo=None))
+                    deleted_msgs = msg_q.delete(synchronize_session=False)
+                    db.commit()
+                    # delete conversations older than cutoff
+                    conv_q = db.query(Conversation).filter(Conversation.created_at < cutoff.replace(tzinfo=None))
+                    deleted_convs = conv_q.delete(synchronize_session=False)
+                    db.commit()
+                    logger.info(f"[Retention] Deleted {deleted_msgs} messages and {deleted_convs} conversations older than {cutoff.isoformat()}")
+                except OperationalError as oe:
+                    # Likely the DB/tables are not initialized in this environment; log concise warning and continue
+                    logger.warning(f"[Retention] Skipping DB purge (OperationalError): {oe}")
+                except Exception:
+                    logger.exception("[Retention] Error purging DB messages/conversations")
+                finally:
+                    try:
+                        db.close()
+                    except Exception:
+                        pass
             except Exception:
-                logger.exception("[Retention] Error purging DB messages/conversations")
+                logger.exception("[Retention] Failed acquiring DB session for purge")
 
         except Exception:
             logger.exception("[Retention] Unexpected error in retention loop")

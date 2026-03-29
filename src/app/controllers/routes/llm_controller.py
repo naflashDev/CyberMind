@@ -13,6 +13,9 @@ from app.services.llm.llm_client import query_llm
 from app.services.llm.llm_trainer import run_periodic_training
 from typing import Optional, List
 import threading
+import hashlib
+import os
+import json
 
 from sqlalchemy.orm import Session
 from app.models.conversation_db import get_conv_db
@@ -265,6 +268,12 @@ def background_cve_and_finetune_loop(stop_event: Optional[threading.Event] = Non
             logger.info("[LLM Trainer] Starting 7-day CVE update + dataset build cycle...")
             run_periodic_training(stop_event=stop_event)
             logger.info("[LLM Trainer] 7-day CVE + dataset cycle finished.")
+            # After the dataset is rebuilt, ingest generated finetune JSONL into
+            # the vectorstore so documents become available for retrieval.
+            try:
+                ingest_finetune_to_chroma("./outputs/finetune_data.jsonl")
+            except Exception:
+                logger.exception("[LLM Trainer] Failed to ingest finetune file into vectorstore")
         except Exception as e:
             logger.error(f"[LLM Trainer] Error in 7-day loop: {e}")
             # No UI error here, but if hay endpoints que devuelven error, deben ser genéricos
@@ -274,6 +283,42 @@ def background_cve_and_finetune_loop(stop_event: Optional[threading.Event] = Non
         except Exception:
             # If wait fails for any reason, fallback to sleep a short time then re-check
             time.sleep(5)
+
+
+def ingest_finetune_to_chroma(output_path: str = "./outputs/finetune_data.jsonl") -> None:
+    """
+    @brief Read a JSONL finetune file and upsert each record into the Chromadb collection.
+
+    Each record is given a stable id derived from the instruction+input hash so
+    repeated ingestions won't create duplicate entries (upsert overwrites).
+    """
+    try:
+        if _chroma_client is None:
+            logger.warning("[LLM] No Chroma client available; skipping finetune ingestion.")
+            return
+        if not os.path.exists(output_path):
+            logger.warning(f"[LLM] Finetune file not found: {output_path}")
+            return
+        with open(output_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                    instr = rec.get("instruction", "") or ""
+                    inp = rec.get("input", "") or ""
+                    outp = rec.get("output", "") or ""
+                    text = instr + "\n\n" + inp + "\n\n" + outp
+                    h = hashlib.sha256()
+                    h.update((instr + "||" + inp).encode("utf-8"))
+                    doc_id = "finetune-" + h.hexdigest()
+                    metadata = {"source": rec.get("source", "finetune")}
+                    _chroma_client.upsert_document(doc_id=doc_id, text=text, metadata=metadata)
+                except Exception:
+                    logger.exception("[LLM] Error ingesting finetune record into Chroma; continuing.")
+    except Exception:
+        logger.exception("[LLM] Unexpected error during finetune ingestion")
 
 
 

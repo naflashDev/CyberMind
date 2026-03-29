@@ -232,25 +232,56 @@ class ChromaClient:
 
         Expects metadata to include an ISO `timestamp` key.
         """
-        # chromadb does not support server-side predicates in a uniform way; iterate and delete
-        all_ids = self.collection.get(include=['ids']).get('ids', [])
-        if not all_ids:
-            return 0
-        to_delete = []
-        # flatten ids list
-        ids_list = all_ids[0] if isinstance(all_ids[0], list) else all_ids
-        for doc_id in ids_list:
-            rec = self.collection.get(ids=[doc_id], include=['metadatas', 'documents', 'ids'])
-            md = rec.get('metadatas', [[]])[0][0] if rec.get('metadatas') else {}
-            ts = md.get('timestamp')
-            if ts:
+        # chromadb API variants differ: some clients allowed 'ids' in include, newer
+        # versions reject it. Try a safe strategy and fall back gracefully.
+        try:
+            try:
+                res = self.collection.get(include=['ids'])
+                ids_raw = res.get('ids', [])
+                ids_list = ids_raw[0] if isinstance(ids_raw and ids_raw[0:1], list) else ids_raw
+            except Exception:
+                # Fallback: request metadatas/documents and try to extract ids from metadata
+                res = self.collection.get(include=['metadatas', 'documents'])
+                metas = []
                 try:
-                    t = datetime.fromisoformat(ts)
-                    if t.replace(tzinfo=timezone.utc) < cutoff_ts.replace(tzinfo=timezone.utc):
-                        to_delete.append(doc_id)
+                    metas = res.get('metadatas', [[]])[0]
                 except Exception:
+                    metas = []
+                ids_list = []
+                for md in metas:
+                    if isinstance(md, dict):
+                        # prefer explicit doc id fields if present
+                        doc_id = md.get('doc_id') or md.get('id') or md.get('source')
+                        if doc_id:
+                            ids_list.append(doc_id)
+                # If we couldn't derive ids, give up to avoid accidental mass-delete
+                if not ids_list:
+                    return 0
+
+            to_delete = []
+            for doc_id in ids_list:
+                try:
+                    rec = self.collection.get(ids=[doc_id], include=['metadatas', 'documents'])
+                    md = rec.get('metadatas', [[]])[0][0] if rec.get('metadatas') else {}
+                    ts = md.get('timestamp')
+                    if ts:
+                        try:
+                            t = datetime.fromisoformat(ts)
+                            if t.replace(tzinfo=timezone.utc) < cutoff_ts.replace(tzinfo=timezone.utc):
+                                to_delete.append(doc_id)
+                        except Exception:
+                            continue
+                except Exception:
+                    # if per-id check fails, skip it
                     continue
-        if to_delete:
-            self.collection.delete(ids=to_delete)
-            return len(to_delete)
-        return 0
+
+            if to_delete:
+                try:
+                    self.collection.delete(ids=to_delete)
+                except Exception:
+                    # deletion may fail on some backends; swallow to keep retention robust
+                    return 0
+                return len(to_delete)
+            return 0
+        except Exception:
+            return 0

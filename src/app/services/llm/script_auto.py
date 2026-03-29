@@ -102,15 +102,43 @@ def update_repository(repo_dir: str) -> None:
             return
 
         logger.info(f"Updating repository in {repo_dir} ...")
+
+        # If a stale index.lock file exists, try to remove it to avoid blocking git operations.
+        lock_file = os.path.join(repo_dir, ".git", "index.lock")
+        if os.path.exists(lock_file):
+            try:
+                logger.warning(f"Found stale git lock file at {lock_file}. Attempting to remove it.")
+                os.remove(lock_file)
+                logger.info("Removed stale git index.lock file.")
+            except Exception:
+                logger.warning(f"Could not remove git lock file {lock_file}; git operations may fail.")
+
         # Try check_call first to satisfy tests that mock it
         try:
-            subprocess.check_call(["git", "-C", repo_dir, "pull"])
+            subprocess.check_call(["git", "-C", repo_dir, "pull"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
             logger.success("Repository updated successfully (check_call path).")
             return
-        except subprocess.CalledProcessError:
-            pass
+        except subprocess.CalledProcessError as cpe:
+            # Capture error but continue to attempt a safer recovery path below
+            logger.debug(f"git pull check_call failed: {cpe}")
         except Exception:
-            pass
+            logger.debug("git pull check_call raised unexpected exception; falling back to Popen")
+
+        # Before running a blocking Popen, detect detached HEAD to avoid merge prompts.
+        try:
+            sym = subprocess.run(["git", "-C", repo_dir, "symbolic-ref", "--short", "-q", "HEAD"], capture_output=True, text=True)
+            current_branch = (sym.stdout or "").strip()
+            if not current_branch:
+                logger.warning("Repository is in a detached HEAD state; skipping git pull to avoid merge prompts.")
+                # Attempt a lightweight fetch to update remote refs, but do not alter working tree
+                try:
+                    subprocess.run(["git", "-C", repo_dir, "fetch", "--all", "--prune"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
+                return
+        except Exception:
+            # If detection fails, proceed to attempt pull but handle errors gracefully
+            logger.debug("Could not determine current branch (symbolic-ref failed); will attempt git pull with safe handling.")
 
         creationflags = 0
         preexec_fn = None
@@ -123,19 +151,31 @@ def update_repository(repo_dir: str) -> None:
         while True:
             ret = p.poll()
             if ret is not None:
+                out, err = p.communicate()
                 if ret != 0:
-                    out, err = p.communicate()
+                    try:
+                        err_text = err.decode('utf-8', errors='ignore') if isinstance(err, (bytes, bytearray)) else str(err)
+                    except Exception:
+                        err_text = str(err)
+                    # If the error indicates we are not on a branch, log a friendly message and continue
+                    if 'not currently on a branch' in err_text or 'You are not currently on a branch' in err_text:
+                        logger.warning(f"Git pull skipped: repository not on a branch. stderr: {err_text}")
+                        # Try fetching remote refs without modifying the worktree
+                        try:
+                            subprocess.run(["git", "-C", repo_dir, "fetch", "--all", "--prune"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        except Exception:
+                            pass
+                        return
                     logger.error(f"Error while updating repository: return {ret} stdout={out} stderr={err}")
-                    raise subprocess.CalledProcessError(ret, p.args)
+                    # Do not raise to avoid crashing periodic worker; just return
+                    return
                 logger.success("Repository updated successfully.")
                 break
             time.sleep(0.2)
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Error while updating repository: {e}")
-        raise
     except Exception as e:
+        # Catch-all: log but do not raise to keep periodic background worker stable
         logger.error(f"Unexpected error updating repository: {e}")
-        raise
+        return
 
 
 def process_file(file_path: Path, aggregated_data: list, lock: threading.Lock, stop_event: Optional[threading.Event] = None) -> None:
@@ -318,6 +358,28 @@ def consolidate_json(base_dir: str, output_file: str, stop_event: Optional[threa
 
         # Ensure output directory exists.
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+        # Remove duplicate records (based on 'instruction' when available) to
+        # avoid adding the same CVE multiple times across runs.
+        try:
+            seen = set()
+            deduped = []
+            for rec in aggregated_data:
+                try:
+                    if isinstance(rec, dict) and rec.get("instruction"):
+                        key = rec.get("instruction")
+                    else:
+                        key = json.dumps(rec, sort_keys=True, ensure_ascii=False)
+                except Exception:
+                    key = str(rec)
+                if key not in seen:
+                    seen.add(key)
+                    deduped.append(rec)
+            aggregated_data = deduped
+        except Exception:
+            # In case of any unexpected error during deduplication, fall back
+            # to the original aggregated data to avoid data loss.
+            pass
 
         # Save all processed data into the output JSON file.
         with open(output_file, "w", encoding="utf-8") as f:
