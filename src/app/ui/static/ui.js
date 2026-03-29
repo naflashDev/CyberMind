@@ -602,7 +602,6 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // --- Folder list management ---
-  const docsCreateFolderBtn = document.getElementById('docs-create-folder-btn');
   const docsSelectedPath = document.getElementById('docs-selected-path');
 
   async function loadDocumentFolders() {
@@ -649,27 +648,7 @@ document.addEventListener('DOMContentLoaded', function () {
     docsFolderSelect.addEventListener('change', () => updateSelectedPath());
   }
 
-  if (docsCreateFolderBtn) {
-    docsCreateFolderBtn.addEventListener('click', async (ev) => {
-      ev.preventDefault();
-      const name = prompt('Nombre de la nueva carpeta (solo letras, números, guiones y guion bajo):');
-      if (!name) return;
-      try {
-        const resp = await fetch('/documents/folders?name=' + encodeURIComponent(name), { method: 'POST' });
-        if (!resp.ok) {
-          const txt = await resp.text();
-          throw new Error('Create failed: ' + txt);
-        }
-        // reload list and select new
-        await loadDocumentFolders();
-        if (docsFolderSelect) docsFolderSelect.value = name;
-        updateSelectedPath();
-      } catch (e) {
-        console.error('[UI] create folder error', e);
-        alert('Error creando carpeta');
-      }
-    });
-  }
+  // Folder creation removed from UI by project policy; no handler.
     // --- Configuración editable de archivos .ini ---
     let configCache = null;
     const configFilesEl = document.getElementById('config-files');

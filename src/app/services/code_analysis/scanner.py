@@ -137,32 +137,65 @@ class CodeScanner:
         otherwise call the runtime `llm_client.query_llm` so tests can monkeypatch it.
         '''
         try:
+            # Honor injected provider for tests
             if hasattr(self, 'llm') and self.llm:
                 provider = self.llm
-                # object with method
                 if hasattr(provider, 'explain_vulnerability') and callable(getattr(provider, 'explain_vulnerability')):
                     return provider.explain_vulnerability(text)
-                # callable directly
                 if callable(provider):
                     return provider(text)
-            # fallback to module-level client so monkeypatching llm_client.query_llm works
-            if hasattr(llm_client, 'query_llm') and callable(llm_client.query_llm):
-                # Provide a system-level prompt in Spanish to ensure the model
-                # responds in Spanish and with a professional tone. We avoid
-                # editing the llm client itself and pass the system prompt here.
-                system_prompt = (
-                    "Eres un asistente experto en ciberseguridad. Responde siempre en español, "
-                    "de forma clara, concisa y profesional. Al explicar vulnerabilidades, ofrece "
-                    "pasos accionables y utiliza terminología técnica apropiada para desarrolladores."
-                )
+
+            # Base system prompt (Spanish, professional tone)
+            base_system = (
+                "Eres un asistente experto en ciberseguridad. Responde siempre en español, "
+                "de forma clara, concisa y profesional. Al explicar vulnerabilidades, ofrece "
+                "pasos accionables y utiliza terminología técnica apropiada para desarrolladores."
+            )
+
+            # Best-effort: attempt retrieval from local Chroma using Ollama embedder
+            retrieved_block = ""
+            try:
+                from app.services.vectorstore.chroma_client import ChromaClient
+                from app.services.vectorstore.ollama_adapter import OllamaEmbeddingAdapter
+
                 try:
-                    return llm_client.query_llm(text, system_prompt=system_prompt)
+                    embedder = OllamaEmbeddingAdapter()
+                    chroma = ChromaClient(embed_model=embedder)
+                    docs = chroma.query_retriever(query=text, k=5) or []
+                except Exception as e:
+                    docs = []
+                    logger.debug("RAG init failed or disabled: %s", e)
+
+                if docs:
+                    parts = []
+                    for idx, d in enumerate(docs):
+                        src = (d.get('metadata', {}) or {}).get('source') or d.get('id') or f'doc_{idx}'
+                        snippet = (d.get('text') or "")[:800].replace("\n", " ")
+                        parts.append(f"[{src}] {snippet}")
+                    retrieved_block = "\n\n--- Retrieved documents ---\n" + "\n\n".join(parts) + "\n\n--- End retrieved ---\n"
+            except Exception as e:
+                logger.debug("Chroma import or query failed (RAG unavailable): %s", e)
+                retrieved_block = ""
+
+            # Compose final system prompt including retrieved context if any
+            system_prompt = base_system
+            if retrieved_block:
+                system_prompt = base_system + "\n\nUtiliza la siguiente información recuperada de los documentos del usuario como contexto adicional. Si la información no es relevante para la pregunta, ignórala." + retrieved_block
+
+            # Call the LLM client via chat-style messages when possible
+            if hasattr(llm_client, 'query_llm') and callable(llm_client.query_llm):
+                messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": text}]
+                try:
+                    return llm_client.query_llm(messages=messages)
                 except TypeError:
-                    # In case the underlying client does not accept system_prompt
-                    # (backward compatibility), fall back to the simple call.
-                    return llm_client.query_llm(text)
+                    # backward-compatible signature that accepts prompt + system_prompt
+                    return llm_client.query_llm(text, system_prompt=system_prompt)
+                except Exception as e:
+                    logger.error("LLM query failed: %s", e)
+
         except Exception as e:
-            logger.error(f"Error calling LLM: {e}")
+            logger.error(f"Error in _explain_with_llm: {e}")
+
         return 'LLM unavailable.'
 
     def _classify_confidentiality(self, text: str) -> str:

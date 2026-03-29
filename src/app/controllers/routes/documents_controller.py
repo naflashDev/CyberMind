@@ -81,15 +81,8 @@ async def list_folders():
 
 @router.post('/folders')
 async def create_folder(name: str):
-    """Create a new documents folder (sanitized name) and return its path."""
-    if not name or not isinstance(name, str):
-        raise HTTPException(status_code=400, detail='Folder name required')
-    # sanitize
-    safe = ''.join([c for c in name if c.isalnum() or c in ('-', '_')]).strip() or 'default'
-    try:
-        target = BASE_DOCS / safe
-        target.mkdir(parents=True, exist_ok=True)
-        return JSONResponse(content={'name': safe, 'path': str(target.as_posix())})
-    except Exception:
-        logger.exception('Error creating folder')
-        raise HTTPException(status_code=500, detail='Error creating folder')
+    """Folder creation endpoint removed.
+
+    This operation is disabled by project policy. Return 405 Method Not Allowed.
+    """
+    raise HTTPException(status_code=405, detail='Folder creation is disabled')

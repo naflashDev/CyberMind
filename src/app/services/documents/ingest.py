@@ -14,6 +14,11 @@ import traceback
 from loguru import logger
 import shutil
 from app.services.vectorstore.ollama_adapter import OllamaEmbeddingAdapter
+from io import BytesIO
+try:
+    from pypdf import PdfReader
+except Exception:
+    PdfReader = None
 
 DEFAULT_BASE = Path('data') / 'documents'
 
@@ -36,6 +41,26 @@ def _ensure_folder(folder: str = None):
 
 
 def _text_from_bytes(file_bytes: bytes, filename: str = None) -> str:
+    # If this is a PDF, attempt to extract text using pypdf for better results.
+    name = (filename or '').lower()
+    if (file_bytes[:4] == b'%PDF') or name.endswith('.pdf'):
+        if PdfReader is not None:
+            try:
+                reader = PdfReader(BytesIO(file_bytes))
+                pages = []
+                for p in reader.pages:
+                    try:
+                        txt = p.extract_text() or ''
+                    except Exception:
+                        txt = ''
+                    pages.append(txt)
+                return '\n'.join(pages)
+            except Exception:
+                # fallthrough to generic decoding on failure
+                logger.warning('PDF text extraction via pypdf failed for %s; falling back to raw decoding', filename)
+        else:
+            logger.debug('pypdf not available; skipping PDF text extraction for %s', filename)
+
     # Very small utility: try decode utf-8, fallback latin1. For non-text files caller may extract text later.
     try:
         return file_bytes.decode('utf-8')

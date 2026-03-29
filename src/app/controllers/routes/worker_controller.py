@@ -358,10 +358,13 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
                                         content = rf.read()
                                 except Exception:
                                     continue
-                                # compute stable doc_id like ingest_document
+                                # compute stable doc_id using the same filename sanitization
+                                # as `ingest_document` (spaces -> underscores) to ensure
+                                # consistent ids and avoid duplicate upserts.
+                                safe_name = (fname or '').replace(' ', '_')
                                 h = sha256()
                                 h.update(content or b"")
-                                h.update((fname or "").encode("utf-8"))
+                                h.update((safe_name or "").encode("utf-8"))
                                 doc_id = h.hexdigest()
 
                                 skip = False

@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import json
 import logging
+import os
 import hashlib
 from datetime import datetime
 from pathlib import Path
@@ -71,7 +72,16 @@ class OllamaEmbeddingAdapter:
         results = []
         # Attempt batching by joining with a separator if Ollama model handles multi prompts.
         # Safe fallback: call one-by-one.
-        CHUNK_SIZE = 3000
+        # Maximum characters per chunk sent to Ollama. Make configurable via
+        # environment variable `OLLAMA_CHUNK_CHARS` to allow tuning per model.
+        try:
+            CHUNK_SIZE = int(os.getenv('OLLAMA_CHUNK_CHARS', '1000'))
+        except Exception:
+            CHUNK_SIZE = 1000
+        try:
+            MIN_CHUNK_SIZE = int(os.getenv('OLLAMA_MIN_CHUNK_CHARS', '200'))
+        except Exception:
+            MIN_CHUNK_SIZE = 200
 
         def _split_into_chunks(s: str, max_chars: int):
             words = s.split()
@@ -122,18 +132,38 @@ class OllamaEmbeddingAdapter:
             chunks = [t_clean]
             if len(t_clean) > CHUNK_SIZE:
                 chunks = _split_into_chunks(t_clean, CHUNK_SIZE)
-
             chunk_embeddings = []
-            for chunk in chunks:
+
+            def _safe_embed_call(chunk: str, max_chars: int):
+                # Try to call ollama; if it fails due to context length, split and retry
                 try:
                     out = self._call_ollama_run(chunk)
                 except Exception as e:
-                    raise RuntimeError(f'Ollama embedding call failed: {e}')
+                    serr = str(e)
+                    if 'input length exceeds' in serr.lower() or 'exceeds the context' in serr.lower():
+                        # If chunk is already small, give up
+                        if max_chars <= MIN_CHUNK_SIZE or len(chunk) <= MIN_CHUNK_SIZE:
+                            raise RuntimeError(f'Ollama embedding call failed after splitting: {e}')
+                        # Split roughly in half (prefer words)
+                        parts = chunk.split()
+                        if len(parts) < 2:
+                            mid = len(chunk) // 2
+                            left, right = chunk[:mid], chunk[mid:]
+                        else:
+                            mid = len(parts) // 2
+                            left, right = ' '.join(parts[:mid]), ' '.join(parts[mid:])
+                        left_emb = _safe_embed_call(left, max_chars // 2)
+                        right_emb = _safe_embed_call(right, max_chars // 2)
+                        # average element-wise
+                        max_len = max(len(left_emb), len(right_emb))
+                        l = left_emb + [0.0] * (max_len - len(left_emb))
+                        r = right_emb + [0.0] * (max_len - len(right_emb))
+                        return [(a + b) / 2.0 for a, b in zip(l, r)]
+                    else:
+                        raise RuntimeError(f'Ollama embedding call failed: {e}')
 
                 emb = _parse_embedding(out)
-
                 if emb is None:
-                    # If parsing failed, and we have raw text output, dump it for inspection
                     try:
                         if isinstance(out, str):
                             dump_dir = Path('data') / 'ollama_raw'
@@ -147,8 +177,11 @@ class OllamaEmbeddingAdapter:
                     except Exception:
                         logger.exception('Failed to write raw ollama output for debugging')
                     raise RuntimeError('Could not parse embedding from ollama output')
+                return [float(x) for x in emb]
 
-                chunk_embeddings.append([float(x) for x in emb])
+            for chunk in chunks:
+                emb = _safe_embed_call(chunk, CHUNK_SIZE)
+                chunk_embeddings.append(emb)
             
 
             # If multiple chunk embeddings, average them element-wise to produce a single embedding

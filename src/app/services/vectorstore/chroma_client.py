@@ -180,8 +180,55 @@ class ChromaClient:
         if not self.collection:
             logging.getLogger(__name__).warning('Chroma collection not initialized; skipping single document upsert for %s', doc_id)
             return
-        emb = self.embedder.embed_texts([text])[0]
-        self.collection.upsert(ids=[str(doc_id)], embeddings=[emb], metadatas=[metadata or {}], documents=[text])
+        # Split document into chunks and upsert each chunk as a separate vector
+        try:
+            CHUNK_SIZE = int(os.getenv('CHROMA_DOC_CHUNK_CHARS', '800'))
+        except Exception:
+            CHUNK_SIZE = 800
+
+        def _split_into_chunks(s: str, max_chars: int):
+            words = s.split()
+            chunks = []
+            cur = []
+            cur_len = 0
+            for w in words:
+                wl = len(w) + 1
+                if cur_len + wl > max_chars and cur:
+                    chunks.append(' '.join(cur))
+                    cur = [w]
+                    cur_len = len(w)
+                else:
+                    cur.append(w)
+                    cur_len += wl
+            if cur:
+                chunks.append(' '.join(cur))
+            if not chunks and s:
+                for i in range(0, len(s), max_chars):
+                    chunks.append(s[i:i+max_chars])
+            return chunks
+
+        chunks = _split_into_chunks(text or '', CHUNK_SIZE)
+        if not chunks:
+            chunks = ['']
+
+        embeddings = self.embedder.embed_texts(chunks)
+        ids = [f"{doc_id}#{i}" for i in range(len(chunks))]
+        metadatas = []
+        for i, c in enumerate(chunks):
+            md = dict(metadata or {})
+            md.update({'doc_id': doc_id, 'chunk_index': i, 'chunk_preview': c[:200]})
+            metadatas.append(md)
+
+        try:
+            # Use upsert so we overwrite previous chunk vectors for this doc id
+            self.collection.upsert(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=chunks)
+        except Exception:
+            # Fallback to add if upsert is not available on this client variant
+            try:
+                self.collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=chunks)
+            except Exception as e:
+                logging.getLogger(__name__).warning('Failed to upsert/add chunks for %s: %s', doc_id, e)
+                return
         # Persist client state when possible so embeddings survive restarts
         if hasattr(self.client, "persist"):
             try:
