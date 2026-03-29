@@ -29,7 +29,20 @@ def vector_and_message_retention(stop_event: threading.Event, days: int = 7, int
     chroma = None
     if CHROMA_AVAILABLE:
         try:
-            chroma = ChromaClient()
+            # Provide an embed_model when possible so retention operations can interact with vectors
+            embed_model = None
+            try:
+                from app.services.vectorstore.ollama_adapter import OllamaEmbeddingAdapter
+                import shutil, os
+                if shutil.which('ollama'):
+                    embed_name = os.getenv('EMBED_MODEL_NAME', 'nomic-embed-text:latest')
+                    try:
+                        embed_model = OllamaEmbeddingAdapter(model_name=embed_name)
+                    except Exception:
+                        embed_model = None
+            except Exception:
+                embed_model = None
+            chroma = ChromaClient(embed_model=embed_model)
         except Exception:
             logger.exception("[Retention] Failed to initialize ChromaClient; will skip vector purging.")
 

@@ -13,6 +13,8 @@ import tempfile
 import traceback
 
 from loguru import logger
+import shutil
+from app.services.vectorstore.ollama_adapter import OllamaEmbeddingAdapter
 
 DEFAULT_BASE = Path('data') / 'documents'
 
@@ -66,6 +68,9 @@ def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None,
         h.update((safe_filename or '').encode('utf-8'))
         doc_id = h.hexdigest()
 
+        logger.info('Ingest starting: filename="{}", folder="{}", size_bytes={}', safe_filename, folder, len(file_bytes or b''))
+        logger.debug('Computed doc_id={}', doc_id)
+
         # Store only the user-friendly original filename in the target folder.
         # Avoid creating a hashed filename or metadata JSON on disk per user request.
         orig_name = safe_filename
@@ -80,6 +85,8 @@ def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None,
         with open(orig_path, 'wb') as of:
             of.write(file_bytes)
 
+        logger.info('Saved uploaded file to {} ({} bytes)', str(orig_path.as_posix()), orig_path.stat().st_size)
+
         # minimal metadata
         md = {
             'doc_id': doc_id,
@@ -92,8 +99,7 @@ def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None,
         }
         # try extract text
         text = _text_from_bytes(file_bytes, filename)
-        # Note: do not write metadata JSON to disk; keep metadata in-memory only.
-        meta_path = None
+        logger.debug('Extracted text length: {}', len(text or ''))
 
         upserted = False
         message = 'saved'
@@ -101,16 +107,33 @@ def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None,
         if _CHROMA_AVAILABLE:
             try:
                 from app.services.vectorstore.chroma_client import ChromaClient
-                client = ChromaClient()
+                # Prefer using the Nomic embedding model for generating embeddings
+                embed_model = None
+                embed_name = os.getenv('EMBED_MODEL_NAME', 'nomic-embed-text:latest')
+                try:
+                    if shutil.which('ollama'):
+                        logger.info('Initializing OllamaEmbeddingAdapter with model {}', embed_name)
+                        embed_model = OllamaEmbeddingAdapter(model_name=embed_name)
+                except Exception as e:
+                    logger.warning('Failed to initialize Ollama embedding adapter: {}', e)
+
+                client = ChromaClient(embed_model=embed_model)
                 metadata = dict(md)
                 # include a short preview
                 metadata['preview'] = text[:1000]
-                client.upsert_document(doc_id, text or metadata.get('preview', ''), metadata)
-                upserted = True
-                message = 'saved and indexed'
+                logger.info('Attempting to upsert document {} into Chroma (embed_model={})', doc_id, embed_name if embed_model else 'None')
+                try:
+                    client.upsert_document(doc_id, text or metadata.get('preview', ''), metadata)
+                    logger.success('Document {} upsert requested', doc_id)
+                    upserted = True
+                    message = 'saved and indexed'
+                except Exception as e:
+                    logger.exception('Chroma upsert failed for {}: {}', doc_id, e)
+                    # preserve message for caller
+                    raise
             except Exception as e:
                 # If chromadb import succeeded but runtime indexing failed, log succinct warning
-                logger.warning(f"Chroma upsert failed: {e}")
+                logger.warning('Chroma upsert failed: {}', e)
         else:
             logger.debug('Chromadb not installed; skipping vectorstore indexing for this upload')
 

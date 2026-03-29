@@ -32,23 +32,34 @@ class OllamaEmbeddingAdapter:
         self.dimensions = dimensions
 
     def _call_ollama_run(self, prompt: str) -> object:
-        # Use --format json and pass prompt as argument; capture stdout
-        cmd = ['ollama', 'run', self.model_name, prompt, '--format', 'json']
-        # Capture bytes and decode explicitly with utf-8 replacing invalid sequences
-        proc = subprocess.run(cmd, capture_output=True)
+        # Use --format json. To avoid the CLI misparsing arbitrary text
+        # (including leading '-' bytes) as flags, provide the prompt via
+        # stdin instead of passing it as a positional argument.
+        cmd = ['ollama', 'run', self.model_name, '--format', 'json']
+        # Capture bytes and send prompt via stdin encoded as UTF-8
+        logger.debug('Invoking ollama run for model=%s input_bytes=%d', self.model_name, len((prompt or '').encode('utf-8', errors='replace')))
+        try:
+            proc = subprocess.run(cmd, input=(prompt or '').encode('utf-8', errors='replace'), capture_output=True)
+        except Exception as e:
+            logger.exception('Failed to invoke ollama run: %s', e)
+            raise RuntimeError(f"Failed to invoke ollama run: {e}")
+
         if proc.returncode != 0:
             # decode stderr safely for logging
             try:
                 serr = proc.stderr.decode('utf-8', errors='replace') if proc.stderr is not None else ''
             except Exception:
                 serr = str(proc.stderr)
+            logger.error('ollama run exited non-zero for model=%s; stderr=%s', self.model_name, serr[:1000])
             raise RuntimeError(f"ollama run failed: {serr.strip()}")
+
         stdout_bytes = proc.stdout or b''
         try:
             stdout_text = stdout_bytes.decode('utf-8', errors='replace')
         except Exception:
             # fallback to latin1 to avoid breaking
             stdout_text = stdout_bytes.decode('latin1', errors='replace')
+        logger.debug('ollama run returned %d bytes for model=%s', len(stdout_text.encode('utf-8', errors='replace')), self.model_name)
         try:
             return json.loads(stdout_text)
         except Exception:

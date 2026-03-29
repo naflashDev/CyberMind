@@ -522,6 +522,65 @@ def ensure_ollama_model(project_root: Path, model_name: str = "cybersentinel") -
         logger.error("Error ensuring Ollama model: {}", e)
 
 
+def ensure_ollama_models(project_root: Path, models: list) -> None:
+    """
+    Ensure a list of Ollama models are available locally.
+
+    For each model in `models` attempt the following in order:
+    - check `ollama list` to see if present
+    - try `ollama pull <model>` if not present
+    - as a last resort, if the model requested is the project's `cybersentinel`,
+      attempt to create it from the project's `Install/Modelfile` via
+      `ensure_ollama_model`.
+    """
+    try:
+        if not is_ollama_available():
+            logger.warning("Cannot ensure Ollama models because `ollama` CLI is not available.")
+            return
+
+        try:
+            proc = subprocess.run(["ollama", "list"], capture_output=True, text=True, check=False)
+            available = (proc.stdout or proc.stderr or "")
+        except Exception:
+            available = ""
+
+        for m in models:
+            try:
+                if m in available:
+                    logger.info("Ollama model '{}' already present.", m)
+                    continue
+
+                # Try to pull the model (common for third-party models like nomic-embed-text:latest)
+                logger.info("Attempting to pull Ollama model '{}'...", m)
+                try:
+                    subprocess.run(["ollama", "pull", m], check=False)
+                except Exception as e:
+                    logger.debug("`ollama pull` failed for {}: {}", m, e)
+
+                # Re-check availability
+                try:
+                    proc2 = subprocess.run(["ollama", "list"], capture_output=True, text=True, check=False)
+                    available = (proc2.stdout or proc2.stderr or "")
+                except Exception:
+                    available = ""
+
+                if m in available:
+                    logger.success("Ollama model '{}' is now available.", m)
+                    continue
+
+                # If pull failed and it's the project model, try creating from Modelfile
+                if m == "cybersentinel" or m.startswith("cybersentinel"):
+                    logger.info("Falling back to creating project model '{}' from Modelfile.", m)
+                    ensure_ollama_model(project_root, model_name="cybersentinel")
+                    continue
+
+                logger.warning("Model '{}' could not be retrieved automatically; manual action may be required.", m)
+            except Exception as inner:
+                logger.error("Unexpected error while ensuring model '{}': {}", m, inner)
+    except Exception as e:
+        logger.error("Error in ensure_ollama_models: {}", e)
+
+
 def os_get_euid() -> int:
     """Return effective uid on POSIX, or 0 on non-POSIX systems."""
     '''
@@ -636,8 +695,9 @@ def ensure_infrastructure(parameters, use_ollama=True):
                 logger.info("Ollama CLI detected on PATH.")
 
             # ensure the model exists (create from Modelfile if missing)
-            if is_ollama_available():
-                ensure_ollama_model(project_root, model_name="cybersentinel")
+                if is_ollama_available():
+                    # Ensure both the project model and the Nomic embed model are present
+                    ensure_ollama_models(project_root, ["cybersentinel", "nomic-embed-text:latest"])
         except Exception as e:
             logger.error(f"Error while ensuring Ollama/model: {e}")
     else:

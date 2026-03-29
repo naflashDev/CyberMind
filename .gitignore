@@ -6,6 +6,7 @@ __pycache__/
 *.sqlite3
 *.log
 *.env
+*.pdf
 .venv/
 venv/
 env/
@@ -26,5 +27,4 @@ result.json
 worker_settings.json
 serviceAccountKey.json
 bandit_output.json
-
 #md files

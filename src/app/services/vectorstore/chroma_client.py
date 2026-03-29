@@ -91,18 +91,14 @@ class ChromaClient:
         if embed_model is not None:
             self.embedder = embed_model
         else:
-            # allow overriding Ollama model name via env var
-            ollama_model = os.getenv('OLLAMA_MODEL_NAME', 'cybersentinel')
-            if shutil.which('ollama'):
-                try:
-                    self.embedder = OllamaEmbeddingAdapter(model_name=ollama_model)
-                    logging.getLogger(__name__).info('Using OllamaEmbeddingAdapter as default embedder (model=%s)', ollama_model)
-                except Exception as e:
-                    logging.getLogger(__name__).warning('Failed to initialize Ollama adapter: %s', e)
-                    self.embedder = None
-            else:
-                logging.getLogger(__name__).warning('ollama CLI not found in PATH; no embedder available')
-                self.embedder = None
+            # Do not auto-select external embedding providers by default to avoid
+            # unexpected external CLI calls in environments (tests, CI, etc.).
+            # Prefer explicitly passing an `embed_model` when embeddings are
+            # required (e.g., during document ingest). If an environment variable
+            # requests an Ollama-based embedder, the application can construct
+            # the adapter and pass it explicitly.
+            logging.getLogger(__name__).warning('No embed_model provided; embeddings disabled by default. Pass an EmbeddingAdapter to enable vectorization.')
+            self.embedder = None
         # Silence chromadb deprecation/info logs and create client. If the
         # chromadb API raises or logs deprecation warnings, prefer to continue
         # operating without a collection rather than crash the app.
@@ -186,6 +182,12 @@ class ChromaClient:
             return
         emb = self.embedder.embed_texts([text])[0]
         self.collection.upsert(ids=[str(doc_id)], embeddings=[emb], metadatas=[metadata or {}], documents=[text])
+        # Persist client state when possible so embeddings survive restarts
+        if hasattr(self.client, "persist"):
+            try:
+                self.client.persist()
+            except Exception:
+                pass
 
     def query_retriever(self, query: str, k: int = 5) -> List[Dict]:
         """Return top-k documents for query as list of {id, text, metadata, score}.
@@ -199,15 +201,29 @@ class ChromaClient:
             logging.getLogger(__name__).warning('Chroma collection not initialized; query_retriever returning empty')
             return []
         q_emb = self.embedder.embed_texts([query])[0]
-        results = self.collection.query(query_embeddings=[q_emb], n_results=k, include=['metadatas', 'documents', 'distances', 'ids'])
+        # Note: some chroma versions do not accept 'ids' in the include list.
+        # Request commonly-supported fields and derive an identifier from metadata
+        results = self.collection.query(query_embeddings=[q_emb], n_results=k, include=['metadatas', 'documents', 'distances'])
         docs = []
         # results contains lists per query; we asked one query
-        for idx, doc_text in enumerate(results.get("documents", [[]])[0]):
+        docs_list = results.get('documents', [[]])[0]
+        metas_list = results.get('metadatas', [[]])[0]
+        dists_list = results.get('distances', [[]])[0]
+        for idx, doc_text in enumerate(docs_list):
+            md = metas_list[idx] if idx < len(metas_list) else {}
+            # Prefer explicit doc id stored in metadata (e.g., 'doc_id'), else fall back to other metadata keys
+            doc_id = None
+            if isinstance(md, dict):
+                doc_id = md.get('doc_id') or md.get('id') or md.get('source')
+            if not doc_id:
+                # fallback to string index to avoid crashes
+                doc_id = str(idx)
+            score = dists_list[idx] if idx < len(dists_list) else None
             docs.append({
-                "id": results.get("ids", [[]])[0][idx],
-                "text": doc_text,
-                "metadata": results.get("metadatas", [[]])[0][idx],
-                "score": results.get("distances", [[]])[0][idx]
+                'id': doc_id,
+                'text': doc_text,
+                'metadata': md,
+                'score': score
             })
         return docs
 

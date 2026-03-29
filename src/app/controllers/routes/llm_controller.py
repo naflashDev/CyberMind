@@ -23,7 +23,20 @@ try:
     import app.services.vectorstore.chroma_client as chroma_mod
     if getattr(chroma_mod, "CHROMA_AVAILABLE", False):
         try:
-            _chroma_client = chroma_mod.ChromaClient()
+            # Initialize embed model adapter if Ollama is available so queries return context
+            embed_model = None
+            try:
+                from app.services.vectorstore.ollama_adapter import OllamaEmbeddingAdapter
+                import shutil, os
+                if shutil.which('ollama'):
+                    embed_name = os.getenv('EMBED_MODEL_NAME', 'nomic-embed-text:latest')
+                    try:
+                        embed_model = OllamaEmbeddingAdapter(model_name=embed_name)
+                    except Exception:
+                        embed_model = None
+            except Exception:
+                embed_model = None
+            _chroma_client = chroma_mod.ChromaClient(embed_model=embed_model)
         except Exception:
             _chroma_client = None
     else:
