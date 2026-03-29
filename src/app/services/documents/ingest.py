@@ -11,7 +11,6 @@ import json
 import os
 import tempfile
 import traceback
-
 from loguru import logger
 import shutil
 from app.services.vectorstore.ollama_adapter import OllamaEmbeddingAdapter
@@ -121,6 +120,11 @@ def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None,
                 metadata = dict(md)
                 # include a short preview
                 metadata['preview'] = text[:1000]
+                # Include a canonical source filename for vectors so retrievers can show origin
+                try:
+                    metadata['source'] = Path(orig_path).name
+                except Exception:
+                    metadata['source'] = metadata.get('original_filename') or metadata.get('stored_path')
                 logger.info('Attempting to upsert document {} into Chroma (embed_model={})', doc_id, embed_name if embed_model else 'None')
                 try:
                     client.upsert_document(doc_id, text or metadata.get('preview', ''), metadata)
