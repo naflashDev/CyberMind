@@ -163,6 +163,109 @@ class TestRunServices(unittest.TestCase):
                 # ensure subprocess.run was invoked at least once
                 self.assertTrue(run_mock.called)
 
+    def test_detect_host_os_linux_and_windows_branches(self):
+        # Force platform.system variations
+        with mock.patch('platform.system', return_value='Windows'):
+            plat, distro = rs.detect_host_os()
+            self.assertIsInstance(plat, str)
+        with mock.patch('platform.system', return_value='Linux'):
+            plat, distro = rs.detect_host_os()
+            self.assertIsInstance(plat, str)
+
+    def test_ensure_compose_no_services_found(self):
+        # Ensure safe behavior when docker config --services returns no services
+        tmp_root = Path(__file__).resolve().parent / 'tmp_project_root2'
+        install_dir = tmp_root / 'Install'
+        try:
+            install_dir.mkdir(parents=True, exist_ok=True)
+            cf = install_dir / 'docker-compose.yml'
+            cf.write_text('# dummy')
+            with mock.patch('shutil.which', return_value='/usr/bin/docker'):
+                def fake_run(cmd, capture_output=False, text=False, check=False, **kwargs):
+                    mock_res = mock.Mock()
+                    mock_res.returncode = 0
+                    mock_res.stdout = ''
+                    return mock_res
+                with mock.patch('subprocess.run', side_effect=fake_run):
+                    rs.ensure_compose_from_install(tmp_root)
+        finally:
+            try:
+                if cf.exists():
+                    cf.unlink()
+                if install_dir.exists():
+                    install_dir.rmdir()
+                if tmp_root.exists():
+                    tmp_root.rmdir()
+            except Exception:
+                pass
+
+        def test_try_install_ollama_and_model_branches(self):
+            # Speed: avoid real sleeps and subprocess effects by patching
+            with mock.patch('shutil.which', side_effect=lambda x: '/usr/bin/' + x if x in ('curl','winget','brew') else None):
+                # Windows winget path -> should attempt install and return True
+                with mock.patch('platform.system', return_value='Windows'):
+                    with mock.patch('subprocess.run', return_value=mock.Mock()):
+                        self.assertTrue(rs.try_install_ollama('Windows'))
+
+            # macOS brew path
+            with mock.patch('platform.system', return_value='Darwin'):
+                with mock.patch('shutil.which', return_value='/usr/local/bin/brew'):
+                    with mock.patch('subprocess.run', return_value=mock.Mock()):
+                        self.assertTrue(rs.try_install_ollama('Darwin'))
+
+        def test_ensure_ollama_model_no_modelfile(self):
+            # Ensure no exception when Modelfile missing and ollama present but model absent
+            tmp_root = Path(__file__).resolve().parent / 'tmp_project_root_model'
+            try:
+                tmp_root.mkdir(parents=True, exist_ok=True)
+                with mock.patch('app.utils.run_services.is_ollama_available', return_value=True):
+                    # Simulate `ollama list` not containing model
+                    mock_res = mock.Mock()
+                    mock_res.stdout = ''
+                    with mock.patch('subprocess.run', return_value=mock_res):
+                        rs.ensure_ollama_model(tmp_root, model_name='doesnotexist')
+            finally:
+                try:
+                    if tmp_root.exists():
+                        tmp_root.rmdir()
+                except Exception:
+                    pass
+
+        def test_os_get_euid_variants(self):
+            # Windows path -> returns 0
+            with mock.patch('platform.system', return_value='Windows'):
+                self.assertEqual(rs.os_get_euid(), 0)
+
+            # POSIX path -> try to return os.geteuid() (mocked)
+            with mock.patch('platform.system', return_value='Linux'):
+                with mock.patch('os.geteuid', return_value=1000):
+                    self.assertEqual(rs.os_get_euid(), 1000)
+
+        def test_shutdown_services_no_compose_and_no_docker(self):
+            # Should not raise if Install/ missing or docker not present
+            tmp_root = Path(__file__).resolve().parent / 'tmp_shutdown'
+            try:
+                tmp_root.mkdir(parents=True, exist_ok=True)
+                # Patch shutil.which to indicate no docker present
+                with mock.patch('shutil.which', return_value=None):
+                    with mock.patch('subprocess.run', return_value=mock.Mock()):
+                        rs.shutdown_services(project_root=tmp_root, stop_ollama=False, force_stop_containers=False)
+            finally:
+                try:
+                    if tmp_root.exists():
+                        tmp_root.rmdir()
+                except Exception:
+                    pass
+
+        def test_ensure_infrastructure_minimal_flow(self):
+            # Cover branch where docker not available and use_ollama False
+            with mock.patch('app.utils.run_services.is_docker_available', return_value=False):
+                with mock.patch('app.utils.run_services.ensure_compose_from_install') as mock_compose:
+                    with mock.patch('app.utils.run_services.ensure_containers') as mock_containers:
+                        rs.ensure_infrastructure({'distro_name': None, 'dockers_name': None}, use_ollama=False)
+                        mock_compose.assert_called()
+                        mock_containers.assert_called()
+
 
 if __name__ == '__main__':
     unittest.main()

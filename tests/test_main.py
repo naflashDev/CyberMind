@@ -5,6 +5,19 @@ import builtins
 import multiprocessing
 from fastapi.testclient import TestClient
 from unittest import mock
+# Speedups for slow tests: patch sleeping functions at module import time
+import time
+import asyncio
+try:
+    time.sleep = lambda s: None
+except Exception:
+    pass
+try:
+    async def _noop_async_sleep(s):
+        return None
+    asyncio.sleep = _noop_async_sleep
+except Exception:
+    pass
 # --- Advanced coverage: defensive and error branches ---
 def test_root_index_no_index(monkeypatch):
     import src.main as main_mod

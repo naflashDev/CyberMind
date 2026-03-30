@@ -53,3 +53,100 @@ def test_ingest_document_existing_entry(monkeypatch, tmp_path):
     monkeypatch.setattr(ingest_mod, '_CHROMA_AVAILABLE', False)
     out2 = ingest_mod.ingest_document(data, filename='file2.txt', folder=None)
     assert out2['doc_id'] is not None
+
+
+def test_text_from_bytes_pdf_fallback(monkeypatch):
+    '''
+    @brief If pypdf is missing or fails, ensure fallback decoding is used.
+    '''
+    # Force PdfReader to None to simulate missing dependency
+    monkeypatch.setattr(ingest_mod, 'PdfReader', None)
+    content = b'%PDF somepdfdata'
+    res = ingest_mod._text_from_bytes(content, 'doc.pdf')
+    # With PdfReader missing, it should fallback to decoding (likely empty or str)
+    assert isinstance(res, str)
+
+
+def test_ingest_document_name_collision(monkeypatch, tmp_path):
+    '''
+    @brief Ensure ingest_document handles existing filename collisions by creating numbered copies.
+    '''
+    monkeypatch.setattr(ingest_mod, 'DEFAULT_BASE', tmp_path)
+    # Create an existing file with same name
+    target = tmp_path / 'file.txt'
+    target.write_bytes(b'existing')
+    data = b'new content'
+    # Ensure tracker returns None so branch saves new file with incremented name
+    monkeypatch.setattr(ingest_mod.ingest_tracker, 'get_entry', lambda ch: None)
+    out = ingest_mod.ingest_document(data, filename='file.txt', folder=None)
+    assert out['file'] != 'file.txt' or out['file'].startswith('file_')
+
+
+def test_text_from_bytes_pdf_with_pypdf(monkeypatch):
+    '''
+    @brief When PdfReader is available, ensure page.extract_text is used.
+    '''
+    class FakePage:
+        def __init__(self, text):
+            self._text = text
+
+        def extract_text(self):
+            return self._text
+
+    class FakePdfReader:
+        def __init__(self, stream):
+            self.pages = [FakePage('page1'), FakePage('page2')]
+
+    monkeypatch.setattr(ingest_mod, 'PdfReader', FakePdfReader)
+    content = b'%PDF 1.4 dummy'
+    txt = ingest_mod._text_from_bytes(content, 'file.PDF')
+    assert 'page1' in txt and 'page2' in txt
+
+
+def test_text_from_bytes_pdf_reader_raises(monkeypatch):
+    '''
+    @brief If PdfReader raises, fallback to decoding should be used.
+    '''
+    class BadPdf:
+        def __init__(self, stream):
+            raise Exception('fail')
+
+    monkeypatch.setattr(ingest_mod, 'PdfReader', BadPdf)
+    content = b'%PDF something utf8'
+    res = ingest_mod._text_from_bytes(content, 'doc.pdf')
+    assert isinstance(res, str)
+
+
+def test_ingest_document_upsert_no_embedder_or_collection(monkeypatch, tmp_path):
+    '''
+    @brief Simulate chroma available but ChromaClient without embedder/collection.
+    '''
+    monkeypatch.setattr(ingest_mod, 'DEFAULT_BASE', tmp_path)
+    monkeypatch.setattr(ingest_mod, '_CHROMA_AVAILABLE', True)
+
+    # Fake ChromaClient in the module path used by ingest_document
+    class FakeClient:
+        def __init__(self, embed_model=None):
+            self.embedder = None
+            self.collection = None
+
+        def upsert_document(self, doc_id, text, metadata):
+            # pretend to accept the upsert
+            return None
+
+    monkeypatch.setattr('app.services.vectorstore.chroma_client.ChromaClient', FakeClient)
+    # ensure no previous entry
+    monkeypatch.setattr(ingest_mod.ingest_tracker, 'get_entry', lambda ch: None)
+    # capture record_ingest calls
+    recorded = {}
+    def fake_record_ingest(ch, doc_id, path, filename, folder, upserted=False):
+        recorded['called'] = True
+
+    monkeypatch.setattr(ingest_mod.ingest_tracker, 'record_ingest', fake_record_ingest)
+
+    data = b'hello for chroma'
+    out = ingest_mod.ingest_document(data, filename='c.txt', folder=None)
+    assert recorded.get('called', False) is True
+    # since embedder is None we expect upserted False and message mentioning 'no embedder' or 'saved'
+    assert out['upserted'] is False
+

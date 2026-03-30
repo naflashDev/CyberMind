@@ -7,6 +7,20 @@
 from fastapi.testclient import TestClient
 import app.controllers.routes.llm_controller as llm_mod
 import pytest
+import time
+import asyncio
+
+# Speedups: avoid real sleeps during these controller tests
+try:
+    time.sleep = lambda s: None
+except Exception:
+    pass
+try:
+    async def _noop_async_sleep(s):
+        return None
+    asyncio.sleep = _noop_async_sleep
+except Exception:
+    pass
 
 
 @pytest.fixture(autouse=True)
@@ -216,3 +230,14 @@ def test_background_cve_and_finetune_loop_wait_exception(monkeypatch):
     monkeypatch.setattr(time, 'sleep', lambda s: called.update({"sleep": True}))
     llm_mod.background_cve_and_finetune_loop(stop_event=DummyEvent())
     assert called["run"] and called["wait"] and called["sleep"]
+
+
+def test_query_with_missing_payload_returns_400(monkeypatch):
+    '''
+    @brief Posting to /llm/query without payload should return 400.
+    '''
+    from main import app
+    client = TestClient(app)
+    resp = client.post('/llm/query', json={})
+    # Depending on controller validation it could be 400 or 422 (FastAPI validation), accept both
+    assert resp.status_code in (400, 422)

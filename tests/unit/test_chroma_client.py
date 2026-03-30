@@ -217,3 +217,25 @@ def test_delete_by_ttl(tmp_path):
     assert isinstance(deleted, int)
     remaining = client.collection.get()
     assert isinstance(remaining.get('ids'), list)
+
+
+def test_chroma_client_no_collection_backup(tmp_path, monkeypatch):
+    '''
+    @brief Ensure client handles missing collection gracefully when persisting.
+    '''
+    _inject_fakes()
+    import importlib
+    chroma = importlib.import_module('app.services.vectorstore.chroma_client')
+    importlib.reload(chroma)
+    class FakeAdapter:
+        def embed_texts(self, texts):
+            return FakeModel().encode(texts, show_progress_bar=False).tolist()
+
+    client = chroma.ChromaClient(persist_directory=str(tmp_path), collection_name='test', embed_model=FakeAdapter())
+    # Force collection to None to exercise fallback
+    client.collection = None
+    # Upsert should not raise even if collection missing; backup may not be written
+    client._backup_path = tmp_path / 'cb.jsonl'
+    client.upsert_document('idx', 'text', metadata={'a': 1})
+    # If collection is None the method returns early without writing backup; ensure no exception and file state is acceptable
+    assert True

@@ -243,3 +243,33 @@ def test_os_get_euid_exception(monkeypatch):
     monkeypatch.setattr(run_services.platform, "system", lambda: "Linux")
     monkeypatch.setattr(run_services.os, "geteuid", lambda: (_ for _ in ()).throw(Exception("fail")))
     assert run_services.os_get_euid() == 0
+
+
+def test_ensure_infrastructure_calls_compose_and_containers(monkeypatch):
+    """
+    Happy Path: When `use_ollama=False` ensure_infrastructure should call
+    `ensure_compose_from_install` and `ensure_containers` without attempting
+    to install Ollama.
+    """
+    import importlib
+    importlib.reload(run_services)
+    called = {}
+
+    monkeypatch.setattr(run_services, 'is_docker_available', lambda: True)
+    monkeypatch.setattr(run_services, 'is_docker_daemon_running', lambda: True)
+
+    def fake_compose(pr):
+        called['compose'] = True
+
+    def fake_containers(containers, distro):
+        called['containers'] = (containers, distro)
+
+    monkeypatch.setattr(run_services, 'ensure_compose_from_install', fake_compose)
+    monkeypatch.setattr(run_services, 'ensure_containers', fake_containers)
+    # avoid sleeping long in ensure_infrastructure
+    # Ensure the sleep function accepts any args (avoid bound-method self arg issues)
+    monkeypatch.setattr(run_services, 'time', type('T', (), {'sleep': staticmethod(lambda *a, **k: None)})())
+
+    run_services.ensure_infrastructure({'distro_name': 'Ubuntu', 'dockers_name': 'a,b'}, use_ollama=False)
+    assert called.get('compose') is True
+    assert called.get('containers') is not None

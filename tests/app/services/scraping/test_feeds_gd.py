@@ -9,6 +9,14 @@ import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock
 from src.app.services.scraping import feeds_gd
 
+# Speedup: make asyncio.sleep awaitable no-op to avoid awaiting None
+try:
+    async def _noop_async_sleep(s):
+        return None
+    asyncio.sleep = _noop_async_sleep
+except Exception:
+    pass
+
 
 @pytest.mark.asyncio
 async def test_search_async_returns_results(monkeypatch):

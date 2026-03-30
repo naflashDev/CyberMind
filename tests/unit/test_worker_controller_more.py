@@ -108,3 +108,31 @@ def test_toggle_enable_vector_retention_starts_thread(monkeypatch):
     assert 'vector_retention' in req.app.state.worker_stop_events
     # Our fake thread factory should have recorded the target function
     assert callable(started.get('target'))
+
+
+def test_toggle_dynamic_spider_db_creation_failure_returns_503(monkeypatch):
+    """
+    Simula que no hay pool y la creación del pool falla: el endpoint debe
+    devolver una Response con código 503 y marcar el worker como no iniciado.
+    """
+    monkeypatch.setattr(wc, 'load_worker_settings', lambda: {'dynamic_spider': False})
+    monkeypatch.setattr(wc, 'save_worker_settings', lambda s: None)
+
+    # Force pool None and asyncpg.create_pool to raise
+    import types
+    req = make_request_state()
+    req.app.state.worker_stop_events = {}
+    req.app.state.worker_timers = {}
+    req.app.state.worker_status = {}
+
+    async def fake_create_pool(*a, **k):
+        raise Exception('db error')
+
+    monkeypatch.setattr('asyncpg.create_pool', fake_create_pool)
+
+    # Call the toggle (async) and check response
+    res = asyncio.run(wc.toggle_worker('dynamic_spider', wc.WorkerToggle(enabled=True), req))
+    # When DB pool creation fails, the code returns a Response with status 503
+    assert hasattr(res, 'status_code') and (res.status_code == 503 or res.status_code == '503')
+    # worker_status should be False for dynamic_spider
+    assert req.app.state.worker_status.get('dynamic_spider') is False
