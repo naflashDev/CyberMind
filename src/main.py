@@ -95,6 +95,11 @@ async def lifespan(app: FastAPI):
         try:
             from app.models.conversation import Conversation, Message  # noqa: F401
             from app.models.conversation_db import ConversationBase, engine as conv_engine
+            # Ensure our ingested_documents model is imported so the table is created
+            try:
+                from app.models.ingested_document import IngestedDocument  # noqa: F401
+            except Exception:
+                pass
             ConversationBase.metadata.create_all(bind=conv_engine)
         except Exception:
             pass
