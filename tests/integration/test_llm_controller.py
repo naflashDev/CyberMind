@@ -97,12 +97,15 @@ def test_llm_query_flow(tmp_path):
     except Exception:
         # ignore; if module not importable, our sys.modules shim will be used
         pass
-    # configure DB to use in-memory for tests
+    # configure DBs to use in-memory for tests
     import app.models.db as db
     db.set_db_url("sqlite:///:memory:")
-    # import models and create tables
+    # conversation models use a separate Base/engine; set that to in-memory too
+    import app.models.conversation_db as conv_db
+    conv_db.set_conversation_db_url("sqlite:///:memory:")
+    # import conversation models so they register with ConversationBase
     import app.models.conversation as conv_mod
-    db.Base.metadata.create_all(bind=db.engine)
+    conv_db.ConversationBase.metadata.create_all(bind=conv_db.engine)
 
     # import the router after fakes and DB prepared
     import app.controllers.routes.llm_controller as llm_controller

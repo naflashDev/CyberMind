@@ -33,6 +33,16 @@ def test_embed_parses_list_return():
     assert len(res[0]) == 3
 
 
+def test_parse_embeddings_key_and_nested_list():
+    ad = make_adapter_with_mocked_call({'embeddings': [[0.2, 0.3, 0.4]]})
+    res = ad.embed_texts(['x'])
+    assert len(res[0]) == 3
+
+    ad2 = make_adapter_with_mocked_call({'some': [0.1, 0.2, 0.3]})
+    res2 = ad2.embed_texts(['y'])
+    assert len(res2[0]) == 3
+
+
 def test_embed_raises_on_unparseable():
     ad = make_adapter_with_mocked_call({'not': 'an embedding'})
     try:
