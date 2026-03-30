@@ -239,3 +239,72 @@ def test_chroma_client_no_collection_backup(tmp_path, monkeypatch):
     client.upsert_document('idx', 'text', metadata={'a': 1})
     # If collection is None the method returns early without writing backup; ensure no exception and file state is acceptable
     assert True
+
+
+def test_write_backup_entries_handles_write_error(tmp_path, monkeypatch):
+    '''
+    @brief _write_backup_entries should return False if file write fails.
+    '''
+    import app.services.vectorstore.chroma_client as cc
+
+    obj = object.__new__(cc.ChromaClient)
+    # point to a path that would be used
+    obj._backup_path = tmp_path / 'cb.jsonl'
+
+    # Make open raise an exception to simulate write failure
+    def bad_open(*args, **kwargs):
+        raise IOError('disk full')
+
+    monkeypatch.setattr('builtins.open', bad_open)
+    res = obj._write_backup_entries([{'id': 'x', 'embedding': [0.1], 'metadata': {}, 'document': 'd'}], overwrite=True)
+    assert res is False
+
+
+def test_restore_from_backup_success(tmp_path):
+    '''
+    @brief _restore_from_backup should read valid JSONL and call collection.add/upsert.
+    '''
+    import app.services.vectorstore.chroma_client as cc
+    # prepare a backup file with two valid entries
+    bk = tmp_path / 'good.jsonl'
+    bk.write_text('{"id": "1", "embedding": [0.1], "metadata": {"doc_id": "1"}, "document": "d1"}\n{"id": "2", "embedding": [0.2], "metadata": {"doc_id": "2"}, "document": "d2"}\n')
+
+    class FakeColl:
+        def __init__(self):
+            self.add_called = False
+            self.upsert_called = False
+
+        def upsert(self, ids=None, embeddings=None, metadatas=None, documents=None):
+            self.upsert_called = True
+
+        def add(self, ids=None, embeddings=None, metadatas=None, documents=None):
+            self.add_called = True
+
+    ch = object.__new__(cc.ChromaClient)
+    ch._backup_path = bk
+    ch.collection = FakeColl()
+    # Ensure _can_persist True so persist path may be attempted
+    ch.client = type('C', (), {'persist': lambda self=None: None})()
+    ch._can_persist = True
+
+    res = ch._restore_from_backup()
+    assert res is True
+
+
+def test_delete_by_ttl_handles_no_ids(tmp_path):
+    '''
+    @brief delete_by_ttl should return 0 when unable to derive ids.
+    '''
+    import app.services.vectorstore.chroma_client as cc
+    ch = object.__new__(cc.ChromaClient)
+    # collection.get will raise on include=['ids'] to force fallback
+    class BadColl:
+        def get(self, include=None, ids=None):
+            if include and 'ids' in include:
+                raise Exception('no ids')
+            return {'metadatas': [[]]}
+
+    ch.collection = BadColl()
+    from datetime import datetime
+    res = ch.delete_by_ttl(datetime.utcnow())
+    assert res == 0

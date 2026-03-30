@@ -273,3 +273,201 @@ def test_ensure_infrastructure_calls_compose_and_containers(monkeypatch):
     run_services.ensure_infrastructure({'distro_name': 'Ubuntu', 'dockers_name': 'a,b'}, use_ollama=False)
     assert called.get('compose') is True
     assert called.get('containers') is not None
+
+
+def test_try_install_ollama_windows_winget(monkeypatch):
+    """
+    Windows path: winget available -> should attempt winget install and return True
+    """
+    from app.utils import run_services
+    called = {}
+
+    def which(name):
+        return True if name == 'winget' else False
+
+    def fake_run(cmd, check=False, **k):
+        called['cmd'] = cmd
+        return None
+
+    monkeypatch.setattr(run_services, 'shutil', type('S', (), {'which': staticmethod(which)})())
+    monkeypatch.setattr(run_services, 'subprocess', type('P', (), {'run': staticmethod(fake_run)})())
+    res = run_services.try_install_ollama('Windows')
+    assert res is True
+    assert 'winget' in ' '.join(called['cmd'])
+
+
+def test_try_install_ollama_darwin_brew(monkeypatch):
+    """
+    macOS path: brew available -> should attempt brew and return True
+    """
+    from app.utils import run_services
+    called = {}
+
+    def which(name):
+        return True if name == 'brew' else False
+
+    def fake_run(cmd, check=False, **k):
+        called['cmd'] = cmd
+        return None
+
+    monkeypatch.setattr(run_services, 'shutil', type('S', (), {'which': staticmethod(which)})())
+    monkeypatch.setattr(run_services, 'subprocess', type('P', (), {'run': staticmethod(fake_run)})())
+    res = run_services.try_install_ollama('Darwin')
+    assert res is True
+    assert 'brew' in ' '.join(called['cmd'])
+
+
+def test_try_install_ollama_linux_curl(monkeypatch, tmp_path):
+    """
+    Linux path: curl available -> should download and run installer script and return True
+    """
+    from app.utils import run_services
+    called = {}
+
+    def which(name):
+        return True if name == 'curl' else False
+
+    # capture shell commands passed to subprocess.run
+    def fake_run(cmd, shell=False, check=False, **k):
+        called.setdefault('cmds', []).append((cmd, shell))
+        return None
+
+    monkeypatch.setattr(run_services, 'shutil', type('S', (), {'which': staticmethod(which)})())
+    monkeypatch.setattr(run_services, 'subprocess', type('P', (), {'run': staticmethod(fake_run)})())
+
+    res = run_services.try_install_ollama('Linux')
+    assert res is True
+    # Expect at least one shell command executed (curl or sh)
+    assert any(shell for (_, shell) in called.get('cmds', []))
+
+
+def test_ensure_ollama_model_no_modelfile(monkeypatch, tmp_path):
+    """
+    ensure_ollama_model should not crash if Modelfile is missing and ollama is present.
+    """
+    from app.utils import run_services
+
+    # pretend ollama exists but `ollama list` returns empty
+    def which(name):
+        return True if name == 'ollama' else False
+
+    class Proc:
+        def __init__(self, out=''):
+            self.stdout = out
+            self.stderr = ''
+
+    def fake_run(cmd, capture_output=False, text=True, check=False):
+        # Simulate `ollama list` returning no models
+        return Proc(out='')
+
+    monkeypatch.setattr(run_services, 'shutil', type('S', (), {'which': staticmethod(which)})())
+    monkeypatch.setattr(run_services, 'subprocess', type('P', (), {'run': staticmethod(fake_run)})())
+
+    # Ensure Modelfile path does not exist
+    proj = tmp_path
+    monkeypatch.setattr(run_services.Path, 'exists', lambda self: False)
+
+    # Should not raise
+    run_services.ensure_ollama_model(proj, model_name='cybersentinel')
+
+
+def test_ensure_compose_fallback_combined(tmp_path, monkeypatch):
+    '''
+    @brief When both tinytinyrss and opensearch compose files exist but services cannot
+    be parsed, the function should execute a combined fallback compose up command.
+    '''
+    # Create Install dir with both compose files
+    inst = tmp_path / 'Install'
+    inst.mkdir()
+    (inst / 'tinytinyrss.yml').write_text('dummy: 1')
+    (inst / 'opensearch-compose.yml').write_text('dummy: 2')
+
+    calls = []
+
+    # simulate docker present
+    monkeypatch.setattr(run_services.shutil, 'which', staticmethod(lambda name: True if name == 'docker' else None))
+
+    # subprocess.run: first calls are config attempts returning returncode != 0 or empty stdout
+    class Proc:
+        def __init__(self, returncode=1, stdout=''):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = ''
+
+    def fake_run(cmd, capture_output=False, text=True, check=False, shell=False, **k):
+        # record the command invocation
+        calls.append((cmd, shell))
+        # For config commands return non-zero to force fallback
+        if isinstance(cmd, list) and 'config' in cmd:
+            return Proc(returncode=1, stdout='')
+        return Proc(returncode=0, stdout='')
+
+    monkeypatch.setattr(run_services, 'subprocess', type('P', (), {'run': staticmethod(fake_run)})())
+
+    # Call ensure_compose_from_install with project root tmp_path
+    run_services.ensure_compose_from_install(tmp_path)
+
+    # Expect at least one composed 'up' invocation (fallback combined compose)
+    executed = any((isinstance(c[0], list) and 'up' in [str(x) for x in c[0]]) or (isinstance(c[0], str) and 'up' in c[0]) for c in calls)
+    assert executed is True
+
+
+def test_try_install_ollama_no_manager(monkeypatch):
+    """
+    Edge Case: No known package manager present should return False.
+    """
+    from app.utils import run_services
+
+    # no manager present
+    monkeypatch.setattr(run_services.shutil, 'which', staticmethod(lambda name: None))
+    res = run_services.try_install_ollama('Windows')
+    assert res is False
+
+
+def test_ensure_ollama_models_present(monkeypatch):
+    """
+    If `ollama list` reports the model present, ensure_ollama_models should skip pulling.
+    """
+    from app.utils import run_services
+
+    class Proc:
+        def __init__(self, out='cybersentinel'):
+            self.stdout = out
+            self.stderr = ''
+
+    monkeypatch.setattr(run_services, 'is_ollama_available', lambda: True)
+    monkeypatch.setattr(run_services.subprocess, 'run', staticmethod(lambda *a, **k: Proc(out='cybersentinel')))
+
+    # Should not raise and should detect the model present
+    from pathlib import Path
+    run_services.ensure_ollama_models(Path('.'), ['cybersentinel'])
+
+
+def test_ensure_ollama_models_fallback_create(monkeypatch, tmp_path):
+    """
+    When pull fails for project model, should call ensure_ollama_model as fallback.
+    """
+    from app.utils import run_services
+    called = {}
+
+    class ProcEmpty:
+        def __init__(self):
+            self.stdout = ''
+            self.stderr = ''
+
+    def fake_run(cmd, check=False, **k):
+        # Simulate list returning empty, pull raising, subsequent list empty
+        if isinstance(cmd, list) and cmd[:2] == ['ollama', 'pull']:
+            raise Exception('pull failed')
+        return ProcEmpty()
+
+    monkeypatch.setattr(run_services, 'is_ollama_available', lambda: True)
+    monkeypatch.setattr(run_services, 'subprocess', type('P', (), {'run': staticmethod(fake_run)})())
+
+    def fake_ensure_model(proj, model_name='cybersentinel'):
+        called['ensured'] = True
+
+    monkeypatch.setattr(run_services, 'ensure_ollama_model', fake_ensure_model)
+
+    run_services.ensure_ollama_models(tmp_path, ['cybersentinel'])
+    assert called.get('ensured') is True
