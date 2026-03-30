@@ -214,8 +214,18 @@ def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None,
                 try:
                     client.upsert_document(doc_id, text or metadata.get('preview', ''), metadata)
                     logger.success('Document %s upsert requested', doc_id)
-                    upserted = True
-                    message = 'saved and indexed'
+                    # Only mark as upserted if we had an embedder and a Chroma collection available.
+                    if client.embedder is None:
+                        logger.warning('No embedder configured; document %s was not vectorized', doc_id)
+                        upserted = False
+                        message = 'saved (no embedder)'
+                    elif client.collection is None:
+                        logger.warning('Chroma collection not initialized; document %s may not have been indexed', doc_id)
+                        upserted = False
+                        message = 'saved (no collection)'
+                    else:
+                        upserted = True
+                        message = 'saved and indexed'
                 except Exception as e:
                     logger.exception('Chroma upsert failed for %s: %s', doc_id, e)
                     # preserve message for caller

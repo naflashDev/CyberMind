@@ -18,7 +18,6 @@ catalogue==2.0.10
 certifi==2026.2.25
 cffi==2.0.0
 charset-normalizer==3.4.6
-Chroma==0.2.0
 chromadb==1.5.5
 click==8.3.1
 click-option-group==0.5.9
@@ -33,7 +32,9 @@ cymem==2.0.13
 dataclasses-json==0.6.7
 defusedxml==0.7.1
 dotenv==0.9.9
+duckdb==1.5.1
 durationpy==0.10
+en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl#sha256=1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85
 es_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.8.0/es_core_news_sm-3.8.0-py3-none-any.whl#sha256=e451a83d6df79b87e9eed0cb553f03e99e36a3bab18a7b79f0dcfd1fdf875e12
 Events==0.5
 exceptiongroup==1.2.2
@@ -179,9 +180,6 @@ six==1.17.0
 smart_open==7.5.1
 soupsieve==2.8.3
 spacy==3.8.0
-# Modelos (Inglés y Español) descargados directamente desde GitHub
-https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
-https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.8.0/es_core_news_sm-3.8.0-py3-none-any.whl
 spacy-legacy==3.0.12
 spacy-loggers==1.0.5
 SQLAlchemy==2.0.48
