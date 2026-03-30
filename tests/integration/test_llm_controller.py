@@ -42,7 +42,24 @@ def _inject_fakes():
     services_mod = sys.modules.get('app.services') or ModuleType('app.services')
     llm_pkg = sys.modules.get('app.services.llm') or ModuleType('app.services.llm')
     llm_client_mod = ModuleType('app.services.llm.llm_client')
-    def fake_query_llm(prompt, system_prompt=None):
+    def fake_query_llm(*args, **kwargs):
+        # Accept either prompt=..., messages=[{role,content}] or positional
+        if 'messages' in kwargs:
+            msgs = kwargs.get('messages') or []
+            # prefer last user content
+            for m in reversed(msgs):
+                if isinstance(m, dict) and m.get('role') == 'user' and m.get('content'):
+                    return f'FAKE_RESPONSE'
+            return 'FAKE_RESPONSE'
+        if args:
+            first = args[0]
+            if isinstance(first, str):
+                return 'FAKE_RESPONSE'
+            if isinstance(first, list):
+                for m in reversed(first):
+                    if isinstance(m, dict) and m.get('role') == 'user' and m.get('content'):
+                        return 'FAKE_RESPONSE'
+                return 'FAKE_RESPONSE'
         return 'FAKE_RESPONSE'
     llm_client_mod.query_llm = fake_query_llm
     # also provide a llm_trainer module used by the controller

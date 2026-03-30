@@ -84,11 +84,62 @@ def global_patches(monkeypatch):
     # Patch LLM query to controlled response on both import paths
     def _fake_query(*args, **kwargs):
         # Compatible stub for any signature (positional or keyword)
-        prompt = args[0] if args else kwargs.get('prompt') or ''
-        return f"ECHO: {prompt}"
+        # Try several possible input shapes: explicit prompt, messages list, or positional arg
+        prompt_val = ''
+        if args:
+            # Could be called with a single prompt string or messages list
+            first = args[0]
+            if isinstance(first, str):
+                prompt_val = first
+            elif isinstance(first, list) and first:
+                # find last user message
+                for m in reversed(first):
+                    if isinstance(m, dict) and m.get('role') == 'user' and m.get('content'):
+                        prompt_val = m.get('content')
+                        break
+        elif 'prompt' in kwargs:
+            prompt_val = kwargs.get('prompt') or ''
+        elif 'messages' in kwargs:
+            msgs = kwargs.get('messages')
+            if isinstance(msgs, list) and msgs:
+                for m in reversed(msgs):
+                    if isinstance(m, dict) and m.get('role') == 'user' and m.get('content'):
+                        prompt_val = m.get('content')
+                        break
+        return f"ECHO: {prompt_val}"
 
     monkeypatch.setattr(llm_controller, "query_llm", _fake_query)
     monkeypatch.setattr(app_llm, "query_llm", _fake_query)
+    # Speed up async sleeps and random delays used by various modules
+    import asyncio, random
+    monkeypatch.setattr(asyncio, "sleep", lambda _s: None)
+    monkeypatch.setattr(random, "uniform", lambda a, b: 0.01)
+
+    # Prevent DB metadata creation and shutdown side-effects during lifespan
+    try:
+        import app.models.db as _dbmod
+        monkeypatch.setattr(_dbmod.Base.metadata, "create_all", lambda bind=None: None)
+    except Exception:
+        pass
+
+    try:
+        import app.models.conversation_db as _conv
+        monkeypatch.setattr(_conv.ConversationBase.metadata, "create_all", lambda bind=None: None)
+    except Exception:
+        pass
+
+    monkeypatch.setattr(main, "shutdown_services", lambda *a, **k: None)
+    # Replace app lifespan with a no-op context to avoid startup workload
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def _noop_lifespan(app=None):
+        yield
+
+    try:
+        main.app.router.lifespan_context = lambda app=None: _noop_lifespan(app)
+    except Exception:
+        pass
 
     yield
 

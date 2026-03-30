@@ -6,6 +6,65 @@
 """
 from fastapi.testclient import TestClient
 import app.controllers.routes.llm_controller as llm_mod
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def stub_startup(monkeypatch):
+    """Prevent heavy startup actions during these controller tests."""
+    import src.main as main_mod
+    monkeypatch.setattr(main_mod, "ensure_infrastructure", lambda *a, **k: None)
+
+    async def _dummy_init(app):
+        app.state.ui_initialized = True
+
+    monkeypatch.setattr(main_mod, "initialize_background_tasks", _dummy_init)
+
+    # Patch threading.Thread so background threads aren't started
+    class DummyThread:
+        def __init__(self, *a, **k):
+            pass
+
+        def start(self):
+            return None
+
+    try:
+        monkeypatch.setattr(main_mod.threading, "Thread", DummyThread)
+    except Exception:
+        import threading as _threading
+        monkeypatch.setattr(_threading, "Thread", DummyThread)
+
+    # Prevent DB metadata creation during lifespan
+    try:
+        import app.models.db as _dbmod
+        monkeypatch.setattr(_dbmod.Base.metadata, "create_all", lambda bind=None: None)
+    except Exception:
+        pass
+
+    try:
+        import app.models.conversation_db as _conv
+        monkeypatch.setattr(_conv.ConversationBase.metadata, "create_all", lambda bind=None: None)
+    except Exception:
+        pass
+
+    # Prevent shutdown side-effects and long sleeps
+    monkeypatch.setattr(main_mod, "shutdown_services", lambda *a, **k: None)
+    import asyncio, random
+    monkeypatch.setattr(asyncio, "sleep", lambda _s: None)
+    monkeypatch.setattr(random, "uniform", lambda a, b: 0.01)
+    # Replace app lifespan with a no-op context to avoid startup workload
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def _noop_lifespan(app=None):
+        yield
+
+    try:
+        main_mod.app.router.lifespan_context = lambda app=None: _noop_lifespan(app)
+    except Exception:
+        pass
+
+    yield
 
 
 class DummyThread:

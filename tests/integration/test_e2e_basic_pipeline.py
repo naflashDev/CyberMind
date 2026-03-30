@@ -28,6 +28,36 @@ def patch_startup(monkeypatch):
         app.state.ui_initialized = True
 
     monkeypatch.setattr(main, "initialize_background_tasks", _dummy_init)
+    # Reduce delays from asyncio.sleep and random.uniform
+    import asyncio, random
+    monkeypatch.setattr(asyncio, "sleep", lambda _s: None)
+    monkeypatch.setattr(random, "uniform", lambda a, b: 0.01)
+
+    # Prevent DB metadata creation and shutdown side-effects during lifespan
+    try:
+        import app.models.db as _dbmod
+        monkeypatch.setattr(_dbmod.Base.metadata, "create_all", lambda bind=None: None)
+    except Exception:
+        pass
+
+    try:
+        import app.models.conversation_db as _conv
+        monkeypatch.setattr(_conv.ConversationBase.metadata, "create_all", lambda bind=None: None)
+    except Exception:
+        pass
+
+    monkeypatch.setattr(main, "shutdown_services", lambda *a, **k: None)
+    # Replace app lifespan with a no-op context to avoid startup workload
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def _noop_lifespan(app=None):
+        yield
+
+    try:
+        main.app.router.lifespan_context = lambda app=None: _noop_lifespan(app)
+    except Exception:
+        pass
     yield
 
 

@@ -28,22 +28,30 @@ async def test_search_async_executor(monkeypatch):
     assert result == []
 
 @pytest.mark.asyncio
-async def test_run_dork_search_feed(monkeypatch):
+async def test_run_dork_search_feed(monkeypatch, tmp_path):
     """
     Happy Path: run_dork_search_feed writes results to file.
+
+    This test mocks `search_async` to return a single deterministic URL and
+    mocks `asyncio.sleep` to avoid long delays caused by randomized waits
+    inside `run_dork_search_feed`.
     """
-    monkeypatch.setattr(feeds_gd, "search_async", lambda q, num_results=15: [f"http://{q}.com"])
-    from pathlib import Path
-    class DummyPath(Path):
-        _flavour = type(Path())._flavour
-        def exists(self): return True
-        def open(self, mode='a', encoding=None):
-            class F:
-                def write(self, x): pass
-                def __enter__(self): return self
-                def __exit__(self, exc_type, exc_val, exc_tb): pass
-                def __iter__(self): return iter([])  # Simula archivo vacío
-            return F()
-    monkeypatch.setattr(feeds_gd, "OUTPUT_FILE", DummyPath("/tmp/test_urls.txt"))
+    async def fake_search_async(q, num_results=15):
+        return [f"http://{q.replace('"', '').split()[0]}.com"]
+
+    async def fake_sleep(_):
+        return None
+
+    # Use an isolated temporary file for OUTPUT_FILE
+    out_file = tmp_path / "test_urls.txt"
+    out_file.write_text("")
+
+    monkeypatch.setattr(feeds_gd, "search_async", fake_search_async)
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(feeds_gd, "OUTPUT_FILE", out_file)
+
     await feeds_gd.run_dork_search_feed()
-    assert True  # If no exception, test passes
+
+    # Ensure the file was written and contains at least one URL
+    content = out_file.read_text()
+    assert "http://" in content
