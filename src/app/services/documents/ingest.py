@@ -72,6 +72,23 @@ def _text_from_bytes(file_bytes: bytes, filename: str = None) -> str:
             return ''
 
 
+    def is_blacklisted_filename(filename: str) -> bool:
+        """
+        Return True for filenames that should be skipped from ingestion.
+
+        This includes common repository metadata and delta files that are
+        not useful for embeddings: delta.json, deltalog.json, README.md,
+        and .gitignore. Comparison is case-insensitive.
+        """
+        if not filename:
+            return False
+        try:
+            name = filename.lower()
+            return name in ("delta.json", "deltalog.json", "readme.md", ".gitignore")
+        except Exception:
+            return False
+
+
 def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None, conversation_id: int = None, original_url: str = None):
     """
     Ingest a single uploaded file.
@@ -87,6 +104,23 @@ def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None,
     """
     try:
         base = _ensure_folder(folder)
+        # Skip files that are known repository/docs metadata and should not
+        # be ingested into the vectorstore (e.g., delta files, README, .gitignore)
+        try:
+            if is_blacklisted_filename(filename):
+                logger.info('Skipping blacklisted filename=%s', filename)
+                return {
+                    'doc_id': None,
+                    'file': filename,
+                    'path': None,
+                    'metadata_path': None,
+                    'upserted': False,
+                    'message': 'skipped_blacklisted_file',
+                    'metadata': {'original_filename': filename, 'folder': str(base.as_posix())}
+                }
+        except Exception:
+            # If blacklist check fails, continue normally
+            pass
         safe_filename = (filename or 'uploaded').replace(' ', '_')
         # Compute a content-based hash to uniquely identify the document regardless
         # of the filename. This prevents re-ingesting the same bytes multiple times.

@@ -348,15 +348,25 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
                         except Exception:
                             chroma_client = None
 
-                        from app.services.documents.ingest import ingest_document
+                        from app.services.documents import ingest as ingest_service
+                        ingest_document = ingest_service.ingest_document
 
-                        for root, _, files in __import__("os").walk(ingest_folder):
+                        for root, dirs, files in __import__("os").walk(ingest_folder):
+                            # Skip known repo metadata directories (e.g., .github)
+                            try:
+                                dirs[:] = [d for d in dirs if d.lower() != '.github']
+                            except Exception:
+                                pass
+
                             for fname in files:
-                                # Ignore delta files produced by some CVE repos
-                                # which are not useful for embeddings and may
-                                # cause duplicate processing.
-                                if fname.lower() in ("delta.json", "deltalog.json"):
-                                    continue
+                                # Ignore blacklisted files (delta files, readmes, git metadata)
+                                try:
+                                    if ingest_service.is_blacklisted_filename(fname):
+                                        continue
+                                except Exception:
+                                    # if blacklist check fails, fall back to previous behavior
+                                    if fname.lower() in ("delta.json", "deltalog.json"):
+                                        continue
 
                                 path = __import__("os").path.join(root, fname)
                                 try:
