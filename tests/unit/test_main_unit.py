@@ -229,3 +229,59 @@ def test_initialize_background_tasks_full(monkeypatch):
     asyncio.run(run_init())
 
     assert app.state.ui_initialized is True
+
+
+def test_read_file_success_and_escape(tmp_path):
+    from app.utils.utils import read_file
+    p = tmp_path / "test.txt"
+    p.write_text("# comment\nvalid_line\nIGNORE_THIS\n", encoding="utf-8")
+    code, msg, content = read_file(str(p), ["# ", "IGNORE_"])
+    assert code == 0
+    assert isinstance(content, list)
+    assert content == ["valid_line"]
+
+
+def test_read_file_invalid_params():
+    from app.utils.utils import read_file
+    code, msg = read_file(None)[:2]
+    assert code == 5
+
+
+def test_write_file_success_and_invalid(tmp_path):
+    from app.utils.utils import write_file
+    p = tmp_path / "out.txt"
+    code, msg = write_file(str(p), ["a", "b\n"])[:2]
+    assert code == 0
+    assert p.read_text(encoding="utf-8") == "ab\n"
+
+    code2, msg2 = write_file(str(p), "notalist")[:2]
+    assert code2 == 5
+
+
+def test_get_connection_parameters_success_and_missing(tmp_path):
+    from app.utils.utils import get_connection_parameters
+    p = tmp_path / "conn.cfg"
+    p.write_text("server_ip=127.0.0.1;server_port=5432\n", encoding="utf-8")
+    code, msg, params = get_connection_parameters(str(p))
+    assert code == 0
+    assert params == ("127.0.0.1", "5432")
+
+    p2 = tmp_path / "conn2.cfg"
+    p2.write_text("server_ip=1.2.3.4\n", encoding="utf-8")
+    code2, msg2 = get_connection_parameters(str(p2))[:2]
+    assert code2 == 3
+
+
+def test_get_connection_service_parameters_and_create_config(tmp_path):
+    from app.utils.utils import get_connection_service_parameters, create_config_file
+    p = tmp_path / "svc.cfg"
+    p.write_text("distro_name=debian;dockers_name=mydock\n", encoding="utf-8")
+    code, msg, params = get_connection_service_parameters(str(p))
+    assert code == 0
+    assert isinstance(params, dict)
+    assert params.get("distro_name") == "debian"
+
+    target = tmp_path / "new.cfg"
+    rc, message = create_config_file(str(target), ["a=1\n"])[:2]
+    assert rc == 0
+    assert target.exists()

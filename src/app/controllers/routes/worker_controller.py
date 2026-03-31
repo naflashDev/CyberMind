@@ -352,6 +352,12 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
 
                         for root, _, files in __import__("os").walk(ingest_folder):
                             for fname in files:
+                                # Ignore delta files produced by some CVE repos
+                                # which are not useful for embeddings and may
+                                # cause duplicate processing.
+                                if fname.lower() in ("delta.json", "deltalog.json"):
+                                    continue
+
                                 path = __import__("os").path.join(root, fname)
                                 try:
                                     with open(path, 'rb') as rf:

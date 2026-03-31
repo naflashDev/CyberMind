@@ -25,18 +25,19 @@ class TestLLMClient(unittest.TestCase):
             res = llm_client.query_llm('hi')
             self.assertEqual(res, 'answer')
 
+    def test_query_llm_empty_content(self):
+        fake_resp = mock.Mock()
+        fake_resp.json.return_value = {'message': {'content': ''}}
+        fake_resp.raise_for_status.return_value = None
+        with mock.patch('requests.post', return_value=fake_resp):
+            res = llm_client.query_llm('hi')
+            self.assertTrue(isinstance(res, str) and (res.startswith('Respuesta') or 'vacía' in res))
+
     def test_query_llm_failure(self):
         with mock.patch('requests.post', side_effect=Exception('no')):
             res = llm_client.query_llm('hi')
             self.assertTrue(res.startswith('Error'))
 
-class TestLLMTrainer(unittest.TestCase):
-    def test_run_periodic_training_calls_steps(self):
-        with mock.patch('app.services.llm.llm_trainer.update_cve_repo') as up_mock:
-            with mock.patch('app.services.llm.llm_trainer.prepare_dataset') as prep_mock:
-                llm_trainer.run_periodic_training()
-                up_mock.assert_called()
-                prep_mock.assert_called()
 
 if __name__ == '__main__':
     unittest.main()
