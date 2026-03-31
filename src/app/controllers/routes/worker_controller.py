@@ -354,7 +354,9 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
                         for root, dirs, files in __import__("os").walk(ingest_folder):
                             # Skip known repo metadata directories (e.g., .github)
                             try:
-                                dirs[:] = [d for d in dirs if d.lower() != '.github']
+                                # Exclude common VCS and repo metadata folders from scanning
+                                # e.g., .github and .git so we don't traverse hidden repo data
+                                dirs[:] = [d for d in dirs if d.lower() not in ('.github', '.git')]
                             except Exception:
                                 pass
 
@@ -374,6 +376,13 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
                                         content = rf.read()
                                 except Exception:
                                     continue
+                                # If this looks like a CVE JSON file inside a CVE repo tree,
+                                # index it in-place (no copy into data/documents).
+                                try:
+                                    lower_root = root.replace('\\', '/').lower()
+                                    is_cve_json = fname.lower().endswith('.json') and (('/cves/' in lower_root) or ('cve' in lower_root) or ('cvelist' in lower_root))
+                                except Exception:
+                                    is_cve_json = False
                                 # compute stable doc_id using the same filename sanitization
                                 # as `ingest_document` (spaces -> underscores) to ensure
                                 # consistent ids and avoid duplicate upserts.
@@ -396,7 +405,11 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
 
                                 if not skip:
                                     try:
-                                        ingest_document(content, filename=fname, folder=None)
+                                        if is_cve_json:
+                                            # ingest without creating a copy; use original path for metadata
+                                            ingest_document(content, filename=fname, folder=None, save_copy=False, original_path=path)
+                                        else:
+                                            ingest_document(content, filename=fname, folder=None)
                                     except Exception:
                                         logger.exception(f"[vector_ingest] Error ingesting {path}")
 

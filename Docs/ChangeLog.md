@@ -2,6 +2,26 @@
 ### Added
 - Sección "Code Scanning" en la UI bajo "Services" con soporte para análisis de código por texto y archivo, mostrando resultados en tarjetas visuales y descarga de informe PDF.
 - Documentación de endpoints de code scanning en `api_endpoints.md`.
+### Fixed
+- Worker `vector_ingest` now excludes the hidden `.git` directory from folder scans to avoid ingesting VCS metadata.
+- Ignore repository metadata files (`.gitignore`, `.gitattributes`, `README.md`) during ingestion by using a centralized blacklist.
+- CVE JSON files under repository trees are no longer copied into `data/documents`; they are read in-place and embedded directly from their original location to avoid duplication.
+### Added
+- Implementación inicial de RAG (Retrieval-Augmented Generation): ingestión, vectorización y pipeline de recuperación para respuestas enriquecidas.
+
+	- **Resumen técnico:** Se introduce un flujo completo para ingerir documentos, generar embeddings y exponer mecanismos de recuperación que permiten combinar resultados semánticos con un LLM para respuestas RAG.
+	- **Componentes afectados:**
+		- `src/app/services/documents/ingest.py` — normalización, blacklist central y opción `save_copy` para evitar duplicar ficheros (CVE JSONs pueden indexarse in-place).
+		- `src/app/controllers/routes/worker_controller.py` — worker `vector_ingest` mejorado para excluir carpetas VCS (`.git`, `.github`) y detectar/usar JSONs CVE en su ubicación original.
+		- `src/app/services/vectorstore/*` — integración con Chroma y adaptador de embeddings (`OllamaEmbeddingAdapter`) para generar vectores y gestionar colecciones.
+		- `src/app/services/documents/ingest_tracker.py` — tracker de ingesta usado para evitar duplicados y controlar reindexados.
+		- Endpoints y controladores relacionados con recuperación/consulta están listos para integrarse con el retriever (ver `Docs/api_endpoints.md`).
+	- **Notas de pruebas / CI:**
+		- Se añadieron tests unitarios para la lógica de blacklist y el worker `vector_ingest` (tests unitarios en `tests/unit/test_ingest_blacklist.py` y pruebas de `worker_controller`).
+		- La CI ejecuta `pytest` con `pytest-cov`; la pipeline de coverage verifica que los cambios no reduzcan la cobertura por debajo del umbral establecido.
+	- **Limitaciones conocidas:**
+		- Indexación in-place de JSONs asume que los ficheros son legibles y estables en disco; si se desea copia automática, use `save_copy=True` en la API de ingest.
+		- Soporte de embebbedor local depende de `ollama` disponible en PATH o configuración alternativa del env var `EMBED_MODEL_NAME`.
 ### Changed (2026-02-13)
 - Ampliados los tests unitarios para `src/app/services/hashed/bruteforce_utils.py`, cubriendo la función interna `_bruteforce_worker` (timeout, max_combinations, chunking, caracteres especiales, detección exitosa y fallida). La cobertura del módulo supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
 Archivos modificados:

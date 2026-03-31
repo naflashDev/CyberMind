@@ -72,24 +72,24 @@ def _text_from_bytes(file_bytes: bytes, filename: str = None) -> str:
             return ''
 
 
-    def is_blacklisted_filename(filename: str) -> bool:
-        """
-        Return True for filenames that should be skipped from ingestion.
+def is_blacklisted_filename(filename: str) -> bool:
+    """
+    Return True for filenames that should be skipped from ingestion.
 
-        This includes common repository metadata and delta files that are
-        not useful for embeddings: delta.json, deltalog.json, README.md,
-        and .gitignore. Comparison is case-insensitive.
-        """
-        if not filename:
-            return False
-        try:
-            name = filename.lower()
-            return name in ("delta.json", "deltalog.json", "readme.md", ".gitignore")
-        except Exception:
-            return False
+    This includes common repository metadata and delta files that are
+    not useful for embeddings: delta.json, deltalog.json, README.md,
+    .gitignore and .gitattributes. Comparison is case-insensitive.
+    """
+    if not filename:
+        return False
+    try:
+        name = filename.lower()
+        return name in ("delta.json", "deltalog.json", "readme.md", ".gitignore", ".gitattributes")
+    except Exception:
+        return False
 
 
-def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None, conversation_id: int = None, original_url: str = None):
+def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None, conversation_id: int = None, original_url: str = None, *, save_copy: bool = True, original_path: str | None = None):
     """
     Ingest a single uploaded file.
 
@@ -191,25 +191,37 @@ def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None,
                     'metadata': {'content_hash': content_hash}
                 }
 
-        orig_path = base / orig_name
-        if orig_path.exists():
-            stem = Path(safe_filename).stem
-            suffix = Path(safe_filename).suffix
-            i = 1
-            while (base / f"{stem}_{i}{suffix}").exists():
-                i += 1
-            orig_path = base / f"{stem}_{i}{suffix}"
-        with open(orig_path, 'wb') as of:
-            of.write(file_bytes)
+        stored_path = ''
+        orig_path = None
+        if save_copy:
+            orig_path = base / orig_name
+            if orig_path.exists():
+                stem = Path(safe_filename).stem
+                suffix = Path(safe_filename).suffix
+                i = 1
+                while (base / f"{stem}_{i}{suffix}").exists():
+                    i += 1
+                orig_path = base / f"{stem}_{i}{suffix}"
+            with open(orig_path, 'wb') as of:
+                of.write(file_bytes)
 
-        logger.info('Saved uploaded file to {} ({} bytes)', str(orig_path.as_posix()), orig_path.stat().st_size)
+            logger.info('Saved uploaded file to {} ({} bytes)', str(orig_path.as_posix()), orig_path.stat().st_size)
+            stored_path = str(orig_path.as_posix())
+        else:
+            # Do not create a copy on disk; use the original path when available
+            try:
+                stored_path = original_path or ''
+                orig_path = Path(stored_path) if stored_path else None
+            except Exception:
+                orig_path = None
+                stored_path = ''
 
         # minimal metadata
         md = {
             'doc_id': doc_id,
             'content_hash': content_hash,
             'original_filename': filename,
-            'stored_path': str(orig_path.as_posix()),
+            'stored_path': stored_path,
             'folder': str(base.as_posix()),
             'conversation_id': conversation_id,
             'original_url': original_url,
@@ -241,7 +253,7 @@ def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None,
                 metadata['preview'] = text[:1000]
                 # Include a canonical source filename for vectors so retrievers can show origin
                 try:
-                    metadata['source'] = Path(orig_path).name
+                    metadata['source'] = Path(orig_path).name if orig_path is not None else metadata.get('original_filename') or metadata.get('stored_path')
                 except Exception:
                     metadata['source'] = metadata.get('original_filename') or metadata.get('stored_path')
                 logger.info('Attempting to upsert document {} into Chroma (embed_model={})', doc_id, embed_name if embed_model else 'None')
@@ -272,14 +284,14 @@ def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None,
 
         # Record ingestion in tracker to avoid duplicates later
         try:
-            ingest_tracker.record_ingest(content_hash, doc_id, str(orig_path.as_posix()), filename, folder, upserted=bool(upserted))
+            ingest_tracker.record_ingest(content_hash, doc_id, stored_path, filename, folder, upserted=bool(upserted))
         except Exception:
             logger.exception('Failed to record ingest in tracker for %s', doc_id)
 
         return {
             'doc_id': doc_id,
-            'file': str(orig_path.name),
-            'path': str(orig_path.as_posix()),
+            'file': str(orig_path.name) if orig_path is not None else orig_name,
+            'path': stored_path,
             'metadata_path': None,
             'upserted': upserted,
             'message': message,
