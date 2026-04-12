@@ -16,6 +16,7 @@ except Exception:
     CHROMA_AVAILABLE = False
 
 from app.models.db import SessionLocal
+from app.models.conversation_db import SessionLocal as ConversationSessionLocal
 from app.models.conversation import Message, Conversation
 from sqlalchemy.exc import OperationalError
 
@@ -64,6 +65,9 @@ def vector_and_message_retention(stop_event: threading.Event, days: int = 7, int
             try:
                 db = SessionLocal()
                 try:
+                    # Use the conversation-specific DB (conversations.db) for Message/Conversation tables
+                    db.close()
+                    db = ConversationSessionLocal()
                     # delete old messages (if table exists)
                     msg_q = db.query(Message).filter(Message.timestamp < cutoff.replace(tzinfo=None))
                     deleted_msgs = msg_q.delete(synchronize_session=False)

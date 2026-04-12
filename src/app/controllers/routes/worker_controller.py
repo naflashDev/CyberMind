@@ -320,7 +320,7 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
     elif name == "vector_retention":
         # Start the retention worker dynamically (purge old vectors and DB messages)
         try:
-            mod = __import__("app.controllers.routes.retention_worker", fromlist=["vector_and_message_retention"])
+            mod = __import__("app.services.retention.retention_worker", fromlist=["vector_and_message_retention"])
             target_fn = getattr(mod, "vector_and_message_retention")
             threading.Thread(target=target_fn, args=(evt, 7, 24), daemon=True).start()
             logger.info("[worker_controller] vector_retention started via UI")

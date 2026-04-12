@@ -422,7 +422,7 @@ async def initialize_background_tasks(app: FastAPI):
             app.state.worker_timers["vector_retention"] = t
 
         try:
-            mod = __import__("app.controllers.routes.retention_worker", fromlist=["vector_and_message_retention"])
+            mod = __import__("app.services.retention.retention_worker", fromlist=["vector_and_message_retention"])
             target_fn = getattr(mod, "vector_and_message_retention")
             threading.Thread(
                 target=target_fn,
