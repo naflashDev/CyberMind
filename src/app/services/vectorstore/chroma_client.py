@@ -83,13 +83,22 @@ class ChromaClient:
 
     Methods implemented as stubs if chromadb is not installed.
     """
-    def __init__(self, persist_directory: str = "data/chroma", collection_name: str = "default", embed_model: Optional[EmbeddingAdapter] = None):
-        # Resolve persist directory to an absolute path so Chroma writes to disk reliably
-        try:
-            self.persist_directory = str(Path(persist_directory).resolve())
-        except Exception:
-            # fallback to raw string if resolution fails
-            self.persist_directory = persist_directory
+    def __init__(self, persist_directory: Optional[str] = None, collection_name: str = "default", embed_model: Optional[EmbeddingAdapter] = None):
+        # Default persist directory: prefer the project's src/data/chroma folder
+        # (so artifacts live inside the source tree under `src/data`). If a
+        # persist_directory is provided, resolve it as given.
+        if persist_directory is None:
+            try:
+                default_dir = Path(__file__).resolve().parents[3] / 'data' / 'chroma'
+                self.persist_directory = str(default_dir)
+            except Exception:
+                self.persist_directory = 'data/chroma'
+        else:
+            try:
+                self.persist_directory = str(Path(persist_directory).resolve())
+            except Exception:
+                # fallback to raw string if resolution fails
+                self.persist_directory = persist_directory
         self.collection_name = collection_name
         # Prefer explicit embed_model. Otherwise, always prefer Ollama as the default
         # embedding provider (user requested Ollama-only mode). If Ollama is not
@@ -103,7 +112,7 @@ class ChromaClient:
             # required (e.g., during document ingest). If an environment variable
             # requests an Ollama-based embedder, the application can construct
             # the adapter and pass it explicitly.
-            logging.getLogger(__name__).warning('No embed_model provided; embeddings disabled by default. Pass an EmbeddingAdapter to enable vectorization.')
+            logging.getLogger(__name__).debug('No embed_model provided; embeddings disabled by default. Pass an EmbeddingAdapter to enable vectorization.')
             self.embedder = None
         # Silence chromadb deprecation/info logs and create client. If the
         # chromadb API raises or logs deprecation warnings, prefer to continue
@@ -113,64 +122,66 @@ class ChromaClient:
         except Exception:
             pass
 
-        # Attempt multiple client construction patterns for compatibility
+        # Reemplaza la inicialización por la forma moderna sugerida
         self.client = None
         self.collection = None
         try:
-            # Ensure persist directory exists so Chroma can write files
-            try:
-                Path(self.persist_directory).mkdir(parents=True, exist_ok=True)
-            except Exception:
-                pass
+            # Asegura que el directorio de persistencia existe
+            Path(self.persist_directory).mkdir(parents=True, exist_ok=True)
 
-            # Preferred: construct client with explicit Settings to enable persistence
+            # FORMA MODERNA: PersistentClient gestiona todo automáticamente
+            # (si la versión de chromadb lo implementa)
             try:
-                self.client = chromadb.Client(Settings(chroma_db_impl="duckdb+parquet", persist_directory=self.persist_directory))
+                self.client = chromadb.PersistentClient(path=self.persist_directory)
             except Exception:
-                # Fallback: try a simple, modern constructor without Settings
-                try:
-                    self.client = chromadb.Client()
-                except Exception:
-                    # Final fallback: some environments expose a `chroma` package
-                    try:
-                        import chroma as chroma_mod  # type: ignore
-                        if hasattr(chroma_mod, 'ChromaClient'):
-                            # prefer passing persist_directory if supported by this variant
-                            try:
-                                self.client = chroma_mod.ChromaClient(persist_directory=self.persist_directory)
-                            except Exception:
-                                self.client = chroma_mod.ChromaClient()
-                    except Exception:
-                        pass
-
-            # If the client was created but doesn't expose a persist() method, try to reconstruct
-            # it explicitly with Settings to force on-disk persistence.
-            if self.client and not getattr(self.client, 'persist', None):
+                # Fallback a la API clásica con Settings
                 try:
                     self.client = chromadb.Client(Settings(chroma_db_impl="duckdb+parquet", persist_directory=self.persist_directory))
                 except Exception:
-                    # give up; some environments may not support persistence API
-                    pass
+                    try:
+                        self.client = chromadb.Client()
+                    except Exception:
+                        self.client = None
 
-            # If we have a client, attempt to get or create the collection
-            if self.client:
+            # Obtener o crear la colección de forma directa
+            if self.client is not None:
                 try:
-                    if hasattr(self.client, 'get_collection'):
+                    if hasattr(self.client, 'get_or_create_collection'):
+                        self.collection = self.client.get_or_create_collection(name=self.collection_name)
+                    elif hasattr(self.client, 'get_collection'):
                         self.collection = self.client.get_collection(self.collection_name)
-                    else:
-                        # Some client variants may expose different collection APIs
-                        self.collection = None
-                    if not self.collection and hasattr(self.client, 'create_collection'):
+                    elif hasattr(self.client, 'create_collection'):
                         self.collection = self.client.create_collection(self.collection_name)
                 except Exception:
                     try:
                         self.collection = self.client.create_collection(self.collection_name)
                     except Exception:
                         self.collection = None
-            # Track whether we can call persist() on this client
-            self._can_persist = bool(getattr(self.client, 'persist', None))
+
+                # Detect a callable persist function on the client so we can
+                # prefer using the client's persistence when available. Be robust
+                # by checking several common attribute names directly on the
+                # client object to avoid missing implementations.
+                self._persist_callable = None
+                for _name in ('persist', '_persist', 'save', '_save'):
+                    try:
+                        cand = getattr(self.client, _name, None)
+                        if callable(cand):
+                            self._persist_callable = cand
+                            break
+                    except Exception:
+                        continue
+
+                # Also set a convenience boolean that is True when any known
+                # persistence callable exists on the client object. This guards
+                # startup restore logic and backup-writing decisions.
+                self._can_persist = any(
+                    callable(getattr(self.client, n, None)) for n in ('persist', '_persist', 'save', '_save')
+                )
+            logging.getLogger(__name__).info("Chroma PersistentClient inicializado correctamente.")
+
         except Exception as e:
-            logging.getLogger(__name__).warning('Failed to initialize Chroma client: %s', e)
+            logging.getLogger(__name__).error(f"Error al inicializar Chroma: {e}")
             self.client = None
             self.collection = None
 
@@ -180,13 +191,14 @@ class ChromaClient:
         except Exception:
             self._backup_path = None
 
-        # If we have a collection and a backup exists, attempt to restore from it
+        # Only restore from backup if the client does not provide a persist
+        # callable. The backup is a fallback mechanism used when Chroma's
+        # on-disk persistence is not available.
         try:
-            if getattr(self, 'collection', None) and self._backup_path and self._backup_path.exists():
+            if getattr(self, 'collection', None) and self._backup_path and self._backup_path.exists() and not self._can_persist:
                 try:
                     self._restore_from_backup()
                 except Exception:
-                    # do not fail startup on restore issues
                     logging.getLogger(__name__).warning('Failed to restore chroma backup; continuing')
         except Exception:
             pass
@@ -201,19 +213,62 @@ class ChromaClient:
             return False
         if not getattr(self, '_can_persist', False):
             return False
+        # Prefer invoking the detected persistence callable so we handle
+        # several client implementations (persist, _persist, save, ...)
         try:
-            # call persist; some client implementations accept no args
-            self.client.persist()
-            return True
-        except Exception:
-            try:
-                # Some variants may expose 'persist' on a different attribute
-                alt = getattr(self.client, 'persist', None)
-                if callable(alt):
-                    alt()
+            if getattr(self, '_persist_callable', None):
+                try:
+                    self._persist_callable()
                     return True
-            except Exception:
-                pass
+                except TypeError:
+                    # some callables may require no args but be bound differently
+                    try:
+                        self._persist_callable()
+                        return True
+                    except Exception:
+                        pass
+            # last-resort: try common attribute names directly
+            for name in ('persist', '_persist', 'save', '_save'):
+                try:
+                    alt = getattr(self.client, name, None)
+                    if callable(alt):
+                        alt()
+                        return True
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return False
+
+    def _detect_on_disk_persistence(self) -> bool:
+        """Heuristic: detect whether the persist_directory contains store files.
+
+        This is used as a fallback to infer that a backend persisted data to
+        disk even if an explicit `persist()` callable was not available or
+        returned False/raised. We ignore the JSON backup file itself.
+        """
+        try:
+            pd = getattr(self, 'persist_directory', None)
+            if not pd:
+                return False
+            p = Path(pd)
+            if not p.exists():
+                return False
+            for child in p.iterdir():
+                # ignore our own backup file
+                if child.name == 'chroma_backup.jsonl':
+                    continue
+                try:
+                    if child.is_file() and child.stat().st_size > 0:
+                        return True
+                    if child.is_dir():
+                        # if directory has any file, assume persistence
+                        for _ in child.rglob('*'):
+                            return True
+                except Exception:
+                    continue
+        except Exception:
+            return False
         return False
 
     def _write_backup_entries(self, entries: List[Dict], overwrite: bool = False):
@@ -306,28 +361,39 @@ class ChromaClient:
         embeddings = self.embedder.embed_texts(texts)
         # Upsert in a single batch
         self.collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=texts)
-        # Write a full backup file (overwrite) so vectors are available on disk even
-        # if the Chroma client does not expose a persist() method
+        # Best-effort: persist collection to disk. Only fall back to writing
+        # the full backup file if persistence is not available or fails.
+        persisted = False
         try:
-            entries = []
-            for i, _id in enumerate(ids):
-                entries.append({
-                    'id': _id,
-                    'embedding': embeddings[i],
-                    'metadata': metadatas[i],
-                    'document': texts[i]
-                })
+            persisted = self._persist_safe()
+        except Exception:
+            persisted = False
+
+        # If explicit persist failed or not available, check for on-disk
+        # evidence of persistence (files created in the persist directory).
+        if not persisted:
             try:
-                self._write_backup_entries(entries, overwrite=True)
+                if self._detect_on_disk_persistence():
+                    persisted = True
             except Exception:
                 pass
-        except Exception:
-            pass
-        # Best-effort: persist collection to disk
-        try:
-            self._persist_safe()
-        except Exception:
-            pass
+
+        if not persisted:
+            try:
+                entries = []
+                for i, _id in enumerate(ids):
+                    entries.append({
+                        'id': _id,
+                        'embedding': embeddings[i],
+                        'metadata': metadatas[i],
+                        'document': texts[i]
+                    })
+                try:
+                    self._write_backup_entries(entries, overwrite=True)
+                except Exception:
+                    pass
+            except Exception:
+                pass
 
     def upsert_document(self, doc_id: str, text: str, metadata: Optional[Dict] = None):
         """Upsert a single document into the collection."""
@@ -387,28 +453,39 @@ class ChromaClient:
                 logging.getLogger(__name__).warning('Failed to upsert/add chunks for %s: %s', doc_id, e)
                 return
 
-        # Append new entries to the backup file so new vectors survive restarts
+        # Try to persist to disk. If that fails (or is not supported), append
+        # the chunk entries to the JSONL backup so they can be restored later.
+        persisted = False
         try:
-            entries = []
-            for i, _id in enumerate(ids):
-                entries.append({
-                    'id': _id,
-                    'embedding': embeddings[i],
-                    'metadata': metadatas[i],
-                    'document': chunks[i]
-                })
+            persisted = self._persist_safe()
+        except Exception:
+            persisted = False
+
+        # If explicit persist failed or not available, check for on-disk
+        # evidence of persistence (files created in the persist directory).
+        if not persisted:
             try:
-                self._write_backup_entries(entries, overwrite=False)
+                if self._detect_on_disk_persistence():
+                    persisted = True
             except Exception:
                 pass
-        except Exception:
-            pass
 
-        # Best-effort: persist collection to disk
-        try:
-            self._persist_safe()
-        except Exception:
-            pass
+        if not persisted:
+            try:
+                entries = []
+                for i, _id in enumerate(ids):
+                    entries.append({
+                        'id': _id,
+                        'embedding': embeddings[i],
+                        'metadata': metadatas[i],
+                        'document': chunks[i]
+                    })
+                try:
+                    self._write_backup_entries(entries, overwrite=False)
+                except Exception:
+                    pass
+            except Exception:
+                pass
 
     def query_retriever(self, query: str, k: int = 5) -> List[Dict]:
         """Return top-k documents for query as list of {id, text, metadata, score}.

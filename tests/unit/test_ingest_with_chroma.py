@@ -29,6 +29,9 @@ def test_ingest_with_chroma_upsert(monkeypatch, tmp_path):
     import app.services.vectorstore.chroma_client as chroma_mod
     monkeypatch.setattr(chroma_mod, 'ChromaClient', DummyChromaClient)
 
+    # Ensure filename-based Chroma check does not short-circuit (we want to exercise upsert path)
+    monkeypatch.setattr(ingest_mod.ingest_tracker, 'exists_by_source', lambda fn: False)
+
     data = b'hello chroma'
     out = ingest_mod.ingest_document(data, filename='c.txt', folder=None)
     # Should have attempted upsert and recorded

@@ -405,7 +405,23 @@ async def toggle_worker(name: str, payload: WorkerToggle, request: Request):
 
                                 if not skip:
                                     try:
-                                        if is_cve_json:
+                                        # If the file already lives under the data/documents
+                                        # tree, avoid creating a duplicate copy: instruct
+                                        # the ingest service to index in-place by passing
+                                        # save_copy=False and original_path.
+                                        lower_path = str(path).replace('\\', '/').lower()
+                                        docs_base = str(Path('./data/documents').resolve()).replace('\\', '/').lower()
+                                        already_in_documents = False
+                                        try:
+                                            # prefer resolve-based check
+                                            p = Path(path)
+                                            if p.exists() and str(p.resolve()).replace('\\', '/').lower().startswith(docs_base):
+                                                already_in_documents = True
+                                        except Exception:
+                                            if lower_path.startswith(docs_base):
+                                                already_in_documents = True
+
+                                        if is_cve_json or already_in_documents:
                                             # ingest without creating a copy; use original path for metadata
                                             ingest_document(content, filename=fname, folder=None, save_copy=False, original_path=path)
                                         else:

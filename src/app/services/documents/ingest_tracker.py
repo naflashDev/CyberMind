@@ -26,6 +26,20 @@ try:
 except Exception:
     _USE_SQLA = False
 
+# Detect whether Chroma is available at module import time. If Chroma is
+# available we prefer to rely on its metadata for deduplication and avoid
+# creating a local ingest_index.db unless explicitly needed.
+try:
+    import chromadb  # type: ignore
+    _CHROMA_AVAILABLE_FOR_TRACKER = True
+except Exception:
+    _CHROMA_AVAILABLE_FOR_TRACKER = False
+
+# Local DB is enabled only when Chroma is not available. This prevents the
+# repository from creating ingest_index.db in environments where Chroma is
+# used as the primary source of truth.
+_LOCAL_DB_ENABLED = not _CHROMA_AVAILABLE_FOR_TRACKER
+
 
 def _ensure_db():
     """
@@ -33,6 +47,11 @@ def _ensure_db():
 
     Returns a sqlite3.Connection object.
     """
+    if not _LOCAL_DB_ENABLED:
+        # Local DB disabled when Chroma is available; return None to signal
+        # callers that local tracking is inactive.
+        return None
+
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH), timeout=10, check_same_thread=False)
     cur = conn.cursor()
@@ -116,14 +135,14 @@ def record_ingest(content_hash: str, doc_id: str, stored_path: str | None, filen
 
     content_hash: SHA256 hex of file bytes (primary key).
     """
-    if _USE_SQLA:
-        try:
-            _record_sqlalchemy(content_hash, doc_id, stored_path, filename, folder, upserted=upserted)
-            return
-        except Exception:
-            # Fallthrough to sqlite fallback on errors
-            pass
+    # NOTE: We intentionally avoid writing to the `conversations` DB model
+    # `IngestedDocument`. Per project decision, ingestion deduplication is
+    # performed against Chroma metadata instead. We keep a local ingest_index.db
+    # only when Chroma is not available.
     conn = _ensure_db()
+    if conn is None:
+        # local DB disabled; nothing to record
+        return
     cur = conn.cursor()
     ts = datetime.now(timezone.utc).isoformat()
     cur.execute(
@@ -139,12 +158,14 @@ def record_ingest(content_hash: str, doc_id: str, stored_path: str | None, filen
 
 def exists_by_hash(content_hash: str) -> bool:
     """Return True if an entry with this content_hash exists."""
-    if _USE_SQLA:
-        try:
-            return _exists_sqlalchemy(content_hash)
-        except Exception:
-            pass
+    # Do not consult the conversations DB; prefer the local ingest index only.
+    # If local DB is disabled prefer returning False so callers will consult
+    # Chroma (or other mechanisms) instead.
+    if not _LOCAL_DB_ENABLED:
+        return False
     conn = _ensure_db()
+    if conn is None:
+        return False
     cur = conn.cursor()
     cur.execute("SELECT 1 FROM ingested_docs WHERE content_hash=? LIMIT 1", (content_hash,))
     res = cur.fetchone()
@@ -157,12 +178,12 @@ def exists_by_hash(content_hash: str) -> bool:
 
 def get_entry(content_hash: str) -> Optional[Dict]:
     """Return the DB row as a dict or None if not found."""
-    if _USE_SQLA:
-        try:
-            return _get_sqlalchemy(content_hash)
-        except Exception:
-            pass
+    # Prefer local ingest index; do not read from conversations DB table.
+    if not _LOCAL_DB_ENABLED:
+        return None
     conn = _ensure_db()
+    if conn is None:
+        return None
     cur = conn.cursor()
     cur.execute("SELECT content_hash, doc_id, stored_path, filename, folder, timestamp, upserted FROM ingested_docs WHERE content_hash=?", (content_hash,))
     row = cur.fetchone()
@@ -185,13 +206,12 @@ def get_entry(content_hash: str) -> Optional[Dict]:
 
 def mark_upserted(content_hash: str):
     """Mark an existing entry as upserted (vector indexed)."""
-    if _USE_SQLA:
-        try:
-            _mark_upserted_sqlalchemy(content_hash)
-            return
-        except Exception:
-            pass
+    # Only update local ingest index when enabled.
+    if not _LOCAL_DB_ENABLED:
+        return
     conn = _ensure_db()
+    if conn is None:
+        return
     cur = conn.cursor()
     cur.execute("UPDATE ingested_docs SET upserted=1 WHERE content_hash=?", (content_hash,))
     conn.commit()
@@ -199,3 +219,91 @@ def mark_upserted(content_hash: str):
         conn.close()
     except Exception:
         pass
+
+
+def exists_by_source(filename: str) -> bool:
+    """Return True if any vector in Chroma has metadata `source` equal to filename.
+
+    This is a best-effort scan that uses the Chroma client API. It is used to
+    determine whether a file (by its original filename) was already ingested.
+    """
+    if not filename:
+        return False
+    try:
+        # First try via the Chroma client API (recommended/portable).
+        from app.services.vectorstore.chroma_client import ChromaClient
+        client = ChromaClient(embed_model=None)
+        coll = getattr(client, 'collection', None)
+        if coll:
+            try:
+                res = coll.get(include=['metadatas'])
+                metas = res.get('metadatas', [[]])[0]
+            except Exception:
+                try:
+                    res = coll.get()
+                    metas = res.get('metadatas', [[]])[0]
+                except Exception:
+                    metas = []
+            for md in metas:
+                if isinstance(md, dict):
+                    # tolerate several metadata key names
+                    if md.get('source') == filename or md.get('original_filename') == filename:
+                        return True
+    except Exception:
+        # continue to sqlite fallback
+        pass
+
+    # Fallback: try to locate a chroma sqlite DB file in common locations
+    # within the configured persist directory and do a generic substring
+    # search across text columns. This is intentionally generic to be
+    # resilient to schema differences between chromadb versions.
+    try:
+        # Attempt to discover persist directory by instantiating ChromaClient
+        from app.services.vectorstore.chroma_client import ChromaClient
+        client_probe = ChromaClient(embed_model=None)
+        pd = getattr(client_probe, 'persist_directory', None)
+        if not pd:
+            return False
+        p = Path(pd)
+        # common filename for chroma sqlite DB
+        candidates = [p / 'chroma.sqlite3', p / 'chroma.db', p / 'chromadb.sqlite']
+        # also consider any .sqlite3 in the folder
+        candidates += list(p.glob('*.sqlite3'))
+        found = None
+        for c in candidates:
+            if c and c.exists():
+                found = c
+                break
+        if not found:
+            return False
+
+        import sqlite3 as _sqlite
+        conn = _sqlite.connect(str(found))
+        cur = conn.cursor()
+        # Get table names
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = [r[0] for r in cur.fetchall()]
+        for tbl in tables:
+            try:
+                # get columns
+                cur.execute(f"PRAGMA table_info('{tbl}')")
+                cols = cur.fetchall()
+                text_cols = [c[1] for c in cols if c[2].upper().find('CHAR') != -1 or c[2].upper().find('TEXT') != -1]
+                if not text_cols:
+                    # try any column if schema unknown
+                    text_cols = [c[1] for c in cols]
+                for col in text_cols:
+                    try:
+                        q = f"SELECT 1 FROM {tbl} WHERE {col} LIKE ? LIMIT 1"
+                        cur.execute(q, (f"%{filename}%",))
+                        if cur.fetchone():
+                            conn.close()
+                            return True
+                    except Exception:
+                        continue
+            except Exception:
+                continue
+        conn.close()
+    except Exception:
+        return False
+    return False

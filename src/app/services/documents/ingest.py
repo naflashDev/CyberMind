@@ -20,6 +20,8 @@ try:
 except Exception:
     PdfReader = None
 from app.services.documents import ingest_tracker
+import re
+from typing import Any
 
 DEFAULT_BASE = Path('data') / 'documents'
 
@@ -136,9 +138,32 @@ def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None,
         # Store only the user-friendly original filename in the target folder.
         # Avoid creating a hashed filename or metadata JSON on disk per user request.
         orig_name = safe_filename
-        # If an entry with the same content already exists, avoid saving duplicate
-        # files to disk. If it was not yet indexed (upserted==False), attempt
-        # to re-run indexing and update tracker accordingly.
+        # First, check if a file with the same original filename was already
+        # ingested into Chroma by scanning vector metadata for `source`.
+        already_in_chroma = False
+        try:
+            already_in_chroma = ingest_tracker.exists_by_source(safe_filename)
+        except Exception:
+            already_in_chroma = False
+
+        if already_in_chroma:
+            logger.info(f'File {safe_filename} appears already ingested in Chroma (by source metadata)')
+            return {
+                'doc_id': None,
+                'file': safe_filename,
+                'path': None,
+                'metadata_path': None,
+                'upserted': True,
+                'message': 'already ingested (chroma metadata)',
+                'metadata': {
+                    'content_hash': content_hash,
+                    'original_filename': filename,
+                    'folder': str(base.as_posix()),
+                }
+            }
+
+        # Fallback: check local ingest tracker by content hash to avoid saving
+        # duplicate bytes when filename-based check is inconclusive.
         existing = ingest_tracker.get_entry(content_hash)
         if existing:
             # Already recorded - if fully indexed, skip saving and indexing
@@ -194,19 +219,41 @@ def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None,
         stored_path = ''
         orig_path = None
         if save_copy:
-            orig_path = base / orig_name
-            if orig_path.exists():
-                stem = Path(safe_filename).stem
-                suffix = Path(safe_filename).suffix
-                i = 1
-                while (base / f"{stem}_{i}{suffix}").exists():
-                    i += 1
-                orig_path = base / f"{stem}_{i}{suffix}"
-            with open(orig_path, 'wb') as of:
-                of.write(file_bytes)
+            # If an original_path is provided and it already lives under the
+            # data documents base, avoid creating a duplicate copy: use the
+            # existing file as the stored path. This prevents the vector_ingest
+            # worker from duplicating files when indexing files in-place.
+            try:
+                if original_path:
+                    p = Path(original_path)
+                    if p.exists():
+                        try:
+                            # check if original is inside the base documents folder
+                            if str(p.resolve()).startswith(str(base.resolve())):
+                                orig_path = p
+                                stored_path = str(orig_path.as_posix())
+                        except Exception:
+                            # best-effort: fallback to path string check
+                            if str(p).replace('\\', '/').lower().startswith(str(base).replace('\\', '/').lower()):
+                                orig_path = p
+                                stored_path = str(orig_path.as_posix())
+            except Exception:
+                orig_path = None
 
-            logger.info('Saved uploaded file to {} ({} bytes)', str(orig_path.as_posix()), orig_path.stat().st_size)
-            stored_path = str(orig_path.as_posix())
+            if not orig_path:
+                orig_path = base / orig_name
+                if orig_path.exists():
+                    stem = Path(safe_filename).stem
+                    suffix = Path(safe_filename).suffix
+                    i = 1
+                    while (base / f"{stem}_{i}{suffix}").exists():
+                        i += 1
+                    orig_path = base / f"{stem}_{i}{suffix}"
+                with open(orig_path, 'wb') as of:
+                    of.write(file_bytes)
+
+                logger.info('Saved uploaded file to {} ({} bytes)', str(orig_path.as_posix()), orig_path.stat().st_size)
+                stored_path = str(orig_path.as_posix())
         else:
             # Do not create a copy on disk; use the original path when available
             try:
@@ -229,6 +276,190 @@ def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None,
         }
         # try extract text
         text = _text_from_bytes(file_bytes, filename)
+
+        # If this looks like a CVE JSON file (by path/filename or content),
+        # build a cleaned, human-readable text to pass to the embedder at runtime
+        # (do NOT overwrite or persist the original JSON).
+        def _is_cve_json(filename: str | None, original_path: str | None, raw_bytes: bytes) -> bool:
+            try:
+                name = (filename or '').lower()
+                path = (original_path or '').replace('\\', '/').lower()
+                if name.endswith('.json') and ('/cves/' in path or 'cve' in path or 'cvelist' in path or name.startswith('cve-')):
+                    return True
+                # quick content check: JSON that contains typical CVE keys
+                try:
+                    j = json.loads(raw_bytes.decode('utf-8', errors='ignore'))
+                except Exception:
+                    return False
+                if isinstance(j, dict):
+                    # look for common CVE metadata locations
+                    if 'cve' in j or 'CVE_data_meta' in j or any(k.lower().startswith('cve') for k in j.keys()):
+                        return True
+                    # files from cvelist may have 'containers' -> 'cna'
+                    if 'containers' in j:
+                        return True
+                return False
+            except Exception:
+                return False
+
+        def _collect_strings(obj: Any) -> list:
+            out = []
+            if isinstance(obj, str):
+                out.append(obj)
+            elif isinstance(obj, dict):
+                for v in obj.values():
+                    out.extend(_collect_strings(v))
+            elif isinstance(obj, list):
+                for v in obj:
+                    out.extend(_collect_strings(v))
+            return out
+
+        def _cve_bytes_to_clean_text(raw_bytes: bytes) -> str:
+            try:
+                j = json.loads(raw_bytes.decode('utf-8', errors='ignore'))
+            except Exception:
+                return text
+
+            # helpers to find nested values
+            def _find_id(d: dict) -> str | None:
+                # common paths for CVE id
+                try:
+                    if 'id' in d and isinstance(d['id'], str):
+                        return d['id']
+                except Exception:
+                    pass
+                try:
+                    if 'CVE_data_meta' in d and isinstance(d['CVE_data_meta'], dict):
+                        cid = d['CVE_data_meta'].get('ID') or d['CVE_data_meta'].get('id')
+                        if cid:
+                            return cid
+                except Exception:
+                    pass
+                # search shallowly for strings matching CVE-YYYY-NNNN
+                pattern = re.compile(r"CVE-\d{4}-\d{4,}", re.IGNORECASE)
+                for v in _collect_strings(d):
+                    if isinstance(v, str):
+                        m = pattern.search(v)
+                        if m:
+                            return m.group(0).upper()
+                return None
+
+            def _extract_description(d: dict) -> str:
+                # try common description locations
+                candidates = []
+                try:
+                    # standardized cvelist containers
+                    if isinstance(d.get('containers'), dict):
+                        cna = d['containers'].get('cna') if isinstance(d['containers'].get('cna'), dict) else None
+                        if cna:
+                            desc = cna.get('summary') or cna.get('description')
+                            if desc:
+                                candidates.append(desc)
+                            # sometimes descriptions are in 'notes' or 'problemtype'
+                            if cna.get('problemtype'):
+                                candidates.extend(_collect_strings(cna.get('problemtype')))
+                except Exception:
+                    pass
+                # fallback generic search for 'description' keys
+                try:
+                    for s in _collect_strings(d):
+                        if isinstance(s, str) and len(s) > 30:
+                            candidates.append(s)
+                except Exception:
+                    pass
+
+                # Deduplicate and join top candidates
+                seen = []
+                out = []
+                for c in candidates:
+                    c_clean = ' '.join(c.split())
+                    if c_clean not in seen:
+                        seen.append(c_clean)
+                        out.append(c_clean)
+                if out:
+                    return '\n'.join(out[:3])
+                return ''
+
+            def _extract_refs(d: dict) -> list:
+                urls = set()
+                try:
+                    for s in _collect_strings(d):
+                        if isinstance(s, str):
+                            for m in re.findall(r'https?://[^\s\]]+', s):
+                                urls.add(m)
+                except Exception:
+                    pass
+                return list(urls)
+
+            def _extract_affects(d: dict) -> list:
+                hits = []
+                try:
+                    # look for vendor/product strings inside configurations or affects
+                    if isinstance(d.get('containers'), dict):
+                        cna = d['containers'].get('cna') if isinstance(d['containers'].get('cna'), dict) else None
+                        if cna and cna.get('affected'):  # newer schema
+                            hits.extend(_collect_strings(cna.get('affected')))
+                    # generic keys
+                    for k in ('affects', 'vendors', 'products', 'configurations'):
+                        if k in d:
+                            hits.extend(_collect_strings(d.get(k)))
+                except Exception:
+                    pass
+                return [ ' '.join(x.split()) for x in hits if isinstance(x, str) and len(x) > 3][:10]
+
+            cve_id = None
+            if isinstance(j, dict):
+                cve_id = _find_id(j)
+            if not cve_id and isinstance(j, list) and j:
+                # sometimes the file is a list of records; try first element
+                try:
+                    if isinstance(j[0], dict):
+                        cve_id = _find_id(j[0])
+                except Exception:
+                    pass
+
+            desc = ''
+            refs = []
+            affects = []
+            try:
+                if isinstance(j, dict):
+                    desc = _extract_description(j)
+                    refs = _extract_refs(j)
+                    affects = _extract_affects(j)
+                elif isinstance(j, list) and j:
+                    desc = _extract_description(j[0])
+                    refs = _extract_refs(j[0])
+                    affects = _extract_affects(j[0])
+            except Exception:
+                pass
+
+            parts = []
+            if cve_id:
+                parts.append(f"CVE ID: {cve_id}")
+            if desc:
+                parts.append(f"Summary: {desc}")
+            if affects:
+                parts.append(f"Affected: {', '.join(affects[:10])}")
+            if refs:
+                parts.append(f"References: {', '.join(refs[:8])}")
+
+            cleaned = '\n\n'.join(parts)
+            # final fallback: if cleaned is empty, use flattened long strings but strip JSON keys
+            if not cleaned:
+                all_strings = _collect_strings(j)
+                long_texts = [s for s in all_strings if isinstance(s, str) and len(s) > 50]
+                cleaned = '\n\n'.join(long_texts[:3])
+            # Ensure we return a sensible string
+            return cleaned or text
+
+        try:
+            if _is_cve_json(filename, original_path, file_bytes):
+                cleaned_text = _cve_bytes_to_clean_text(file_bytes)
+                if cleaned_text and len(cleaned_text) > 0:
+                    text = cleaned_text
+        except Exception:
+            # on any error, fall back to raw extracted text
+            pass
         logger.debug('Extracted text length: {}', len(text or ''))
 
         upserted = False
@@ -259,8 +490,12 @@ def ingest_document(file_bytes: bytes, filename: str = None, folder: str = None,
                 logger.info('Attempting to upsert document {} into Chroma (embed_model={})', doc_id, embed_name if embed_model else 'None')
                 try:
                     client.upsert_document(doc_id, text or metadata.get('preview', ''), metadata)
-                    logger.success('Document %s upsert requested', doc_id)
                     # Only mark as upserted if we had an embedder and a Chroma collection available.
+                    try:
+                        display_name = metadata.get('original_filename') or safe_filename or doc_id
+                    except Exception:
+                        display_name = doc_id
+                    logger.success(f'Document {display_name} upsert requested')
                     if client.embedder is None:
                         logger.warning('No embedder configured; document %s was not vectorized', doc_id)
                         upserted = False

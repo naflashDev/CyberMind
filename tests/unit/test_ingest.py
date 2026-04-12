@@ -33,6 +33,9 @@ def test_ingest_document_existing_entry(monkeypatch, tmp_path):
     # Prepare module to write into tmp base
     monkeypatch.setattr(ingest_mod, 'DEFAULT_BASE', tmp_path)
 
+    # Ensure filename-based Chroma check does not short-circuit tests
+    monkeypatch.setattr(ingest_mod.ingest_tracker, 'exists_by_source', lambda fn: False)
+
     # Simulate ingest_tracker.get_entry returning an already upserted record
     def fake_get_entry(ch):
         return {'content_hash': ch, 'doc_id': 'doc123', 'stored_path': str(tmp_path / 'doc.txt'), 'upserted': True}
@@ -78,6 +81,8 @@ def test_ingest_document_name_collision(monkeypatch, tmp_path):
     data = b'new content'
     # Ensure tracker returns None so branch saves new file with incremented name
     monkeypatch.setattr(ingest_mod.ingest_tracker, 'get_entry', lambda ch: None)
+    # Avoid Chroma metadata-based short-circuit
+    monkeypatch.setattr(ingest_mod.ingest_tracker, 'exists_by_source', lambda fn: False)
     out = ingest_mod.ingest_document(data, filename='file.txt', folder=None)
     assert out['file'] != 'file.txt' or out['file'].startswith('file_')
 
@@ -137,6 +142,8 @@ def test_ingest_document_upsert_no_embedder_or_collection(monkeypatch, tmp_path)
     monkeypatch.setattr('app.services.vectorstore.chroma_client.ChromaClient', FakeClient)
     # ensure no previous entry
     monkeypatch.setattr(ingest_mod.ingest_tracker, 'get_entry', lambda ch: None)
+    # ensure filename-based check doesn't claim file already in Chroma
+    monkeypatch.setattr(ingest_mod.ingest_tracker, 'exists_by_source', lambda fn: False)
     # capture record_ingest calls
     recorded = {}
     def fake_record_ingest(ch, doc_id, path, filename, folder, upserted=False):

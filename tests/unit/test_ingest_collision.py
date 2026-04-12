@@ -13,6 +13,8 @@ def test_filename_collision(monkeypatch, tmp_path):
     # Avoid interacting with existing ingest tracker records
     monkeypatch.setattr(ingest_mod.ingest_tracker, 'get_entry', lambda h: None)
     monkeypatch.setattr(ingest_mod.ingest_tracker, 'record_ingest', lambda *a, **k: None)
+    # Ensure filename-based Chroma check does not short-circuit the test
+    monkeypatch.setattr(ingest_mod.ingest_tracker, 'exists_by_source', lambda fn: False)
 
     data = b'content'
     # Create an existing file with same name
