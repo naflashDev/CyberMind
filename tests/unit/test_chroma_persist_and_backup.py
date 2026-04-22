@@ -17,6 +17,14 @@ def test_persist_safe_success(tmp_path):
 
     cc.client = DummyClient()
     cc._can_persist = True
+    # Ensure the persist callable is available as some client variants
+    # expose a bound method rather than a top-level attribute. Tests should
+    # simulate both possibilities so _persist_safe() exercises the direct
+    # attribute-calling path.
+    try:
+        cc._persist_callable = cc.client.persist
+    except Exception:
+        cc._persist_callable = None
 
     assert cc._persist_safe() is True
     assert cc.client.called is True

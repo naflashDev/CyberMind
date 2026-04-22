@@ -5,20 +5,38 @@
 @details Cubre casos donde el flag use_ollama está activado o desactivado en los .ini de src/.
 """
 import os
+import time
+import gc
 import pytest
 from src.app.services.code_analysis.scanner import CodeScanner, is_llm_enabled_src
 
 SRC_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 INI_CFG = os.path.join(SRC_DIR, 'cfg.ini')
 INI_SERV = os.path.join(SRC_DIR, 'cfg_services.ini')
+CONV_DB = os.path.join(SRC_DIR, 'conversations.db')
 
 @pytest.fixture(autouse=True)
 def cleanup_ini():
     # Limpia los .ini tras cada test
     yield
-    for f in [INI_CFG, INI_SERV]:
-        if os.path.exists(f):
-            os.remove(f)
+    # On Windows a file may remain briefly locked by another process; retry
+    for f in [INI_CFG, INI_SERV, CONV_DB]:
+        if not os.path.exists(f):
+            continue
+        for _ in range(6):
+            try:
+                os.remove(f)
+                break
+            except PermissionError:
+                # force GC and give the OS time to release handles
+                gc.collect()
+                time.sleep(0.1)
+        else:
+            # last attempt ignoring errors
+            try:
+                os.remove(f)
+            except Exception:
+                pass
 
 @pytest.mark.parametrize("ini_content,expected", [
     ("use_ollama=true", True),
