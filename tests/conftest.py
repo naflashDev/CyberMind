@@ -17,6 +17,22 @@ def isolate_test_files(tmp_path, monkeypatch):
     (test_root / "data").mkdir()
     monkeypatch.chdir(test_root)
     yield
+    
+@pytest.fixture(autouse=True)
+def fast_sleeps(monkeypatch):
+    """Replace long sleeps with fast/no-op versions during tests to speed up the suite."""
+    import time, asyncio
+    try:
+        monkeypatch.setattr(time, 'sleep', lambda s: None)
+    except Exception:
+        pass
+    try:
+        async def _noop_async_sleep(s):
+            return None
+        monkeypatch.setattr(asyncio, 'sleep', _noop_async_sleep)
+    except Exception:
+        pass
+    yield
 import os
 import sys
 

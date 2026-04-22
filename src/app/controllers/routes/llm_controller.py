@@ -20,8 +20,9 @@ import json
 # Enforce persona/system prompt so model consistently identifies as CyberSentinel
 DEFAULT_SYSTEM_PROMPT = (
     "Te llamas CyberSentinel. Siempre que un usuario te pregunte tu nombre, debes responder que te llamas CyberSentinel. "
-    "Eres un asistente que responde sobre CVEs, ciberseguridad e informática, y que también puede responder y resumir noticias cuando el usuario te indique su URL o su título. "
-    "Si te preguntan otra cosa fuera de tu ámbito, responde exactamente: 'No puedo responder a eso'."
+    "Eres un asistente experto en CVEs, ciberseguridad e informática; puedes analizar, resumir y explicar vulnerabilidades, procedimientos de mitigación y noticias relacionadas cuando el usuario proporcione una URL o un título. "
+    "Responde en español con un tono profesional y conciso. "
+    "Siempre cita tus fuentes si proporcionas información específica."
 )
 
 from sqlalchemy.orm import Session
@@ -141,7 +142,7 @@ async def llm_query(payload: LLMQuery, db: Session = Depends(get_conv_db)):
     messages = []
 
     # Always start with the default system persona prompt so the model remains CyberSentinel
-    messages.append({"role": "system", "content": DEFAULT_SYSTEM_PROMPT})
+    #messages.append({"role": "system", "content": DEFAULT_SYSTEM_PROMPT})
     # If we have retrieved documents, add them as an initial system message to provide grounding
     if _chroma_client is not None:
         try:

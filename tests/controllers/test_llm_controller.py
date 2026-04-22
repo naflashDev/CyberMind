@@ -5,7 +5,6 @@
 @details Tests FastAPI endpoints for LLM updater and query, patching background threads and validating responses.
 """
 from fastapi.testclient import TestClient
-import app.controllers.routes.llm_controller as llm_mod
 import pytest
 import time
 import asyncio
@@ -26,7 +25,10 @@ except Exception:
 @pytest.fixture(autouse=True)
 def stub_startup(monkeypatch):
     """Prevent heavy startup actions during these controller tests."""
-    import src.main as main_mod
+    try:
+        import main as main_mod
+    except Exception:
+        import src.main as main_mod
     monkeypatch.setattr(main_mod, "ensure_infrastructure", lambda *a, **k: None)
 
     async def _dummy_init(app):
@@ -92,6 +94,7 @@ class DummyThread:
 
 def test_llm_updater_endpoints(monkeypatch):
     from main import app
+    import app.controllers.routes.llm_controller as llm_mod
     monkeypatch.setattr(llm_mod.threading, 'Thread', DummyThread)
     client = TestClient(app)
 
@@ -115,6 +118,7 @@ def test_llm_query_post(monkeypatch):
     def _fake_query(*args, **kwargs):
         prompt = args[0] if args else kwargs.get('prompt') or ''
         return f"Echo: {prompt}"
+    import app.controllers.routes.llm_controller as llm_mod
     monkeypatch.setattr(llm_mod, 'query_llm', _fake_query)
     resp = client.post('/llm/query', json={"prompt": "test"})
     assert resp.status_code == 200
@@ -129,6 +133,7 @@ def test_llm_query_post_error(monkeypatch):
     client = TestClient(app)
     def fail_query(prompt):
         raise Exception("fail")
+    import app.controllers.routes.llm_controller as llm_mod
     monkeypatch.setattr(llm_mod, 'query_llm', fail_query)
     try:
         resp = client.post('/llm/query', json={"prompt": "test"})
@@ -183,6 +188,7 @@ def test_background_cve_and_finetune_loop(monkeypatch):
         # Simula que el evento se activa tras la primera llamada
         if stop_event:
             stop_event.set()
+    import app.controllers.routes.llm_controller as llm_mod
     monkeypatch.setattr(llm_mod, 'run_periodic_training', fake_run_periodic_training)
     import threading
     evt = threading.Event()
@@ -226,6 +232,7 @@ def test_background_cve_and_finetune_loop_wait_exception(monkeypatch):
             raise Exception("wait fail")
     def fake_run_periodic_training(stop_event=None):
         called["run"] = True
+    import app.controllers.routes.llm_controller as llm_mod
     monkeypatch.setattr(llm_mod, 'run_periodic_training', fake_run_periodic_training)
     monkeypatch.setattr(time, 'sleep', lambda s: called.update({"sleep": True}))
     llm_mod.background_cve_and_finetune_loop(stop_event=DummyEvent())
