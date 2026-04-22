@@ -6,7 +6,7 @@
 """
 from datetime import datetime, timezone, timedelta
 
-from app.controllers.routes import retention_worker
+from app.services.retention import retention_worker
 
 
 class FakeDB:

@@ -3,7 +3,7 @@
 @brief Test retention worker uses ChromaClient.delete_by_ttl when available
 """
 from datetime import datetime, timezone, timedelta
-from app.controllers.routes import retention_worker
+from app.services.retention import retention_worker
 
 
 class DummyChroma:
@@ -46,7 +46,7 @@ class FakeEvent:
 def test_retention_calls_chroma(monkeypatch):
     monkeypatch.setattr(retention_worker, 'CHROMA_AVAILABLE', True)
     # replace ChromaClient in module where retention imports it
-    monkeypatch.setattr('app.controllers.routes.retention_worker.ChromaClient', DummyChroma)
+    monkeypatch.setattr('app.services.retention.retention_worker.ChromaClient', DummyChroma)
     monkeypatch.setattr(retention_worker, 'SessionLocal', lambda: FakeDB())
 
     evt = FakeEvent()

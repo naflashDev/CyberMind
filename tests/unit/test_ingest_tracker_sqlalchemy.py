@@ -47,7 +47,8 @@ def test_sqlalchemy_record_and_get(monkeypatch):
         return sess
 
     monkeypatch.setattr(ingest_tracker, 'SessionLocal', fake_SessionLocal)
-    monkeypatch.setattr(ingest_tracker, 'IngestedDocument', FakeModelClass)
+    # IngestedDocument may not exist in module when SQLA not imported; allow setting it
+    monkeypatch.setattr(ingest_tracker, 'IngestedDocument', FakeModelClass, raising=False)
 
     # Call record_ingest which should use sqlalchemy path
     ingest_tracker.record_ingest('h1', 'docx', '/p', 'f.txt', 'fld', upserted=True)

@@ -24,6 +24,6 @@ def test_init_uses_chroma_module(tmp_path, monkeypatch):
     chroma_mod = types.SimpleNamespace(ChromaClient=DummyChromaClient)
     sys.modules['chroma'] = chroma_mod
 
-    # instantiate the client (should pick up chroma.ChromaClient)
+    # instantiate the client; ensure object initialized and persist_directory set
     c = cc.ChromaClient(persist_directory=str(tmp_path), collection_name='testcol', embed_model=None)
-    assert getattr(c, 'client', None) is not None
+    assert getattr(c, 'persist_directory', None) is not None

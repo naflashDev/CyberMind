@@ -19,6 +19,8 @@ def test_record_and_get_entry(tmp_path):
     ingest_tracker.DB_PATH = db_file
     # Force sqlite fallback during tests to avoid heavy SQLAlchemy usage
     ingest_tracker._USE_SQLA = False
+    # Ensure local DB usage enabled for tests regardless of chroma availability
+    ingest_tracker._LOCAL_DB_ENABLED = True
 
     h = "deadbeef"
     assert not ingest_tracker.exists_by_hash(h)
