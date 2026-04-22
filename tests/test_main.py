@@ -252,7 +252,7 @@ async def test_lifespan_runs():
 
 @pytest.mark.asyncio
 async def test_initialize_background_tasks_runs():
-    from src.main import initialize_background_tasks
+    import src.main as main_mod
     class DummyState:
         def __init__(self):
             self.pool = None
@@ -265,7 +265,7 @@ async def test_initialize_background_tasks_runs():
     app = DummyApp()
     # Se espera que falle la conexión a PostgreSQL, pero debe manejarse
     try:
-        await initialize_background_tasks(app)
+        await main_mod.initialize_background_tasks(app)
     except Exception:
         pass
  
