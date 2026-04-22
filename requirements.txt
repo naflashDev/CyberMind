@@ -112,12 +112,12 @@ opentelemetry-api==1.40.0
 opentelemetry-exporter-otlp-proto-common==1.40.0
 opentelemetry-exporter-otlp-proto-grpc==1.40.0
 opentelemetry-exporter-otlp-proto-http==1.40.0
-opentelemetry-instrumentation==0.58b0
-opentelemetry-instrumentation-requests==0.58b0
-opentelemetry-instrumentation-threading==0.58b0
+opentelemetry-instrumentation>=0.58b0,<0.62
+opentelemetry-instrumentation-requests>=0.58b0,<0.62
+opentelemetry-instrumentation-threading>=0.58b0,<0.62
 opentelemetry-proto==1.40.0
 opentelemetry-sdk==1.40.0
-opentelemetry-semantic-conventions==0.61b0
+opentelemetry-semantic-conventions>=0.58b0,<0.62
 opentelemetry-util-http==0.58b0
 orjson==3.11.7
 ormsgpack==1.12.2
