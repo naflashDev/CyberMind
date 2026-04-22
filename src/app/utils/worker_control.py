@@ -32,6 +32,8 @@ def default_settings() -> Dict[str, bool]:
         "spacy_nlp": False,
         "llm_updater": False,
         "dynamic_spider": False,
+        "vector_ingest": False,
+        "vector_retention": False,
     }
 
 

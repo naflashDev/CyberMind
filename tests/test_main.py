@@ -5,6 +5,19 @@ import builtins
 import multiprocessing
 from fastapi.testclient import TestClient
 from unittest import mock
+# Speedups for slow tests: patch sleeping functions at module import time
+import time
+import asyncio
+try:
+    time.sleep = lambda s: None
+except Exception:
+    pass
+try:
+    async def _noop_async_sleep(s):
+        return None
+    asyncio.sleep = _noop_async_sleep
+except Exception:
+    pass
 # --- Advanced coverage: defensive and error branches ---
 def test_root_index_no_index(monkeypatch):
     import src.main as main_mod
@@ -140,22 +153,89 @@ import pytest
 from fastapi.testclient import TestClient
 from src.main import app
 
-client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def fast_startup(monkeypatch):
+    """Autouse fixture to stub heavy startup operations invoked by TestClient.
+
+    Mocks `ensure_infrastructure`, `initialize_background_tasks`, thread
+    creation and `asyncpg.create_pool` to avoid long waits and external IO
+    when FastAPI `lifespan` runs during tests.
+    """
+    import src.main as main_mod
+    # No-op infrastructure ensure
+    monkeypatch.setattr(main_mod, "ensure_infrastructure", lambda *a, **k: None)
+
+    # Lightweight initializer that marks UI as initialized
+    async def _dummy_init(app):
+        app.state.ui_initialized = True
+
+    monkeypatch.setattr(main_mod, "initialize_background_tasks", _dummy_init)
+
+    # Patch asyncpg.create_pool to a no-op coroutine/function
+    import types
+    monkeypatch.setattr(main_mod, "asyncpg", types.SimpleNamespace(create_pool=lambda **kwargs: None))
+
+    # Patch thread starts so background threads are not launched
+    class DummyThread:
+        def __init__(self, *a, **k):
+            pass
+
+        def start(self):
+            return None
+
+    try:
+        monkeypatch.setattr(main_mod.threading, "Thread", DummyThread)
+    except Exception:
+        # best-effort: if threading not accessible on module, patch global threading
+        import threading as _threading
+        monkeypatch.setattr(_threading, "Thread", DummyThread)
+
+    # Prevent DB metadata creation during lifespan
+    try:
+        import app.models.db as _dbmod
+        monkeypatch.setattr(_dbmod.Base.metadata, "create_all", lambda bind=None: None)
+    except Exception:
+        pass
+
+    try:
+        import app.models.conversation_db as _conv
+        monkeypatch.setattr(_conv.ConversationBase.metadata, "create_all", lambda bind=None: None)
+    except Exception:
+        pass
+
+    # Prevent shutdown side-effects
+    monkeypatch.setattr(main_mod, "shutdown_services", lambda *a, **k: None)
+    # Replace app lifespan with a no-op context to avoid startup workload
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def _noop_lifespan(app=None):
+        yield
+
+    try:
+        main_mod.app.router.lifespan_context = lambda app=None: _noop_lifespan(app)
+    except Exception:
+        pass
+
+    yield
 
 def test_root_index():
-    response = client.get("/")
-    assert response.status_code == 200
-    assert "CyberMind" in response.text
+    with TestClient(app) as client:
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "CyberMind" in response.text
 
 def test_ui_index():
-    response = client.get("/ui")
-    assert response.status_code == 200
-    assert "CyberMind" in response.text
-    response2 = client.get("/ui/")
-    # Puede devolver 404 si la ruta no existe
-    assert response2.status_code in (200, 404)
-    if response2.status_code == 200:
-        assert "CyberMind" in response2.text
+    with TestClient(app) as client:
+        response = client.get("/ui")
+        assert response.status_code == 200
+        assert "CyberMind" in response.text
+        response2 = client.get("/ui/")
+        # Puede devolver 404 si la ruta no existe
+        assert response2.status_code in (200, 404)
+        if response2.status_code == 200:
+            assert "CyberMind" in response2.text
 
 # Test lifespan and background tasks
 @pytest.mark.asyncio

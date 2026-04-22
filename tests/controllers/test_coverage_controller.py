@@ -41,13 +41,13 @@ def test_coverage_html_exists(monkeypatch):
     # Ensure the file exists for this test
     monkeypatch.setattr(os.path, 'exists', lambda p: True)
     fake_html = '<html><head><title>Coverage report</title></head><body>Coverage report</body></html>'
-    import builtins
-    from unittest.mock import mock_open, patch
-    m = mock_open(read_data=fake_html)
-    # El mock debe aceptar el argumento encoding
-    def open_mock(file, mode='r', *args, **kwargs):
-        return m(file, mode, *args, **kwargs)
-    monkeypatch.setattr(builtins, 'open', open_mock)
+    # Create the real file at the path expected by the controller to avoid mocking builtins
+    import importlib
+    cov_mod = importlib.import_module('src.app.controllers.routes.coverage_controller')
+    index_path = cov_mod.COVERAGE_HTML_INDEX
+    os.makedirs(os.path.dirname(index_path), exist_ok=True)
+    with open(index_path, 'w', encoding='utf-8') as wf:
+        wf.write(fake_html)
     response = client.get('/coverage/html')
     assert response.status_code == 200
     assert 'text/html' in response.headers['content-type']

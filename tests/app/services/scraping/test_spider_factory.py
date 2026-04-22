@@ -7,6 +7,15 @@
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from src.app.services.scraping import spider_factory
+import asyncio
+
+# Speedup: ensure asyncio.sleep is awaitable no-op for these async tests
+try:
+    async def _noop_async_sleep(s):
+        return None
+    asyncio.sleep = _noop_async_sleep
+except Exception:
+    pass
 
 
 def test_write_json_array_with_lock_creates_file(tmp_path):

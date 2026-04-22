@@ -379,8 +379,13 @@ h1, h2, h3 { margin-top: 0; margin-bottom: 8px; }
   padding: 16px;
   box-sizing: border-box;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  gap: 12px;
 }
+
+/* Ensure conversation list and chat panes layout horizontally */
+.conv-list { display:flex; flex-direction:column; width:260px; box-sizing:border-box; }
+.conv-chat { flex:1; display:flex; flex-direction:column; min-height:0; }
 
 #llm-panel h2 { margin: 0 0 4px 0; font-size: 18px }
 #llm-panel p { margin: 0 0 12px 0; font-size: 13px; color: #ffffff }
@@ -405,9 +410,9 @@ h1, h2, h3 { margin-top: 0; margin-bottom: 8px; }
 #llm-send-btn:hover { background:#2ea043 }
 
 .user-message { text-align:right; margin-bottom:4px; font-size:15px }
-.user-message span { display:inline-block; background:#1d4ed8; color:#ffffff; padding:4px 8px; border-radius:10px; max-width:80%; word-wrap:break-word }
+.user-message span { display:inline-block; background:transparent; color:#e6eef8; padding:4px 8px; border-radius:10px; max-width:80%; word-wrap:break-word }
 .bot-message { text-align:left; margin-bottom:8px }
-.bot-message span { display:inline-block; background:#3a548a; color:#ffffff; padding:4px 8px; border-radius:10px; max-width:80%; word-wrap:break-word }
+.bot-message span { display:inline-block; background:transparent; color:#e6eef8; padding:4px 8px; border-radius:10px; max-width:80%; word-wrap:break-word }
 
 .controllers-pane { width:280px; background:#0b1220; color:#e6eef8; border-right:1px solid #111827; padding:12px; box-sizing:border-box; overflow:auto }
 .controllers-pane h3 { margin-top:0; color:#e6eef8 }

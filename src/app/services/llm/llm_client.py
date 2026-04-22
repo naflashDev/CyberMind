@@ -4,29 +4,17 @@
 @brief HTTP client for interacting with a local Ollama server.
 @details This module provides a simple wrapper to send prompts and receive responses from an LLM served by Ollama.
 """
-import os
-"""
-@file llm_client.py
-@author naflashDev
-@brief HTTP client for interacting with a local Ollama server.
-@details This module provides a simple wrapper to send prompts
-         and receive responses from an LLM served by Ollama.
-"""
-
-import os
 import requests
 from loguru import logger
 
-# Base URL of the local Ollama server.
-# By default, Ollama listens on 127.0.0.1:11434.
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+# Base URL of the local Ollama server. Fixed (no env vars).
+OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 
-# Name of the model installed in Ollama.
-# In this project we will use "llama3" by default.
-OLLAMA_MODEL_NAME = os.getenv("OLLAMA_MODEL_NAME", "cybersentinel")
+# Name of the model installed in Ollama. Fixed to project model.
+OLLAMA_MODEL_NAME = "cybersentinel"
 
 
-def query_llm(prompt: str, system_prompt: str | None = None) -> str:
+def query_llm(prompt: str | None = None, messages: list | None = None, system_prompt: str | None = None) -> str:
     '''
     @brief Sends a prompt to the local Ollama server and returns its response.
 
@@ -39,10 +27,13 @@ def query_llm(prompt: str, system_prompt: str | None = None) -> str:
     try:
         url = f"{OLLAMA_BASE_URL}/api/chat"
 
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        # If explicit messages are provided, use them (preferred for chat-style context)
+        if messages is None:
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            if prompt is not None:
+                messages.append({"role": "user", "content": prompt})
 
         payload = {
             "model": OLLAMA_MODEL_NAME,

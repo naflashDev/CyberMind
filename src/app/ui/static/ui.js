@@ -212,6 +212,443 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
   updateCyberSentinelVisibility();
+  // --- Conversations / LLM chat integration ---
+  let selectedConversationId = null;
+  // expose current selection to other UI modules
+  window.__selectedConversationId = null;
+  const convListEl = document.getElementById('conv-list');
+  const btnNewConv = document.getElementById('btn-new-conv');
+  const llmMessagesEl = document.getElementById('llm-messages');
+  const llmPrompt = document.getElementById('llm-prompt');
+  const llmSendBtn = document.getElementById('llm-send-btn');
+  const selectedConvTitleEl = document.getElementById('selected-conv-title');
+
+  async function fetchConversations() {
+    if (!convListEl) return;
+    convListEl.innerHTML = '<div style="color:#9aa6b2;">Cargando...</div>';
+    try {
+      const resp = await fetch('/llm/conversations');
+      if (!resp.ok) throw new Error('Error cargando conversaciones');
+      const data = await resp.json();
+      renderConversationList(data);
+      // NOTE: Do not auto-select any existing conversation on load.
+      // The UI should start with an empty chat; users can choose or create one manually.
+    } catch (e) {
+      convListEl.innerHTML = '<div style="color:#fca5a5">No se pudieron cargar conversaciones</div>';
+    }
+  }
+
+  function renderConversationList(list) {
+    convListEl.innerHTML = '';
+    if (!Array.isArray(list) || list.length === 0) {
+      convListEl.innerHTML = '<div style="color:#9aa6b2">No hay conversaciones. Crea una nueva.</div>';
+      return;
+    }
+    list.forEach(c => {
+      const row = document.createElement('div');
+      row.className = 'conv-row';
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.gap = '8px';
+      row.style.marginBottom = '6px';
+
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'conv-item';
+      b.dataset.convId = String(c.id);
+      b.style.flex = '1';
+      b.style.textAlign = 'left';
+      b.style.padding = '8px';
+      b.style.border = 'none';
+      b.style.background = selectedConversationId === c.id ? '#072033' : 'transparent';
+      b.style.color = '#e6eef8';
+      b.style.cursor = 'pointer';
+      b.style.borderRadius = '6px';
+      b.innerHTML = `<div style="font-weight:700">${escapeHtml(c.title || ('Conversation ' + c.id))}</div><div style="font-size:12px;color:#9aa6b2">${new Date(c.created_at).toLocaleString()}</div>`;
+      b.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const id = Number(ev.currentTarget.dataset.convId);
+        selectedConversationId = id;
+        window.__selectedConversationId = selectedConversationId;
+        document.querySelectorAll('.conv-item').forEach(el => el.style.background = (el.dataset.convId == String(selectedConversationId)) ? '#072033' : 'transparent');
+        selectConversation(id).then(() => console.log('[UI] selectConversation resolved for', id)).catch(err => console.error('[UI] selectConversation error for', id, err));
+      });
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'conv-delete-btn';
+      del.title = 'Eliminar conversación';
+      del.style.display = 'none';
+      del.style.minWidth = '34px';
+      del.style.height = '34px';
+      del.style.borderRadius = '6px';
+      del.style.border = 'none';
+      del.style.background = '#ef4444';
+      del.style.color = '#fff';
+      del.style.cursor = 'pointer';
+      del.textContent = '🗑';
+      del.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const id = Number(c.id);
+        const ok = confirm('¿Eliminar conversación? Esta acción no se puede deshacer.');
+        if (!ok) return;
+        try {
+          const resp = await fetch(`/llm/conversations/${id}`, { method: 'DELETE' });
+          if (!resp.ok) throw new Error('Error deleting');
+          if (selectedConversationId === id) {
+            selectedConversationId = null;
+            window.__selectedConversationId = null;
+            if (selectedConvTitleEl) selectedConvTitleEl.textContent = '';
+            if (llmMessagesEl) llmMessagesEl.innerHTML = '';
+          }
+          row.remove();
+        } catch (e) {
+          console.error('[UI] Error deleting conversation', e);
+          alert('Error eliminando la conversación');
+        }
+      });
+
+      row.addEventListener('mouseenter', () => { del.style.display = 'block'; });
+      row.addEventListener('mouseleave', () => { del.style.display = 'none'; });
+
+      row.appendChild(b);
+      row.appendChild(del);
+      convListEl.appendChild(row);
+    });
+  }
+
+  async function createConversation(pTitle) {
+    // pTitle: optional string title for the conversation. If undefined, default to 'Chat'.
+    try {
+      const titleToSend = (typeof pTitle === 'string' && pTitle.trim()) ? String(pTitle).trim() : 'Chat';
+      const resp = await fetch('/llm/conversations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: titleToSend }) });
+      if (!resp.ok) throw new Error('Error creando conversación');
+      const conv = await resp.json();
+      // set selection and refresh list, then load messages
+      selectedConversationId = conv.id;
+      window.__selectedConversationId = selectedConversationId;
+      await fetchConversations();
+      await selectConversation(conv.id);
+    } catch (e) {
+      alert('Error creando conversación');
+    }
+  }
+
+  async function selectConversation(id) {
+    // Load messages for the selected conversation id
+    try {
+      const resp = await fetch(`/llm/conversations/${id}`);
+      if (!resp.ok) throw new Error('No encontrada');
+      const conv = await resp.json();
+      console.log('[UI] Conversation data received:', conv);
+      selectedConvTitleEl.textContent = conv.title ? `— ${conv.title}` : '';
+      const msgs = conv.messages || [];
+      // Clear messages area first
+      if (llmMessagesEl) llmMessagesEl.innerHTML = '';
+
+      // If there are messages, render them and generate a conversation title
+      if (Array.isArray(msgs) && msgs.length > 0) {
+        // If the conversation has no explicit title, derive one from the first message
+        try {
+          if (!conv.title || !String(conv.title).trim()) {
+            const firstText = msgs[0] && msgs[0].text ? String(msgs[0].text).trim() : '';
+            if (firstText) {
+              // Use the first line and the first few words as a lightweight title
+              const firstLine = firstText.split(/\r?\n/)[0].trim();
+              const words = firstLine.split(/\s+/).slice(0, 8).join(' ');
+              const short = words.length > 60 ? words.slice(0, 57) + '...' : words;
+              if (selectedConvTitleEl) selectedConvTitleEl.textContent = `— ${short}`;
+            } else {
+              if (selectedConvTitleEl) selectedConvTitleEl.textContent = '';
+            }
+          } else {
+            if (selectedConvTitleEl) selectedConvTitleEl.textContent = `— ${conv.title}`;
+          }
+        } catch (e) {
+          console.warn('[UI] Error generating title from first message', e);
+          if (selectedConvTitleEl) selectedConvTitleEl.textContent = conv.title ? `— ${conv.title}` : '';
+        }
+
+        renderMessages(msgs);
+      } else {
+        // No messages: keep messages area empty and preserve conversation title if provided
+        if (selectedConvTitleEl) selectedConvTitleEl.textContent = conv.title ? `— ${conv.title}` : '';
+      }
+      // ensure visual selection
+      document.querySelectorAll('.conv-item').forEach(el => el.style.background = (el.dataset.convId == String(id)) ? '#072033' : 'transparent');
+    } catch (e) {
+      console.error('[UI] Error loading conversation', e);
+      alert('Error cargando la conversación: ' + (e && e.message ? e.message : e));
+    }
+  }
+
+  function renderMessages(messages) {
+    if (!llmMessagesEl) return;
+    llmMessagesEl.innerHTML = '';
+    messages.forEach(m => {
+      const el = document.createElement('div');
+      el.style.marginBottom = '10px';
+      el.style.padding = '10px';
+      el.style.borderRadius = '8px';
+      if (m.role === 'user') {
+        // user bubbles: shorter and adaptive up to 50%
+        el.style.display = 'block';
+        el.style.maxWidth = '50%';
+        el.style.whiteSpace = 'pre-wrap';
+        el.style.wordBreak = 'break-word';
+        el.style.background = '#04263a';
+        el.style.marginLeft = 'auto';
+        el.style.textAlign = 'right';
+      } else {
+        // assistant bubbles keep previous max width
+        el.style.maxWidth = '80%';
+        // Use the same background as user messages for visual coherence
+        el.style.background = '#04263a';
+        el.style.marginRight = 'auto';
+        el.style.textAlign = 'left';
+      }
+      el.innerHTML = `<div style="white-space:pre-wrap;">${escapeHtml(m.text)}</div><div style="font-size:11px;color:#9aa6b2;margin-top:6px;text-align:${m.role === 'user' ? 'right' : 'left'}">${new Date(m.timestamp).toLocaleString()}</div>`;
+      llmMessagesEl.appendChild(el);
+    });
+    llmMessagesEl.scrollTop = llmMessagesEl.scrollHeight;
+  }
+
+  if (btnNewConv) btnNewConv.addEventListener('click', () => createConversation());
+
+  // Send message handler: ensures a conversation exists, posts the prompt, and renders response.
+  async function sendMessage() {
+    if (!llmPrompt) return;
+    const text = (llmPrompt.value || '').trim();
+    if (!text) return;
+    try {
+      // Ensure there is a conversation to attach the message to
+      if (selectedConversationId == null) {
+        // Derive a short title from the prompt text and persist it when creating the conversation
+        const firstLine = text.split(/\r?\n/)[0].trim();
+        const words = firstLine.split(/\s+/).slice(0, 8).join(' ');
+        const short = words.length > 60 ? words.slice(0, 57) + '...' : words;
+        await createConversation(short || 'Chat');
+        // createConversation sets selectedConversationId and loads the conversation
+      }
+
+      // Optimistically render user's message
+      const userMsg = { role: 'user', text, timestamp: new Date().toISOString() };
+      if (llmMessagesEl) {
+        const el = document.createElement('div');
+          el.style.marginBottom = '10px';
+          el.style.padding = '10px';
+          el.style.borderRadius = '8px';
+          // optimistic user bubble: shorter and adaptive up to 50%
+          el.style.display = 'block';
+          el.style.maxWidth = '50%';
+          el.style.whiteSpace = 'pre-wrap';
+          el.style.wordBreak = 'break-word';
+          el.style.background = '#04263a';
+          el.style.marginLeft = 'auto';
+          el.style.textAlign = 'right';
+        el.innerHTML = `<div style="white-space:pre-wrap;">${escapeHtml(text)}</div><div style="font-size:11px;color:#9aa6b2;margin-top:6px;text-align:right">${new Date(userMsg.timestamp).toLocaleString()}</div>`;
+        llmMessagesEl.appendChild(el);
+        llmMessagesEl.scrollTop = llmMessagesEl.scrollHeight;
+      }
+      llmPrompt.value = '';
+
+      // Send to backend
+      const payload = { prompt: text, conversation_id: selectedConversationId, top_k: 5 };
+      const resp = await fetch('/llm/query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (!resp.ok) throw new Error('LLM query failed');
+      const data = await resp.json();
+      const assistantText = data && (data.response || data.result) ? (data.response || data.result) : 'Sin respuesta del LLM';
+
+      // Render assistant reply
+      if (llmMessagesEl) {
+        const msgEl = document.createElement('div');
+        msgEl.style.marginBottom = '10px';
+        msgEl.style.padding = '10px';
+        msgEl.style.borderRadius = '8px';
+        msgEl.style.maxWidth = '80%';
+        // Use the same background as user messages for visual coherence
+        msgEl.style.background = '#04263a';
+        msgEl.style.marginRight = 'auto';
+        msgEl.style.textAlign = 'left';
+        msgEl.innerHTML = `<div style="white-space:pre-wrap;">${escapeHtml(assistantText)}</div><div style="font-size:11px;color:#9aa6b2;margin-top:6px;text-align:left">${new Date().toLocaleString()}</div>`;
+        llmMessagesEl.appendChild(msgEl);
+        llmMessagesEl.scrollTop = llmMessagesEl.scrollHeight;
+      }
+
+      // Optionally refresh conversation from server to sync persisted messages
+      // await selectConversation(selectedConversationId);
+    } catch (e) {
+      console.error('[UI] sendMessage error', e);
+      alert('Error enviando mensaje: ' + (e && e.message ? e.message : e));
+    }
+  }
+
+  // Wire up Send button and Enter key (Enter = send, Shift+Enter = newline)
+  if (llmSendBtn) {
+    llmSendBtn.addEventListener('click', (ev) => { ev.preventDefault(); sendMessage(); });
+  }
+  if (llmPrompt) {
+    llmPrompt.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' && !ev.shiftKey) {
+        ev.preventDefault();
+        sendMessage();
+      }
+    });
+  }
+
+  // Load initial conversations when LLM view activated
+  // If the LLM view is active by default, fetch now
+  if (views.llm && views.llm.classList.contains('active')) {
+    fetchConversations();
+  }
+  // --- Documents panel wiring ---
+  const btnManageDocs = document.getElementById('btn-manage-docs');
+  const docsPanel = document.getElementById('documents-panel');
+  const docsCloseBtn = document.getElementById('docs-close-btn');
+  const docsUploadBtn = document.getElementById('docs-upload-btn');
+  const docsFileInput = document.getElementById('docs-file-input');
+  const docsDropzone = document.getElementById('docs-dropzone');
+  const docsFolderSelect = document.getElementById('docs-folder-select');
+  const docsStatus = document.getElementById('docs-upload-status');
+
+  if (btnManageDocs && docsPanel) {
+    btnManageDocs.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      const willShow = (docsPanel.style.display === 'none' || !docsPanel.style.display);
+      if (willShow) {
+        // refresh folder list when opening
+        await loadDocumentFolders();
+      }
+      docsPanel.style.display = willShow ? 'block' : 'none';
+    });
+  }
+  if (docsCloseBtn && docsPanel) {
+    docsCloseBtn.addEventListener('click', (ev) => { ev.preventDefault(); docsPanel.style.display = 'none'; });
+  }
+
+  // Drag & drop + upload handler
+  if (docsDropzone && docsFileInput) {
+    // click on dropzone opens file picker
+    docsDropzone.addEventListener('click', () => docsFileInput.click());
+
+    // highlight on dragover
+    docsDropzone.addEventListener('dragover', (ev) => {
+      ev.preventDefault();
+      docsDropzone.style.borderColor = '#60a5fa';
+      docsDropzone.style.background = '#071833';
+    });
+    docsDropzone.addEventListener('dragleave', (ev) => {
+      ev.preventDefault();
+      docsDropzone.style.borderColor = '#233044';
+      docsDropzone.style.background = '#071127';
+    });
+
+    docsDropzone.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      docsDropzone.style.borderColor = '#233044';
+      docsDropzone.style.background = '#071127';
+      const dt = ev.dataTransfer;
+      if (dt && dt.files && dt.files.length > 0) {
+        docsFileInput.files = dt.files; // set files for upload
+        docsDropzone.textContent = Array.from(dt.files).map(f => f.name).join(', ');
+      }
+    });
+
+    // when files chosen via picker, show names
+    docsFileInput.addEventListener('change', () => {
+      const f = docsFileInput.files;
+      if (f && f.length) docsDropzone.textContent = Array.from(f).map(x => x.name).join(', ');
+      else docsDropzone.textContent = 'Arrastra y suelta aquí o haz clic para seleccionar';
+    });
+  }
+
+  if (docsUploadBtn && docsFileInput) {
+    docsUploadBtn.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      docsStatus.textContent = '';
+      const files = docsFileInput.files;
+      if (!files || files.length === 0) {
+        docsStatus.textContent = 'Selecciona un archivo para subir.';
+        return;
+      }
+      const folder = docsFolderSelect && docsFolderSelect.value ? docsFolderSelect.value.trim() : '';
+      const form = new FormData();
+      // append multiple files
+      for (let i = 0; i < files.length; i++) {
+        form.append('file', files[i]);
+      }
+      if (folder) form.append('folder', folder);
+      if (window.__selectedConversationId) form.append('conversation_id', String(window.__selectedConversationId));
+      docsUploadBtn.disabled = true;
+      docsUploadBtn.textContent = 'Subiendo...';
+      try {
+        const resp = await fetch('/documents/upload', { method: 'POST', body: form });
+        if (!resp.ok) {
+          const txt = await resp.text();
+          throw new Error('Upload failed: ' + txt);
+        }
+        const data = await resp.json();
+        const msg = data && data.results ? data.results.map(r => r.message || r.file || r.doc_id).join('; ') : 'OK';
+        docsStatus.textContent = 'Subido: ' + msg;
+        // Optionally close panel
+        setTimeout(() => { docsPanel.style.display = 'none'; docsDropzone.textContent = 'Arrastra y suelta aquí o haz clic para seleccionar'; docsFileInput.value = ''; }, 900);
+      } catch (e) {
+        console.error('[UI] documents upload error', e);
+        docsStatus.textContent = 'Error subiendo archivo.';
+      }
+      docsUploadBtn.disabled = false;
+      docsUploadBtn.textContent = 'Subir';
+    });
+  }
+
+  // --- Folder list management ---
+  const docsSelectedPath = document.getElementById('docs-selected-path');
+
+  async function loadDocumentFolders() {
+    try {
+      const resp = await fetch('/documents/folders');
+      if (!resp.ok) throw new Error('Failed to list folders');
+      const data = await resp.json();
+      const folders = (data && data.folders) ? data.folders : [];
+      // Clear select
+      if (docsFolderSelect) {
+        docsFolderSelect.innerHTML = '';
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = '(default)';
+        docsFolderSelect.appendChild(empty);
+        folders.forEach(f => {
+          const opt = document.createElement('option');
+          opt.value = f.name;
+          opt.textContent = f.name;
+          opt.dataset.path = f.path;
+          docsFolderSelect.appendChild(opt);
+        });
+        // restore last selection from localStorage
+        const saved = window.localStorage.getItem('docs_selected_folder') || '';
+        if (saved) docsFolderSelect.value = saved;
+        updateSelectedPath();
+      }
+    } catch (e) {
+      console.error('[UI] loadDocumentFolders error', e);
+    }
+  }
+
+  function updateSelectedPath() {
+    if (!docsFolderSelect) return;
+    const sel = docsFolderSelect.value;
+    const opt = docsFolderSelect.selectedOptions && docsFolderSelect.selectedOptions[0];
+    const path = opt && opt.dataset && opt.dataset.path ? opt.dataset.path : (sel ? ('data/documents/' + sel) : 'data/documents/default');
+    if (docsSelectedPath) docsSelectedPath.textContent = path;
+    // persist
+    try { window.localStorage.setItem('docs_selected_folder', sel || ''); } catch (e) {}
+  }
+
+  if (docsFolderSelect) {
+    docsFolderSelect.addEventListener('change', () => updateSelectedPath());
+  }
+
+  // Folder creation removed from UI by project policy; no handler.
     // --- Configuración editable de archivos .ini ---
     let configCache = null;
     const configFilesEl = document.getElementById('config-files');
@@ -552,6 +989,8 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     // lazy-load any iframe placeholder inside the activated view
     try { ensureFrameLoaded(viewName); } catch (e) { /* ignore */ }
+    // If activating the LLM view, ensure conversations are loaded
+    try { if (viewName === 'llm') fetchConversations(); } catch (e) { /* ignore */ }
   }
 
   /**
@@ -1075,6 +1514,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 spacy_nlp: { name: 'NLP (spaCy)', info: 'Procesa y etiqueta entidades en textos usando spaCy cada 24h.' },
                 llm_updater: { name: 'LLM Updater', info: 'Actualiza el modelo LLM y el dataset de CVEs cada 7 días.' },
                 dynamic_spider: { name: 'Spider Dinámico', info: 'Ejecuta spiders Scrapy configurados dinámicamente desde la base de datos.' }
+                ,
+                vector_ingest: { name: 'Ingesta de Vectores', info: 'Escanea ./data/documents y normaliza/sube documentos al vectorstore (Chroma) para búsqueda semántica. Evita reindexar documentos ya indexados.' },
+                vector_retention: { name: 'Retención de Vectores', info: 'Elimina vectores y conversaciones antiguas según TTL (por defecto 7 días). Mantiene el tamaño y frescura del índice.' }
               };
               const friendly = WORKER_FRIENDLY[name] || { name, info: '' };
               const status = val ? '<span style="color:#86efac">running</span>' : '<span style="color:#fca5a5">stopped</span>';
@@ -1979,6 +2421,16 @@ document.addEventListener('DOMContentLoaded', function () {
       const wrapper = document.createElement("div"); const span = document.createElement("span");
       if (role === "user") {
         wrapper.className = "user-message"; span.textContent = text;
+        // user bubble: shorter and adapt to content up to 50%
+        wrapper.style.display = 'block';
+        wrapper.style.maxWidth = '50%';
+        wrapper.style.whiteSpace = 'pre-wrap';
+        wrapper.style.wordBreak = 'break-word';
+        wrapper.style.padding = '10px';
+        wrapper.style.borderRadius = '8px';
+        wrapper.style.background = '#04263a';
+        wrapper.style.marginLeft = 'auto';
+        wrapper.style.textAlign = 'right';
       } else {
         wrapper.className = "bot-message";
         const html = window.marked ? window.marked.parse(text) : escapeHtml(text);
@@ -1986,6 +2438,14 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!window.marked && text && (text.trim().startsWith('#') || text.includes('\n\n') || text.includes('```'))) {
           ensureMarked().then(() => { try { span.innerHTML = window.marked.parse(text); messagesEl.scrollTop = messagesEl.scrollHeight; } catch (e) {} });
         }
+        // assistant bubble default styling (keeps wider appearance)
+        wrapper.style.padding = '10px';
+        wrapper.style.borderRadius = '8px';
+        wrapper.style.maxWidth = '80%';
+        // Use the same background as user messages for visual coherence
+        wrapper.style.background = '#04263a';
+        wrapper.style.marginRight = 'auto';
+        wrapper.style.textAlign = 'left';
       }
       wrapper.appendChild(span); messagesEl.appendChild(wrapper); messagesEl.scrollTop = messagesEl.scrollHeight;
     }
@@ -1995,10 +2455,18 @@ document.addEventListener('DOMContentLoaded', function () {
      * @return void
      */
     async function sendPrompt() {
-      const prompt = promptEl.value.trim(); if (!prompt) return; appendMessage("Tú: " + prompt, "user"); promptEl.value = ""; sendBtn.disabled = true;
-      try { const response = await fetch(LLM_API_BASE + "/llm/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: prompt }) }); const data = await response.json(); appendMessage(data.response || "[Respuesta vacía]", "bot"); }
-      catch (err) { appendMessage("Error llamando al LLM: " + err, "bot"); }
-      finally { sendBtn.disabled = false; promptEl.focus(); }
+      const prompt = promptEl.value.trim(); if (!prompt) return; appendMessage(prompt, "user"); promptEl.value = ""; sendBtn.disabled = true;
+      try {
+        const payload = { prompt: prompt, conversation_id: (window.__selectedConversationId || null) };
+        const response = await fetch(LLM_API_BASE + "/llm/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const data = await response.json();
+        appendMessage(data.response || "[Respuesta vacía]", "bot");
+      } catch (err) {
+        appendMessage("Error llamando al LLM: " + err, "bot");
+      } finally {
+        sendBtn.disabled = false;
+        promptEl.focus();
+      }
     }
     sendBtn.addEventListener("click", sendPrompt);
     promptEl.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendPrompt(); } });
