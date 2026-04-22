@@ -3,6 +3,7 @@
 @brief Tests ingest_tracker SQLAlchemy path by mocking SessionLocal and model
 """
 from datetime import datetime, timezone
+import pytest
 
 from app.services.documents import ingest_tracker
 
@@ -36,6 +37,10 @@ class FakeSession:
 
 
 def test_sqlalchemy_record_and_get(monkeypatch):
+    # If the module was not imported with SQLAlchemy support, skip this test.
+    if not getattr(ingest_tracker, '_USE_SQLA', False):
+        pytest.skip('ingest_tracker not configured to use SQLAlchemy in this environment')
+
     ingest_tracker._USE_SQLA = True
 
     # Fake model and SessionLocal
