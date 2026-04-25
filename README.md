@@ -125,14 +125,20 @@ python main.py
 
 ## 🤖 IA y modelo LLM
 
-La IA integrada en CyberMind utiliza un modelo **LLama3** restringido, configurado mediante un archivo **Model file** que limita sus respuestas y comportamiento. La base de conocimiento del modelo está limitada hasta el año **2023** y no incluye información posterior.
+La IA integrada en CyberMind utiliza un modelo **LLama3** restringido (configurado vía `Model file`) especializado en ciberseguridad. El sistema incorpora ahora un flujo de R.A.G. (Retrieval-Augmented Generation) que permite enriquecer las consultas del LLM con contexto recuperado desde un vectorstore.
 
-> ⚠️ **Importante:** El modelo actual **NO ha sido finetuneado** con los datos extraídos por el sistema. La función de entrenamiento personalizado (R.A.G) se implementará en el futuro, ya que el proceso de diseño e implementación lleva bastante tiempo.
+- La base técnica: el servicio puede indexar documentos y mensajes en un vectorstore (Chroma/Chromadb) y generar embeddings mediante adaptadores (p. ej. Ollama embedding adapter) cuando están disponibles.
+- El archivo de dataset para finetuning se sigue generando automáticamente en `outputs/finetune_data.jsonl` y, cuando el vectorstore está disponible, se ingesta automáticamente para que los documentos sean recuperables.
+- Al enviar consultas a `POST /llm/query` el sistema realiza una recuperación de contexto (top-k) y lo añade al prompt antes de llamar al LLM, devolviendo además el campo `retrieved` con las fuentes encontradas.
 
-- El modelo responde únicamente sobre temas de ciberseguridad y CVE según las restricciones del Model file.
-- No puede responder sobre eventos, vulnerabilidades o noticias posteriores a 2023.
-- El finetuning con datos propios está planificado como mejora futura.
-- El archivo JSON para el finetuning **sí se genera** automáticamente (outputs/finetune_data.jsonl), pero no se utiliza aún para entrenar el modelo.
+Comportamiento clave:
+- Si el vectorstore (Chroma) y el adaptador de embeddings están presentes, las respuestas usan R.A.G. para aportar evidencia y citas.
+- Si no hay vectorstore disponible, el LLM sigue funcionando en modo directo (sin recuperación), y las funcionalidades de ingestión/updater son ignoradas con logging apropiado.
+- El proceso de actualización (`/llm/updater`) sincroniza fuentes (p. ej. repositorio de CVE), reconstruye el dataset y, cuando procede, lo ingesta en el vectorstore para que esté disponible en consultas posteriores.
+
+Notas operativas:
+- El módulo mantiene la opción de almacenar conversaciones y mensajes en la base de datos; los mensajes pueden upsertarse como vectores al añadirlos mediante la API de conversaciones.
+- Recomendado: disponer de un entorno con recursos (CPU/GPU y RAM) adecuados para operaciones intensivas (reindexado y generación de embeddings).
 
 ---
 

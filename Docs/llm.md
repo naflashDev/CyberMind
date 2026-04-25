@@ -30,12 +30,15 @@ El LLM actúa como asistente técnico especializado para:
 
 El sistema de IA de CyberMind utiliza un modelo **LLama3** restringido, configurado mediante un archivo **Model file** que limita sus respuestas y comportamiento. La base de conocimiento del modelo está limitada hasta el año **2023** y no incluye información posterior.
 
-> ⚠️ **Importante:** El modelo actual **NO ha sido finetuneado** con los datos extraídos por el sistema. La función de entrenamiento personalizado (R.A.G) se implementará en el futuro, ya que el proceso de diseño e implementación lleva bastante tiempo.
+El sistema de IA de CyberMind utiliza un modelo **LLama3** restringido, configurado mediante un `Model file` para mantener el comportamiento y el dominio del asistente (CyberSentinel). Actualmente la plataforma incorpora soporte de R.A.G. (Retrieval-Augmented Generation) para enriquecer las respuestas con contexto recuperado desde un vectorstore cuando éste está disponible.
 
-- El modelo responde únicamente sobre temas de ciberseguridad y CVE según las restricciones del Model file.
-- No puede responder sobre eventos, vulnerabilidades o noticias posteriores a 2023.
-- El R.A.G con datos propios está planificado como mejora futura.
-- El archivo JSON para el finetuning **sí se genera** automáticamente (`outputs/finetune_data.jsonl`), pero no se utiliza aún para entrenar el modelo.
+- El flujo R.A.G.: el sistema genera embeddings, indexa documentos/messages en un vectorstore (Chromadb/Chroma) y al recibir una consulta realiza una recuperación top-k que se añade como contexto al prompt antes de invocar el LLM.
+- El archivo de dataset de entrenamiento sigue generándose en `outputs/finetune_data.jsonl`. El pipeline de `llm_updater` puede reconstruir ese archivo, y cuando existe un vectorstore disponible lo ingesta automáticamente para que el contenido sea recuperable.
+- Si no existe Chroma/cliente de vectorstore en el entorno, el sistema opera en modo directo (sin recuperación) y las operaciones dependientes de ingestión se omiten con logging.
+
+Comportamiento y límites:
+- El modelo responde dentro del dominio de ciberseguridad (CVE, mitigaciones, análisis técnico). Cuando se aporta contexto recuperado, las respuestas incluyen evidencias y referencias a las fuentes recuperadas.
+- La precisión temporal de la información depende de las fuentes indexadas; el updater sincroniza regularmente repositorios oficiales (p. ej. CVE) para mantener la base actualizada.
 
 ---
 
