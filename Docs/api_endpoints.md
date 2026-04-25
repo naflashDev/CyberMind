@@ -142,53 +142,7 @@ Devuelve el informe HTML de cobertura generado por coverage.py, integrando el CS
 <b>Ejemplo de uso (curl):</b>
 
 <pre><code>curl -X POST http://127.0.0.1:8000/newsSpider/save-feed-google-alerts -H "Content-Type: application/json" -d '{"feed_url":"https://example.com/rss"}'
-
----
-
-## 🟦 Code Scanning
-
-<details>
-<summary><b>🔎 Endpoints de análisis de código</b></summary>
-
-<table>
-  <thead>
-    <tr>
-      <th>Método</th>
-      <th>Ruta</th>
-      <th>Descripción</th>
-      <th>Body/Parámetros</th>
-      <th>Respuesta</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><b>POST</b></td>
-      <td><code>/code/scan-text</code></td>
-      <td>Analiza un fragmento de código recibido como texto y devuelve vulnerabilidades encontradas junto con un informe PDF.</td>
-      <td><code>{ "code": "..." }</code></td>
-      <td><code>{ "vulnerabilities": [...], "llm_enabled": true/false, "pdf_base64": "..." }</code></td>
-    </tr>
-    <tr>
-      <td><b>POST</b></td>
-      <td><code>/code/scan-file</code></td>
-      <td>Analiza un archivo de código subido y devuelve vulnerabilidades encontradas junto con un informe PDF.</td>
-      <td>Archivo <code>.py, .js, .java, .c, .cpp, .rb, .go</code></td>
-      <td><code>{ "vulnerabilities": [...], "llm_enabled": true/false, "pdf_base64": "..." }</code></td>
-    </tr>
-  </tbody>
-</table>
-
-<blockquote>
-<b>Ejemplo de uso (curl):</b>
-
-<pre><code>curl -X POST http://127.0.0.1:8000/code/scan-text -H "Content-Type: application/json" -d '{"code":"print(123)"}'
 </code></pre>
-
-<pre><code>curl -X POST http://127.0.0.1:8000/code/scan-file -F "file=@test.py"
-</code></pre>
-</blockquote>
-
-</details>
 </blockquote>
 
 </details>
@@ -252,11 +206,12 @@ El módulo LLM de CyberMind utiliza un modelo **LLama3** restringido, configurad
 
 > 🗂️ **Obtención de datos CVE:** El worker <code>LLM Updater</code> clona automáticamente el repositorio oficial de CVE (https://github.com/CVEProject/cvelistV5) y utiliza los datos descargados para generar el archivo JSON de finetuning (<code>outputs/finetune_data.jsonl</code>). Este proceso permite actualizar la base de conocimiento del modelo con información técnica y descripciones de vulnerabilidades extraídas directamente de la fuente oficial.
 
-El R.A.G con datos propios está planificado como mejora futura, pero el archivo JSON para el entrenamiento **sí se genera** automáticamente (`outputs/finetune_data.jsonl`), aunque no se utiliza aún para entrenar el modelo.
 
-> ⚠️ **Importante:** El modelo actual **NO ha sido finetuneado** con los datos extraídos por el sistema. La función de entrenamiento personalizado (R.A.G) se implementará en el futuro, ya que el proceso de diseño e implementación lleva bastante tiempo.
+El sistema soporta ahora un flujo de R.A.G. (Retrieval-Augmented Generation). En entornos con un vectorstore disponible (Chromadb/Chroma) y un adaptador de embeddings (p. ej. Ollama), `POST /llm/query` realiza una recuperación top-k de documentos relevantes, añade ese contexto al prompt y devuelve además el campo `retrieved` con los fragmentos y metadatos recuperados.
 
-> 🚨 **Aviso de recursos:** Si tu máquina no es suficientemente potente (CPU/RAM limitados), **NO ejecutes el worker de LLM Updater** (`/llm/updater`). El proceso de actualización y entrenamiento consume muchos recursos y puede afectar gravemente el rendimiento del sistema o bloquear otros servicios.
+⚙️ `GET /llm/updater` — además de reconstruir el dataset (JSONL) sincronizando fuentes como el repositorio CVE, cuando el vectorstore está disponible el updater ingesta automáticamente `outputs/finetune_data.jsonl` en la colección de vectores para que los documentos sean consultables por R.A.G.
+
+🚨 Aviso de recursos: las operaciones de sincronización, generación de embeddings e ingestión pueden ser intensivas en CPU/RAM (y GPU si se usan aceleradores). En entornos limitados desactiva el updater o reduce concurrencia.
 
 ### Endpoints disponibles
 
@@ -518,6 +473,50 @@ curl -X POST http://127.0.0.1:8000/network/scan_range \
 curl http://127.0.0.1:8000/status
 curl -X POST http://127.0.0.1:8000/workers/rss_extractor -H "Content-Type: application/json" -d '{"enabled":true}'
 ```
+</details>
+
+<details>
+<summary><b>🔎 Code Scanning</b></summary>
+
+<table>
+  <thead>
+    <tr>
+      <th>Método</th>
+      <th>Ruta</th>
+      <th>Descripción</th>
+      <th>Body/Parámetros</th>
+      <th>Respuesta</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/code/scan-text</code></td>
+      <td>Analiza un fragmento de código recibido como texto y devuelve vulnerabilidades encontradas junto con un informe PDF.</td>
+      <td><code>{ "code": "..." }</code></td>
+      <td><code>{ "vulnerabilities": [...], "llm_enabled": true/false, "pdf_base64": "..." }</code></td>
+    </tr>
+    <tr>
+      <td><b>POST</b></td>
+      <td><code>/code/scan-file</code></td>
+      <td>Analiza un archivo de código subido y devuelve vulnerabilidades encontradas junto con un informe PDF.</td>
+      <td>Archivo <code>.py, .js, .java, .c, .cpp, .rb, .go</code></td>
+      <td><code>{ "vulnerabilities": [...], "llm_enabled": true/false, "pdf_base64": "..." }</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<blockquote>
+<b>Ejemplo de uso (curl):</b>
+
+<pre><code>curl -X POST http://127.0.0.1:8000/code/scan-text -H "Content-Type: application/json" -d '{"code":"print(123)"}'
+</code></pre>
+
+<pre><code>curl -X POST http://127.0.0.1:8000/code/scan-file -F "file=@test.py"
+</code></pre>
+</blockquote>
+
+</details>
 
 </details>
 <details>
