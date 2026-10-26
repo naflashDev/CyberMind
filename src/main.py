@@ -479,7 +479,7 @@ app = FastAPI(
     title="Cyberintelligence API",
     description="Automated processing of RSS feeds, news scraping, "
                 "and named entity recognition",
-    version="1.0.0",
+    version="2.0",
     lifespan=lifespan,
 )
 
