@@ -633,6 +633,11 @@ def ensure_containers(CONTAINERES: str, distro_name: Optional[str] = None):
             logger.error(f"Unexpected error ensuring container '{name}': {e}")
 
 def ensure_infrastructure(parameters, use_ollama=True):
+    # If running inside a container, external services are managed by Docker Compose
+    if os.getenv("RUNNING_IN_DOCKER", "false").lower() in ("true", "1"):
+        logger.info("[Infrastructure] RUNNING_IN_DOCKER active; skipping host compose calls.")
+        return
+
     '''
     @brief Ensures all required infrastructure services are running.
 

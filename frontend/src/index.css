@@ -1,0 +1,198 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* Paleta por defecto: Cyber Neon (Dark-First) */
+    --bg-app: #09090b;
+    --bg-surface: #18181b;
+    --bg-surface-subtle: #27272a;
+    --border-subtle: #27272a;
+    --border-strong: #3f3f46;
+
+    --text-primary: #f4f4f5;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+
+    --brand-primary: #06b6d4;       /* Cyan */
+    --brand-primary-hover: #0891b2;
+    --brand-secondary: #d946ef;     /* Fuchsia */
+    --brand-glow-rgb: 6, 182, 212;
+
+    --font-family-active: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Modo Claro Cyber Neon */
+  html:not(.dark).theme-cyber-neon {
+    --bg-app: #f4f4f5;
+    --bg-surface: #ffffff;
+    --bg-surface-subtle: #e4e4e7;
+    --border-subtle: #e4e4e7;
+    --border-strong: #d4d4d8;
+
+    --text-primary: #18181b;
+    --text-secondary: #52525b;
+    --text-muted: #a1a1aa;
+
+    --brand-primary: #0891b2;
+    --brand-primary-hover: #0e7490;
+    --brand-secondary: #c026d3;
+    --brand-glow-rgb: 8, 145, 178;
+  }
+
+  /* 2. JetBrains Dark (IDE) */
+  .theme-jetbrains-dark {
+    --bg-app: #1e1f22;
+    --bg-surface: #2b2d30;
+    --bg-surface-subtle: #393b40;
+    --border-subtle: #393b40;
+    --border-strong: #4e5157;
+
+    --text-primary: #dfe1e5;
+    --text-secondary: #9da0a8;
+    --text-muted: #6f737a;
+
+    --brand-primary: #f97316;       /* JetBrains Orange */
+    --brand-primary-hover: #ea580c;
+    --brand-secondary: #06b6d4;     /* Cyan accent */
+    --brand-glow-rgb: 249, 115, 22;
+  }
+
+  /* 3. Amber Terminal (Hacker OLED) */
+  .theme-amber-terminal {
+    --bg-app: #050505;
+    --bg-surface: #121212;
+    --bg-surface-subtle: #1c1917;
+    --border-subtle: #292524;
+    --border-strong: #44403c;
+
+    --text-primary: #fafaf9;
+    --text-secondary: #d6d3d1;
+    --text-muted: #78716c;
+
+    --brand-primary: #f59e0b;       /* Amber */
+    --brand-primary-hover: #d97706;
+    --brand-secondary: #fbbf24;
+    --brand-glow-rgb: 245, 158, 11;
+  }
+
+  /* 4. Modern SaaS (Indigo) */
+  .theme-modern-saas {
+    --bg-app: #020617;
+    --bg-surface: #0f172a;
+    --bg-surface-subtle: #1e293b;
+    --border-subtle: #1e293b;
+    --border-strong: #334155;
+
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+
+    --brand-primary: #4f46e5;       /* Indigo */
+    --brand-primary-hover: #4338ca;
+    --brand-secondary: #7c3aed;     /* Violet */
+    --brand-glow-rgb: 79, 70, 229;
+  }
+
+  /* 5. Calma Orgánica */
+  .theme-calma-organica {
+    --bg-app: #0c0a09;
+    --bg-surface: #1c1917;
+    --bg-surface-subtle: #292524;
+    --border-subtle: #292524;
+    --border-strong: #44403c;
+
+    --text-primary: #fafaf9;
+    --text-secondary: #d6d3d1;
+    --text-muted: #78716c;
+
+    --brand-primary: #0f766e;       /* Petróleo */
+    --brand-primary-hover: #115e59;
+    --brand-secondary: #f59e0b;     /* Ámbar cálido */
+    --brand-glow-rgb: 15, 118, 110;
+  }
+
+  /* 6. Minimal Swiss */
+  .theme-minimal-swiss {
+    --bg-app: #0a0a0a;
+    --bg-surface: #171717;
+    --bg-surface-subtle: #262626;
+    --border-subtle: #262626;
+    --border-strong: #404040;
+
+    --text-primary: #fafafa;
+    --text-secondary: #a3a3a3;
+    --text-muted: #737373;
+
+    --brand-primary: #2563eb;       /* Cobalt */
+    --brand-primary-hover: #1d4ed8;
+    --brand-secondary: #737373;
+    --brand-glow-rgb: 37, 99, 235;
+  }
+
+  /* Clases de fuentes dinámicas */
+  .font-plus-jakarta { font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important; }
+  .font-geist { font-family: 'Geist', system-ui, sans-serif !important; }
+  .font-inter { font-family: 'Inter', system-ui, sans-serif !important; }
+  .font-space-grotesk { font-family: 'Space Grotesk', system-ui, sans-serif !important; }
+  .font-jetbrains-mono { font-family: 'JetBrains Mono', monospace !important; }
+
+  body {
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+    font-family: var(--font-family-active);
+  }
+}
+
+/* Micro-interacciones canónicas de la Guía de naflashDev */
+.btn-bounce {
+  transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.btn-bounce:hover {
+  transform: translateY(-2px);
+}
+.btn-bounce:active {
+  transform: scale(0.96) translateY(0);
+  transition-duration: 120ms;
+}
+
+.dropdown-menu-smooth {
+  animation: dropdownEntry 260ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes dropdownEntry {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.glow-hover:hover {
+  box-shadow: 0 0 24px rgba(var(--brand-glow-rgb), 0.38);
+}
+
+.switch-track {
+  transition: background-color 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.switch-thumb {
+  transition: transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Scrollbar estilizado Cyber */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-app);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-primary);
+}

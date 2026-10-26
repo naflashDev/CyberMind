@@ -36,6 +36,35 @@ Permite desde la recolección y correlación de datos hasta la ejecución de aud
 ---
 
 
+## 🩺 Estado y Salud del Sistema
+<details>
+<summary><b>🩺 Ver endpoints de salud del sistema</b></summary>
+
+### GET /health
+
+**Descripción funcional:**
+Endpoint ligero para sondas de estado, monitorización y readiness en despliegues con Docker Compose y Kubernetes.
+
+**Parámetros de entrada:**
+- No requiere parámetros de entrada.
+
+**Respuestas posibles:**
+- `200 OK`:
+  ```json
+  {
+    "status": "healthy",
+    "infra_ready": true,
+    "ui_initialized": true
+  }
+  ```
+
+**Requisitos de autenticación y autorización:**
+- Acceso público / interno sin autenticación.
+
+</details>
+
+---
+
 ## 📊 Cobertura
 <details>
 <summary><b>📊 Ver endpoints de cobertura</b></summary>
