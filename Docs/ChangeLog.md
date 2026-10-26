@@ -5,7 +5,9 @@
 - Alineado de versiones de OpenTelemetry exporters y ajuste de `typer` para resolver conflicto de dependencias en el contenedor backend.
 - **Réplica funcional exacta de la UI original en el Frontend Desacoplado:**
   - Migración íntegra de todas las secciones, controladores (`OSINT` con `Scrapy`, `SpaCy`, `Tiny`, `LLM`; `Code Scanning`; `Hashed`; `Network`; `Status` con control individual/masivo de workers), caché de formularios/resultados, tarjetas especializadas, gestión de conversaciones y documentos RAG, visor de documentación con enlaces internos y editor estructurado `.ini` desde `index.html` y `ui.js` hacia `frontend/`, utilizando iconos modernos Lucide.
-  - Ampliación de reglas de proxy en `frontend/nginx.conf` y `frontend/vite.config.ts` para cubrir todos los endpoints del backend.
+  - Ampliación de reglas de proxy en `frontend/nginx.conf` (incluyendo resolución DNS dinámica de Docker `127.0.0.11` y `proxy_read_timeout 600s`) y `frontend/vite.config.ts` para cubrir todos los endpoints del backend.
+- **Actualización de Workflows CI/CD (`unified-ci.yml`):**
+  - Añadidos los jobs `frontend-ci` (Node.js 22, `oxlint`, `tsc -b && vite build`, `npm audit`) y `docker-validation` (`docker compose config -q` y build de imágenes `frontend` y `backend`), documentados en `Docs/Workflows.md`.
 
 ## [Unreleased] - 2026-10-26
 

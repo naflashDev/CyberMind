@@ -102,3 +102,22 @@ A partir de la versión [fecha actual], la interfaz de usuario incluye un aparta
 - El workflow de tests y CI verifica ahora que el análisis de código solo contacta con el LLM si el flag `use_ollama` está activado en algún `.ini` de `src/`. Si está en `false` en ambos, la explicación LLM se sustituye por el texto fijo "LLM desactivado por configuración.".
 - Añadidos tests unitarios en `tests/unit/test_scanner_llm_flag.py` para cubrir este comportamiento.
 
+---
+
+## 🚀 Actualización para Arquitectura Desacoplada v2.0 (2026-10-26)
+
+Con la separación de **Frontend (React + Vite + TypeScript + Nginx)** y **Backend (FastAPI + Docker Compose)** en CyberMind v2.0, se ha actualizado `.github/workflows/unified-ci.yml` añadiendo validación continua para la SPA y la infraestructura containerizada:
+
+| Stage | Descripción |
+|:------|:------------|
+| `setup` | Preparación del entorno Python 3.12.10 y caché de dependencias `pip`. |
+| `frontend-ci` | Instala Node.js 22 (`npm ci`), ejecuta el linter estático (`npm run lint` con `oxlint`), compila la SPA (`tsc -b && vite build`), audita dependencias (`npm audit`) y sube el artefacto `frontend-dist`. |
+| `lint` | Análisis estático del backend (`flake8` y SAST con `bandit`). |
+| `security` | Auditoría de vulnerabilidades en dependencias Python con `pip-audit`. |
+| `unit-tests` | Ejecución paralelizada (`pytest -n 16`) de tests unitarios en matriz Python 3.11 y 3.12.10. |
+| `integration-tests` | Ejecución paralelizada de la suite de integración (`tests/integration`). |
+| `coverage` | Medición de cobertura con `pytest-cov` exigiendo un umbral mínimo del 80% (`--cov-fail-under=80`). |
+| `docker-validation` | Valida la sintaxis de `docker-compose.yml` (`docker compose config -q`) y verifica la construcción limpia de las imágenes `cybermind-frontend` y `cybermind-backend`. |
+| `cleanup` | Etapa final (`if: always()`) que limpia artefactos temporales del repositorio tras completar el pipeline. |
+
+
