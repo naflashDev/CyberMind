@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 services:
   # ==========================================================
@@ -76,7 +76,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"
     networks:
       - cybermind-net
     deploy:
@@ -178,7 +178,7 @@ services:
     container_name: cybermind-ttrss-web
     restart: unless-stopped
     ports:
-      - "8280:80"
+      - "8282:80"
     environment:
       - TTRSS_SELF_URL_PATH=http://localhost:8280/tt-rss/
     volumes:

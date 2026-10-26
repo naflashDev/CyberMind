@@ -20,7 +20,7 @@ certifi==2026.2.25
 cffi==2.0.0
 charset-normalizer==3.4.6
 chromadb==1.5.5
-click==8.3.1
+
 click-option-group==0.5.9
 cloudpathlib==0.23.0
 colorama==0.4.6
@@ -109,17 +109,19 @@ ollama==0.6.1
 onnxruntime==1.24.4
 opensearch-protobufs==0.19.0
 opensearch-py==3.1.0
-opentelemetry-api==1.40.0
-opentelemetry-exporter-otlp-proto-common==1.40.0
-opentelemetry-exporter-otlp-proto-grpc==1.40.0
-opentelemetry-exporter-otlp-proto-http==1.37.0
-opentelemetry-instrumentation==0.58b0
-opentelemetry-instrumentation-requests==0.58b0
-opentelemetry-instrumentation-threading==0.58b0
-opentelemetry-proto==1.40.0
-opentelemetry-sdk==1.40.0
-opentelemetry-semantic-conventions==0.61b0
-opentelemetry-util-http==0.58b0
+# OpenTelemetry packages (versions not pinned to allow conflict resolution)
+opentelemetry-api
+opentelemetry-exporter-otlp-proto-common
+opentelemetry-exporter-otlp-proto-grpc
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-instrumentation
+opentelemetry-instrumentation-requests
+opentelemetry-instrumentation-threading
+opentelemetry-proto
+opentelemetry-sdk
+opentelemetry-semantic-conventions
+opentelemetry-util-http
+
 orjson==3.11.7
 ormsgpack==1.12.2
 overrides==7.7.0
@@ -154,7 +156,7 @@ pytest-xdist==3.8.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 python-multipart==0.0.22
-pywin32==311
+# pywin32==311  # Removed for Linux Docker compatibility
 PyYAML==6.0.3
 queuelib==1.9.0
 referencing==0.37.0
@@ -200,7 +202,7 @@ torch==2.11.0
 tqdm==4.67.3
 transformers==5.4.0
 Twisted==25.5.0
-typer==0.24.1
+typer==0.26.0
 typer-slim==0.24.0
 typing-inspect==0.9.0
 typing-inspection==0.4.2
