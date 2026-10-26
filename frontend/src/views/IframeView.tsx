@@ -1,63 +1,72 @@
 /**
  * @file IframeView.tsx
  * @author naflashDev
- * @brief Componente contenedor de vistas embebidas (OpenSearch Dashboards y Tiny Tiny RSS).
+ * @brief Embedded iframe container replicating the lazy-loading behavior of view-datos and view-tiny in index.html & ui.js.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ExternalLink, RefreshCw } from 'lucide-react';
 
 interface IframeViewProps {
   title: string;
+  buttonLabel: string;
   src: string;
-  description: string;
+  isActive?: boolean;
 }
 
-export const IframeView: React.FC<IframeViewProps> = ({ title, src, description }) => {
+export const IframeView: React.FC<IframeViewProps> = ({
+  title,
+  buttonLabel,
+  src,
+  isActive,
+}) => {
   const [loaded, setLoaded] = useState(false);
 
+  // Auto-load iframe on first activation just like ensureFrameLoaded(viewName) in ui.js
+  useEffect(() => {
+    if (isActive && !loaded) {
+      setLoaded(true);
+    }
+  }, [isActive, loaded]);
+
   return (
-    <div className="h-full flex flex-col p-4">
-      <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl p-4 mb-3 flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-bold text-[var(--text-primary)]">{title}</h2>
-          <p className="text-xs text-[var(--text-muted)]">{description}</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <a
-            href={src}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[var(--bg-surface-subtle)] hover:bg-[var(--border-subtle)] text-[var(--brand-primary)] border border-[var(--border-subtle)] btn-bounce"
-          >
-            <span>Abrir en nueva pestaña</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-        </div>
+    <div className="h-full w-full flex flex-col overflow-hidden">
+      <div className="px-4 py-2 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] flex items-center justify-between shrink-0">
+        <span className="text-xs font-semibold text-[var(--text-secondary)]">
+          {title} — <code className="text-[var(--brand-primary)]">{src}</code>
+        </span>
+        <a
+          href={src}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[var(--bg-surface-subtle)] hover:bg-[var(--border-subtle)] text-[var(--brand-primary)] border border-[var(--border-subtle)] transition-all"
+        >
+          <span>Abrir en pestaña nueva</span>
+          <ExternalLink className="w-3.5 h-3.5" />
+        </a>
       </div>
 
-      <div className="flex-1 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl overflow-hidden relative">
-        {!loaded && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[var(--bg-surface)] z-10 p-6 text-center">
-            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Integración de {title}</h3>
-            <p className="text-xs text-[var(--text-muted)] max-w-md mb-4">
-              Asegúrate de que el contenedor correspondiente se encuentra en ejecución en su puerto asignado ({src}).
-            </p>
-            <button
-              onClick={() => setLoaded(true)}
-              className="px-5 py-2.5 rounded-xl bg-[var(--brand-primary)] text-white font-semibold text-xs flex items-center gap-2 btn-bounce shadow-md"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Cargar {title}</span>
-            </button>
-          </div>
-        )}
-        {loaded && (
+      <div
+        className="iframe-placeholder flex-1 w-full h-full flex items-center justify-center bg-[var(--bg-app)] relative"
+        data-src={src}
+        data-loaded={loaded ? '1' : '0'}
+      >
+        {!loaded ? (
+          <button
+            type="button"
+            onClick={() => setLoaded(true)}
+            className="load-iframe-btn px-5 py-2.5 rounded-xl bg-[var(--brand-primary)] text-white font-semibold text-xs flex items-center gap-2 btn-bounce shadow-md"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>{buttonLabel}</span>
+          </button>
+        ) : (
           <iframe
             src={src}
             title={title}
-            className="w-full h-full border-none"
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+            loading="eager"
+            className="embed-frame w-full h-full border-0 bg-white"
+            sandbox="allow-scripts allow-forms allow-same-origin allow-popups"
           />
         )}
       </div>

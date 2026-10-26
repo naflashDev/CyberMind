@@ -33,11 +33,31 @@ export default defineConfig({
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
+      '/workers': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
       '/llm': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
       '/code': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/hashed': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/newsSpider': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/start-spacy': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/postgre-ttrss': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },

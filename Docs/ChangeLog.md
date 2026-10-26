@@ -1,3 +1,12 @@
+## [2.0] - 2026-10-26
+
+### Changed
+- Actualización de versión de la API FastAPI a 2.0.
+- Alineado de versiones de OpenTelemetry exporters y ajuste de `typer` para resolver conflicto de dependencias en el contenedor backend.
+- **Réplica funcional exacta de la UI original en el Frontend Desacoplado:**
+  - Migración íntegra de todas las secciones, controladores (`OSINT` con `Scrapy`, `SpaCy`, `Tiny`, `LLM`; `Code Scanning`; `Hashed`; `Network`; `Status` con control individual/masivo de workers), caché de formularios/resultados, tarjetas especializadas, gestión de conversaciones y documentos RAG, visor de documentación con enlaces internos y editor estructurado `.ini` desde `index.html` y `ui.js` hacia `frontend/`, utilizando iconos modernos Lucide.
+  - Ampliación de reglas de proxy en `frontend/nginx.conf` y `frontend/vite.config.ts` para cubrir todos los endpoints del backend.
+
 ## [Unreleased] - 2026-10-26
 
 ### Added
