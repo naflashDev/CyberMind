@@ -1,0 +1,19 @@
+# .dockerignore
+.git
+.github
+.venv
+venv
+env
+frontend
+data
+src/data
+outputs
+htmlcov
+tests
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.log
+.pytest_cache
+.coverage

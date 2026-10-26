@@ -1,4 +1,38 @@
-## [Unreleased] - 2026-03-15
+## [2.0] - 2026-10-26
+
+### Changed
+- Actualización de versión de la API FastAPI a 2.0.
+- Alineado de versiones de OpenTelemetry exporters y ajuste de `typer` para resolver conflicto de dependencias en el contenedor backend.
+- **Réplica funcional exacta de la UI original en el Frontend Desacoplado:**
+  - Migración íntegra de todas las secciones, controladores (`OSINT` con `Scrapy`, `SpaCy`, `Tiny`, `LLM`; `Code Scanning`; `Hashed`; `Network`; `Status` con control individual/masivo de workers), caché de formularios/resultados, tarjetas especializadas, gestión de conversaciones y documentos RAG, visor de documentación con enlaces internos y editor estructurado `.ini` desde `index.html` y `ui.js` hacia `frontend/`, utilizando iconos modernos Lucide.
+  - Ampliación de reglas de proxy en `frontend/nginx.conf` (incluyendo resolución DNS dinámica de Docker `127.0.0.11` y `proxy_read_timeout 600s`) y `frontend/vite.config.ts` para cubrir todos los endpoints del backend.
+- **Actualización de Workflows CI/CD (`unified-ci.yml`):**
+  - Añadidos los jobs `frontend-ci` (Node.js 22, `oxlint`, `tsc -b && vite build`, `npm audit`) y `docker-validation` (`docker compose config -q` y build de imágenes `frontend` y `backend`), documentados en `Docs/Workflows.md`.
+
+## [Unreleased] - 2026-10-26
+
+### Added
+- **Frontend Desacoplado Moderno (SPA):** Nueva interfaz construida en React 18, TypeScript, Tailwind CSS y Lucide Icons bajo la carpeta `frontend/`, desacoplada por completo del servidor FastAPI.
+- **Sistema de Temas Canónico (Guía de naflashDev):**
+  - Selector de 6 paletas cromáticas en el panel de Configuración: *Cyber Neon* (por defecto), *JetBrains Dark*, *Amber Terminal*, *Modern SaaS*, *Calma Orgánica* y *Minimal Swiss*.
+  - Selector dinámico de 5 familias tipográficas: *Plus Jakarta Sans*, *Geist*, *Inter*, *Space Grotesk* y *JetBrains Mono*.
+  - Conmutador elástico de Modo Oscuro / Modo Claro nativo con persistencia en `localStorage`.
+- **Containerización Integral Multi-Contenedor (Docker Compose):**
+  - Orquestador global `docker-compose.yml` para desplegar Frontend (Nginx Alpine), Backend (FastAPI + Nmap nativo), PostgreSQL, OpenSearch, OpenSearch Dashboards y Tiny Tiny RSS.
+  - Conexión configurada con el servicio de Ollama del host anfitrión (`host.docker.internal:11434`) para aceleración GPU sin duplicación de almacenamiento.
+  - Definición de límites estrictos de CPU y memoria RAM (`deploy.resources.limits`) para cada contenedor.
+  - Volúmenes persistentes nombrados para la base de datos de embeddings RAG (`chroma-data`) y documentos clonados/subidos (`documents-data`).
+- **Endpoint de Salud:** Incorporado `GET /health` en `main.py` para sondas de monitorización y readiness de contenedores.
+- **Documentación Técnica:** Añadidos `Docs/frontend_architecture.md` y `Docs/containerization.md`.
+
+### Changed
+- **CORS del Backend:** Ampliado `CORSMiddleware` en `main.py` para admitir orígenes de desarrollo (`http://localhost:5173`) y producción containerizada (`http://localhost:8080`).
+- **Configuración de Ollama:** `OLLAMA_BASE_URL` en `llm_client.py` ahora lee dinámicamente la variable de entorno `OLLAMA_HOST` con fallback a `http://127.0.0.1:11434`.
+- **Detección de Entorno en Infraestructura:** `ensure_infrastructure` en `run_services.py` comprueba `RUNNING_IN_DOCKER` para evitar llamadas redundantes de Docker CLI dentro de contenedores mientras mantiene compatibilidad total en ejecuciones bare-metal.
+
+---
+
+## [1.0.0] - 2026-03-15
 ### Added
 - Sección "Code Scanning" en la UI bajo "Services" con soporte para análisis de código por texto y archivo, mostrando resultados en tarjetas visuales y descarga de informe PDF.
 - Documentación de endpoints de code scanning en `api_endpoints.md`.

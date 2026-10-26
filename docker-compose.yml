@@ -1,0 +1,213 @@
+
+
+services:
+  # ==========================================================
+  # FRONTEND (Single Page Application - React + Vite + Nginx)
+  # ==========================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cybermind-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - cybermind-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+        reservations:
+          memory: 32M
+
+  # ==========================================================
+  # BACKEND (FastAPI + Workers + Nmap + ChromaDB Client)
+  # ==========================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: cybermind-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUNNING_IN_DOCKER=true
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${TTRSS_DB_USER:-ttrss}
+      - POSTGRES_PASSWORD=${TTRSS_DB_PASS:-ttrss}
+      - POSTGRES_DB=${TTRSS_DB_NAME:-ttrss}
+      - OPENSEARCH_HOST=http://opensearch:9200
+    volumes:
+      - chroma-data:/app/src/data/chroma
+      - documents-data:/app/src/data/documents
+    depends_on:
+      - db
+      - opensearch
+    networks:
+      - cybermind-net
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1024M
+        reservations:
+          memory: 256M
+
+  # ==========================================================
+  # POSTGRESQL (Base de datos para Tiny Tiny RSS & Spiders)
+  # ==========================================================
+  db:
+    image: postgres:15-alpine
+    container_name: cybermind-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${TTRSS_DB_USER:-ttrss}
+      - POSTGRES_PASSWORD=${TTRSS_DB_PASS:-ttrss}
+      - POSTGRES_DB=${TTRSS_DB_NAME:-ttrss}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - cybermind-net
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 128M
+
+  # ==========================================================
+  # OPENSEARCH (Motor de indexación, vectores y búsqueda)
+  # ==========================================================
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    container_name: cybermind-opensearch
+    restart: unless-stopped
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=node-1
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - DISABLE_SECURITY_PLUGIN=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    networks:
+      - cybermind-net
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1536M
+        reservations:
+          memory: 512M
+
+  # ==========================================================
+  # OPENSEARCH DASHBOARDS (Panel visual de analítica)
+  # ==========================================================
+  dashboards:
+    image: opensearchproject/opensearch-dashboards:latest
+    container_name: cybermind-dashboards
+    restart: unless-stopped
+    ports:
+      - "5601:5601"
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    depends_on:
+      - opensearch
+    networks:
+      - cybermind-net
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # ==========================================================
+  # TINY TINY RSS (Agregador de Feeds RSS Ciberseguridad)
+  # ==========================================================
+  ttrss-app:
+    image: cthulhoo/ttrss-fpm-pgsql-static:latest
+    container_name: cybermind-ttrss-app
+    restart: unless-stopped
+    environment:
+      - TTRSS_DB_USER=${TTRSS_DB_USER:-ttrss}
+      - TTRSS_DB_PASS=${TTRSS_DB_PASS:-ttrss}
+      - TTRSS_DB_NAME=${TTRSS_DB_NAME:-ttrss}
+      - TTRSS_DB_HOST=db
+      - TTRSS_DB_PORT=5432
+      - TTRSS_SELF_URL_PATH=http://localhost:8280/tt-rss/
+    volumes:
+      - ttrss-app-data:/var/www/html
+    depends_on:
+      - db
+    networks:
+      - cybermind-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  ttrss-web:
+    image: cthulhoo/ttrss-web-nginx:latest
+    container_name: cybermind-ttrss-web
+    restart: unless-stopped
+    ports:
+      - "8282:80"
+    environment:
+      - TTRSS_SELF_URL_PATH=http://localhost:8280/tt-rss/
+    volumes:
+      - ttrss-app-data:/var/www/html
+    depends_on:
+      - ttrss-app
+    networks:
+      - cybermind-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+# ==========================================================
+# REDES Y VOLÚMENES PERSISTENTES
+# ==========================================================
+networks:
+  cybermind-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local
+  opensearch-data:
+    driver: local
+  ttrss-app-data:
+    driver: local
+  chroma-data:
+    driver: local
+  documents-data:
+    driver: local

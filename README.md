@@ -2,6 +2,8 @@
 
 # 🛡️ CyberMind
 
+Version: 2.0
+
 **Plataforma modular de análisis y monitorización de ciberseguridad IT/OT con IA, scraping, dashboards y orquestación automatizada.**
 
 ---

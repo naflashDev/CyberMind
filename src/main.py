@@ -479,7 +479,7 @@ app = FastAPI(
     title="Cyberintelligence API",
     description="Automated processing of RSS feeds, news scraping, "
                 "and named entity recognition",
-    version="1.0.0",
+    version="2.0",
     lifespan=lifespan,
 )
 
@@ -497,6 +497,19 @@ app.include_router(config_controller_router)
 app.include_router(coverage_controller.router)
 app.include_router(hashed_router)
 app.include_router(code_analysis_controller.router)
+
+@app.get("/health", tags=["Status"])
+async def health_check():
+    """
+    @brief Health check endpoint for container probes and monitoring.
+    @return JSON object indicating system health and readiness.
+    """
+    return {
+        "status": "healthy",
+        "infra_ready": getattr(app.state, "infra_ready", False),
+        "ui_initialized": getattr(app.state, "ui_initialized", False)
+    }
+
 
 # Serve UI static files (simple single-file UI under app/ui/static)
 STATIC_DIR = Path(__file__).resolve().parent / "app" / "ui" / "static"
@@ -580,6 +593,9 @@ else:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8080",
         "http://127.0.0.1:8080",  # origen de TU UI
         "http://localhost:8001",
     ],

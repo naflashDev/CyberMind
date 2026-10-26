@@ -8,7 +8,10 @@ import requests
 from loguru import logger
 
 # Base URL of the local Ollama server. Fixed (no env vars).
-OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+import os
+
+# Base URL of the local Ollama server, configurable via environment variable.
+OLLAMA_BASE_URL = os.getenv("OLLAMA_HOST", os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"))
 
 # Name of the model installed in Ollama. Fixed to project model.
 OLLAMA_MODEL_NAME = "cybersentinel"
