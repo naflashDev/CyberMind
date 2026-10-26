@@ -21,6 +21,8 @@ env
 *.ini
 #json files generated during runtime
 *.json
+!frontend/*.json
+!frontend/.*.json
 *jsonl
 #md files
 *.csv
