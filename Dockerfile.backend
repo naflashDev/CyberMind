@@ -20,8 +20,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar el código fuente
+# Copiar el código fuente y la documentación del proyecto
 COPY src/ ./src/
+COPY Docs/ ./Docs/
+COPY README.md ./README.md
 COPY cfg.ini* ./src/
 COPY cfg_services.ini* ./src/
 
