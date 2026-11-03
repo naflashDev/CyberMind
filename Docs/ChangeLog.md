@@ -5,7 +5,7 @@
 - Alineado de versiones de OpenTelemetry exporters y ajuste de `typer` para resolver conflicto de dependencias en el contenedor backend.
 - **Réplica funcional exacta de la UI original en el Frontend Desacoplado:**
   - Migración íntegra de todas las secciones, controladores (`OSINT` con `Scrapy`, `SpaCy`, `Tiny`, `LLM`; `Code Scanning`; `Hashed`; `Network`; `Status` con control individual/masivo de workers), caché de formularios/resultados, tarjetas especializadas, gestión de conversaciones y documentos RAG, visor de documentación con enlaces internos y editor estructurado `.ini` desde `index.html` y `ui.js` hacia `frontend/`, utilizando iconos modernos Lucide.
-  - Ampliación de reglas de proxy en `frontend/nginx.conf` (incluyendo resolución DNS dinámica de Docker `127.0.0.11` y `proxy_read_timeout 600s`) y `frontend/vite.config.ts` para cubrir todos los endpoints del backend.
+  - Ampliación de reglas de proxy en `frontend/nginx.conf` (incluyendo resolución DNS dinámica de Docker `127.0.0.11` y `proxy_read_	imeout 600s`) y `frontend/vite.config.ts` para cubrir todos los endpoints del backend.
 - **Actualización de Workflows CI/CD (`unified-ci.yml`):**
   - Añadidos los jobs `frontend-ci` (Node.js 22, `oxlint`, `tsc -b && vite build`, `npm audit`) y `docker-validation` (`docker compose config -q` y build de imágenes `frontend` y `backend`), documentados en `Docs/Workflows.md`.
 - **Optimización drástica del peso de la imagen Docker del Backend (`cybermind-backend`):**
@@ -40,6 +40,15 @@
 - Sección "Code Scanning" en la UI bajo "Services" con soporte para análisis de código por texto y archivo, mostrando resultados en tarjetas visuales y descarga de informe PDF.
 - Documentación de endpoints de code scanning en `api_endpoints.md`.
 ### Fixed
+- **Optimización y estabilidad de tests automatizados:**
+  - 	ests/unit/test_worker_controller_extra.py: corrección de inyección de módulo simulado (pp.services.retention.retention_worker) y activación inmediata del stop_event en FakeThread2, eliminando esperas infinitas / de 24 horas (stop_event.wait(86400)).
+  - 	ests/conftest.py: aceleración controlada de 	hreading.Event.wait en bucles de background worker con 	imeouts largos (	imeout > 1), preservando 	imeout=None para la sincronización interna de hilos en multiprocessing.Pool y subprocess.
+  - 	ests/integration/test_llm_controller.py: registro de llm_trainer en sys.modules para evitar ModuleNotFoundError: No module named 'app.services.llm.llm_trainer'.
+  - 	ests/unit/test_documents_controller_upload.py: mockeo de ingest_document para prevenir llamadas externas y errores en upload de documentos durante testing.
+  - 	ests/services/test_scan_range_end.py: mockeo de puertos de red para evitar 	imeouts de sockets TCP reales.
+  - 	ests/unit/test_ingest.py: asegurada bandera _CHROMA_AVAILABLE=False en test de colisión de nombres.
+  - 	ests/app/controllers/routes/test_worker_controller.py: mockeo de syncpg.create_pool para prevenir esperas de conexión a PostgreSQL.
+
 - Worker `vector_ingest` now excludes the hidden `.git` directory from folder scans to avoid ingesting VCS metadata.
 - Ignore repository metadata files (`.gitignore`, `.gitattributes`, `README.md`) during ingestion by using a centralized blacklist.
 - CVE JSON files under repository trees are no longer copied into `data/documents`; they are read in-place and embedded directly from their original location to avoid duplication.
@@ -60,7 +69,7 @@
 		- Indexación in-place de JSONs asume que los ficheros son legibles y estables en disco; si se desea copia automática, use `save_copy=True` en la API de ingest.
 		- Soporte de embebbedor local depende de `ollama` disponible en PATH o configuración alternativa del env var `EMBED_MODEL_NAME`.
 ### Changed (2026-02-13)
-- Ampliados los tests unitarios para `src/app/services/hashed/bruteforce_utils.py`, cubriendo la función interna `_bruteforce_worker` (timeout, max_combinations, chunking, caracteres especiales, detección exitosa y fallida). La cobertura del módulo supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
+- Ampliados los tests unitarios para `src/app/services/hashed/bruteforce_utils.py`, cubriendo la función interna `_bruteforce_worker` (	imeout, max_combinations, chunking, caracteres especiales, detección exitosa y fallida). La cobertura del módulo supera el 80%, cumpliendo la norma de calidad definida en `AGENTS.md`.
 Archivos modificados:
  - `tests/unit/test_bruteforce_utils.py`
  - `src/app/services/hashed/bruteforce_utils.py`
@@ -87,7 +96,7 @@ Archivos modificados:
 ### Security
 - El endpoint <code>/hashed/upload-hash-file</code> y la UI asociada han sido reforzados para no exponer nunca detalles internos de la base de datos ni trazas de error. Todos los mensajes devueltos al usuario son claros y seguros, cumpliendo la política de seguridad definida en <code>AGENTS.md</code>.
  - El servicio de hash ahora incluye logs detallados usando loguru en todos los puntos clave: inicio y fin de operaciones, resultados de búsqueda en BBDD, intentos de fuerza bruta, errores y guardado de nuevos hashes. Esto mejora la trazabilidad y el diagnóstico de incidencias.
- - La fuerza bruta para deshashear hashes ahora se detiene automáticamente tras 120 segundos, devolviendo el número de combinaciones probadas y un indicador de timeout en la respuesta. Si se encuentra el valor original, se almacena automáticamente en la base de datos para futuras consultas rápidas.
+ - La fuerza bruta para deshashear hashes ahora se detiene automáticamente tras 120 segundos, devolviendo el número de combinaciones probadas y un indicador de 	imeout en la respuesta. Si se encuentra el valor original, se almacena automáticamente en la base de datos para futuras consultas rápidas.
 - Nuevo endpoint <code>/hashed/unhash</code> para deshashear uno o varios hashes (multilínea, auto-detección de tipo, búsqueda en BBDD y fuerza bruta multiproceso hasta 20 caracteres, incluyendo caracteres especiales más usados).
 - Lógica de fuerza bruta y detección de tipo de hash implementada en el servicio de hashing, cumpliendo los requisitos de seguridad y rendimiento.
 - UI actualizada: el algoritmo de hash es ahora seleccionable mediante un desplegable en la sección de hasheo, mejorando la experiencia de usuario y evitando errores de entrada manual. La caja de texto multilinea para hashes y la visualización de resultados por hash en tarjetas se mantienen.
@@ -125,7 +134,7 @@ Archivos modificados:
 - Refactorización y alineación de los tests de los módulos de utilidades (worker_control, utils, run_services) según las normas de estructura, imports y buenas prácticas. Todos los tests temporales se generan dentro de la carpeta de tests.
 
 ### Changed
-- El endpoint `/hashed/unhash-file` ahora procesa los hashes de manera **secuencial** (no en paralelo) y aplica un **timeout máximo de 1 minuto (60 segundos) por hash**. Esto mejora la estabilidad y evita la sobrecarga de recursos en el servidor. La documentación en `Docs/api_endpoints.md` ha sido actualizada para reflejar este nuevo comportamiento.
+- El endpoint `/hashed/unhash-file` ahora procesa los hashes de manera **secuencial** (no en paralelo) y aplica un **	imeout máximo de 1 minuto (60 segundos) por hash**. Esto mejora la estabilidad y evita la sobrecarga de recursos en el servidor. La documentación en `Docs/api_endpoints.md` ha sido actualizada para reflejar este nuevo comportamiento.
 
 ### Added
 - Se ha añadido la sección "Hashed" en la UI (Swagger/FastAPI) con endpoints para hashear y deshashear frases, permitiendo seleccionar el algoritmo (MD5, SHA256, SHA512) desde la interfaz.
@@ -315,7 +324,7 @@ Archivos modificados:
  - `tests/controllers/test_workers_ui.py`
  - `tests/controllers/test_scraping_news_worker.py`
  - `tests/controllers/test_network_api_scan_range.py`
- - `tests/controllers/test_network_api_nmap_timeout.py`
+ - `tests/controllers/test_network_api_nmap_	imeout.py`
  - `tests/controllers/test_network_api_integration.py`
  - `tests/controllers/test_llm_controller.py`
  - `tests/integration/test_news_endpoint_integration.py`
@@ -332,7 +341,7 @@ Archivos modificados:
  - `tests/services/test_services_llm.py`
  - `tests/services/test_scan_range_end.py`
  - `tests/services/test_run_services_minimal.py`
- - `tests/services/test_run_nmap_timeout_unit.py`
+ - `tests/services/test_run_nmap_	imeout_unit.py`
  - `tests/services/test_network_service_unit.py`
  - `tests/utils/test_run_services_combined.py`
  - `tests/utils/test_run_services.py`

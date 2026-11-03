@@ -38,8 +38,8 @@ def _inject_fakes():
     sys.modules['sentence_transformers'] = st_mod
 
     # Ensure package modules exist and inject a ModuleType for the llm client
-    app_mod = sys.modules.get('app') or ModuleType('app')
-    services_mod = sys.modules.get('app.services') or ModuleType('app.services')
+    import app as app_mod
+    import app.services as services_mod
     llm_pkg = sys.modules.get('app.services.llm') or ModuleType('app.services.llm')
     llm_client_mod = ModuleType('app.services.llm.llm_client')
     def fake_query_llm(*args, **kwargs):
@@ -74,6 +74,7 @@ def _inject_fakes():
 
     # attach submodules as attributes to mimic package structure
     llm_pkg.llm_client = llm_client_mod
+    llm_pkg.llm_trainer = llm_trainer_mod
     services_mod.llm = llm_pkg
     app_mod.services = services_mod
 
@@ -82,6 +83,7 @@ def _inject_fakes():
     sys.modules['app.services'] = services_mod
     sys.modules['app.services.llm'] = llm_pkg
     sys.modules['app.services.llm.llm_client'] = llm_client_mod
+    sys.modules['app.services.llm.llm_trainer'] = llm_trainer_mod
 
 
 def test_llm_query_flow(tmp_path):

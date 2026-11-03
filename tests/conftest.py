@@ -32,6 +32,34 @@ def fast_sleeps(monkeypatch):
         monkeypatch.setattr(asyncio, 'sleep', _noop_async_sleep)
     except Exception:
         pass
+    try:
+        import threading
+        _orig_wait = threading.Event.wait
+        def _fast_wait(self, timeout=None):
+            # Only accelerate when an explicit timeout is passed (worker loops use timeout=86400 or timeout=hours*3600)
+            # Never set threading.Thread.start internal sync events (which call Event.wait() with timeout=None)!
+            if timeout is None:
+                return _orig_wait(self, None)
+            # Do not intercept internal worker handler threads from multiprocessing.Pool or subprocess
+            tname = getattr(threading.current_thread(), 'name', '')
+            if '_handle_' in tname or '_reader' in tname:
+                return _orig_wait(self, timeout)
+            if timeout is None or timeout > 1:
+                self.set()
+                return True
+            return _orig_wait(self, min(timeout, 0.01))
+        monkeypatch.setattr(threading.Event, 'wait', _fast_wait)
+        try:
+            import shutil
+            _orig_which = shutil.which
+            def _fake_which(cmd, *a, **k):
+                if cmd == 'ollama': return None
+                return _orig_which(cmd, *a, **k)
+            monkeypatch.setattr(shutil, 'which', _fake_which)
+        except Exception:
+            pass
+    except Exception:
+        pass
     yield
 import os
 import sys

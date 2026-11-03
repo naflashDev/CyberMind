@@ -75,6 +75,7 @@ def test_ingest_document_name_collision(monkeypatch, tmp_path):
     @brief Ensure ingest_document handles existing filename collisions by creating numbered copies.
     '''
     monkeypatch.setattr(ingest_mod, 'DEFAULT_BASE', tmp_path)
+    monkeypatch.setattr(ingest_mod, '_CHROMA_AVAILABLE', False)
     # Create an existing file with same name
     target = tmp_path / 'file.txt'
     target.write_bytes(b'existing')

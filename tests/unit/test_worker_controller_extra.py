@@ -56,8 +56,9 @@ def test_toggle_vector_retention_enable_disable(monkeypatch):
     import importlib
     # Inject fake module into import system so __import__ in code finds it
     import sys
-    modname = 'app.controllers.routes.retention_worker'
-    sys.modules[modname] = types.SimpleNamespace(vector_and_message_retention=fake_retention)
+    fake_ret_mod = types.SimpleNamespace(vector_and_message_retention=fake_retention)
+    sys.modules['app.controllers.routes.retention_worker'] = fake_ret_mod
+    sys.modules['app.services.retention.retention_worker'] = fake_ret_mod
 
     # build request with app.state
     req = types.SimpleNamespace()
@@ -205,6 +206,8 @@ def test_vector_ingest_start_and_folder_creation(monkeypatch, tmp_path):
             created['args'] = args
         def start(self):
             try:
+                if created.get('args'):
+                    created['args'][0].set()
                 created['target'](*created['args'])
             except Exception:
                 pass
