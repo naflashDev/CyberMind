@@ -9,8 +9,8 @@
 - **Actualización de Workflows CI/CD (`unified-ci.yml`):**
   - Añadidos los jobs `frontend-ci` (Node.js 22, `oxlint`, `tsc -b && vite build`, `npm audit`) y `docker-validation` (`docker compose config -q` y build de imágenes `frontend` y `backend`), documentados en `Docs/Workflows.md`.
 - **Optimización drástica del peso de la imagen Docker del Backend (`cybermind-backend`):**
-  - Depuración de `requirements.txt` eliminando paquetes pesados de GPU/CUDA y ML no utilizados en producción (`torch`, `nvidia-*`, `triton`, `sentence-transformers`, `transformers`, `scipy`, `scikit-learn`, `sympy`, `duckdb`, `langchain*`, `langgraph*`) dado que las inferencias y embeddings se delegan a Ollama (`OllamaEmbeddingAdapter`).
-  - Eliminación de `build-essential` en `Dockerfile.backend` y exclusión de estáticos antiguos/artefactos en `.dockerignore`, reduciendo el tamaño de la imagen de **10.3 GB** (3.38 GB comprimidos) a **1.81 GB** (410 MB de contenido).
+  - Depuración de `requirements.txt` eliminando paquetes pesados de GPU/CUDA y ML no utilizados en producción (`torch`, `nvidia-*`, `triton`, `sentence-transformers`, `transformers`, `scipy`, `scikit-learn`, `sympy`, `duckdb`, `langchain*`, `langgraph*`) y separación de las herramientas de test (`pytest*`, `coverage`) en `dev-requirements.txt`.
+  - Eliminación de `build-essential`, purga en la misma capa de dependencias transitivas no usadas por ChromaDB local (`kubernetes`, `onnxruntime`, `tokenizers`, `huggingface-hub`, `hf-xet`) y limpieza de `__pycache__`/`tests`/`.pyc` en `Dockerfile.backend`, reduciendo el tamaño de la imagen de **10.3 GB** (3.38 GB comprimidos) a **1.37 GB** (**324 MB** de contenido comprimido).
 
 ## [Unreleased] - 2026-10-26
 

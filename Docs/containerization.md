@@ -11,7 +11,7 @@ Esta guía describe el despliegue y administración de CyberMind mediante **Dock
    - Cuenta con selector de 6 paletas cromáticas (Guía de naflashDev) y Modo Oscuro nativo.
 2. **`cybermind-backend` (`:8000`)**:
    - API REST en FastAPI que orquesta tareas NLP, spiders asíncronos y análisis SAST.
-   - Construida sobre `python:3.12-slim` sin paquetes pesados de GPU/CUDA (`torch`, `nvidia-*`, `sentence-transformers`) ni compiladores (`build-essential`), reduciendo el tamaño de la imagen de ~10.3 GB a ~1.8 GB (410 MB comprimidos).
+   - Construida sobre `python:3.12-slim` sin paquetes pesados de GPU/CUDA (`torch`, `nvidia-*`, `sentence-transformers`), sin compiladores (`build-essential`) y con purga de paquetes transitivos y cachés (`__pycache__`, `tests`), reduciendo el tamaño de la imagen de ~10.3 GB a **1.37 GB** (**324 MB** comprimidos).
    - Incluye `nmap`, `iputils-ping`, `git` y `curl` nativos en el contenedor.
    - Conectado a la base de datos vectorial **ChromaDB** persistente en el volumen `chroma-data`.
 3. **`cybermind-postgres` (`:5432`)**:
