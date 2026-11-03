@@ -1,4 +1,22 @@
+"""
+@file test_bruteforce_utils.py
+@author naflashDev
+@brief Unit tests for bruteforce_utils (hash detection and brute-force).
+@details Unificado: Cubre detección, brute-force, edge cases, manejo de errores, límites de recursos y casos adicionales.
+"""
 from app.services.hashed import bruteforce_utils
+import os
+import time
+import pytest
+import sys
+import types
+from src.app.services.hashed.bruteforce_utils import (
+    _bruteforce_worker,
+    HASH_FUNCTIONS,
+    ALL_CHARS,
+    detect_hash_type,
+    bruteforce_hash,
+)
 
 
 def test_detect_hash_type_and_invalid_bruteforce():
@@ -8,11 +26,7 @@ def test_detect_hash_type_and_invalid_bruteforce():
     res = bruteforce_utils.bruteforce_hash('deadbeef', 'UNKNOWN', max_len=1, timeout=1)
     assert isinstance(res, dict)
     assert 'error' in res
-import os
-from src.app.services.hashed.bruteforce_utils import _bruteforce_worker, HASH_FUNCTIONS, ALL_CHARS
 
-import time
-import pytest
 
 def test_bruteforce_worker_success_md5(monkeypatch):
     '''
@@ -27,6 +41,7 @@ def test_bruteforce_worker_success_md5(monkeypatch):
     assert timeout is False
     assert count > 0
 
+
 def test_bruteforce_worker_timeout(monkeypatch):
     '''
     @brief Edge Case: Timeout triggers before finding original string.
@@ -38,6 +53,7 @@ def test_bruteforce_worker_timeout(monkeypatch):
     result, count, timeout = _bruteforce_worker(args)
     assert result is None
     assert timeout is True
+
 
 def test_bruteforce_worker_max_combinations(monkeypatch):
     '''
@@ -52,6 +68,7 @@ def test_bruteforce_worker_max_combinations(monkeypatch):
     assert timeout is True
     assert count == 1
 
+
 def test_bruteforce_worker_not_found(monkeypatch):
     '''
     @brief Error Handling: No matching string found, returns None.
@@ -62,6 +79,7 @@ def test_bruteforce_worker_not_found(monkeypatch):
     result, count, timeout = _bruteforce_worker(args)
     assert result is None
     assert timeout is False
+
 
 def test_bruteforce_worker_special_chars(monkeypatch):
     '''
@@ -74,6 +92,7 @@ def test_bruteforce_worker_special_chars(monkeypatch):
     result, count, timeout = _bruteforce_worker(args)
     assert result == s
     assert timeout is False
+
 
 def test_bruteforce_worker_chunking(monkeypatch):
     '''
@@ -90,21 +109,6 @@ def test_bruteforce_worker_chunking(monkeypatch):
     assert result0 == s
     assert result1 is None
 
-"""
-@file test_bruteforce_utils.py
-@author naflashDev
-@brief Unit tests for bruteforce_utils (hash detection and brute-force).
-@details Unificado: Cubre detección, brute-force, edge cases, manejo de errores, límites de recursos y casos adicionales.
-"""
-import pytest
-from src.app.services.hashed.bruteforce_utils import detect_hash_type, bruteforce_hash
-import pytest
-from src.app.services.hashed.bruteforce_utils import detect_hash_type, bruteforce_hash
-import sys
-import types
-
-# --- Resource limit tests ---
-import types
 
 def test_detect_hash_type():
     '''
@@ -115,28 +119,50 @@ def test_detect_hash_type():
     assert detect_hash_type('cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e') == 'SHA512'  # 128
     assert detect_hash_type('notahash') is None
 
-def test_bruteforce_hash_md5_short():
+
+def test_bruteforce_hash_md5_short(monkeypatch):
     '''
     @brief Happy Path: Brute-force MD5 for short string (length 1), verifica dict y resultado correcto (CPU o GPU).
     '''
     import hashlib
     s = 'A'
     h = hashlib.md5(s.encode()).hexdigest()
-    # Solo test para longitud 1 por velocidad
+    # Fast synchronous pool for tests
+    class FastPool:
+        def __init__(self, n):
+            self.n = n
+        def map(self, fn, args):
+            return [fn(a) for a in args]
+        def close(self):
+            pass
+        def join(self):
+            pass
+    monkeypatch.setattr(bruteforce_utils, 'Pool', FastPool)
     result = bruteforce_hash(h, 'MD5', max_len=1, cpu_limit=2)
     assert isinstance(result, dict)
     assert result['original'] == s
-# --- Extra edge/error tests ---
     assert result['timeout'] is False
 
-def test_bruteforce_hash_not_found():
+
+def test_bruteforce_hash_not_found(monkeypatch):
     '''
     @brief Edge Case: Brute-force returns dict with original None if not found
     '''
+    class FastPool:
+        def __init__(self, n):
+            self.n = n
+        def map(self, fn, args):
+            return [fn(a) for a in args]
+        def close(self):
+            pass
+        def join(self):
+            pass
+    monkeypatch.setattr(bruteforce_utils, 'Pool', FastPool)
     h = 'ffffffffffffffffffffffffffffffff'  # unlikely
     result = bruteforce_hash(h, 'MD5', max_len=1)
     assert isinstance(result, dict)
     assert result['original'] is None
+
 
 def test_bruteforce_hash_invalid_type():
     '''
@@ -145,15 +171,26 @@ def test_bruteforce_hash_invalid_type():
     result = bruteforce_hash('d41d8cd98f00b204e9800998ecf8427e', 'INVALID', max_len=1)
     assert isinstance(result, dict)
     assert result['original'] is None
-def test_bruteforce_hash_timeout():
+
+
+def test_bruteforce_hash_timeout(monkeypatch):
     '''
     @brief Edge Case: Timeout se activa si timeout es muy bajo
     '''
     import hashlib
+    class FastPool:
+        def __init__(self, n):
+            self.n = n
+        def map(self, fn, args):
+            return [fn(a) for a in args]
+        def close(self):
+            pass
+        def join(self):
+            pass
+    monkeypatch.setattr(bruteforce_utils, 'Pool', FastPool)
     s = 'B'
     h = hashlib.md5(s.encode()).hexdigest()
-    # Timeout muy bajo para forzar timeout
-    result = bruteforce_hash(h, 'MD5', max_len=3, timeout=0.0001)
+    result = bruteforce_hash(h, 'MD5', max_len=3, timeout=-1)
     assert isinstance(result, dict)
     assert result['timeout'] is True
 
@@ -166,16 +203,12 @@ def test_bruteforce_hash_gpu_branch(monkeypatch):
     s = 'C'
     h = hashlib.md5(s.encode()).hexdigest()
 
-    # Mock cupy y sus métodos usados para simular la lógica GPU
     class FakeCP:
         def array(self, batch):
-            # Simula cp.array devolviendo el batch tal cual
             return batch
         def asarray(self, arr):
-            # Simula cp.asarray devolviendo la lista de hashes
             return arr
         def where(self, cond):
-            # cond es una lista booleana, simulamos cp.where(cond)[0]
             idxs = [i for i, v in enumerate(cond) if v]
             class FakeIdx:
                 def __init__(self, idxs):
@@ -208,9 +241,7 @@ def test_bruteforce_hash_gpu_branch(monkeypatch):
                         return hashlib.sha512(x).hexdigest()
                 return O()
 
-    # Parchea la lógica de la rama GPU para que funcione con el mock
     def fake_gpu_branch(batch):
-        # Simula la lógica de la rama GPU: genera hashes y busca coincidencia
         hashes = [hashlib.md5(s.encode()).hexdigest() for s in batch]
         cond = [v == h for v in hashes]
         idxs = [i for i, v in enumerate(cond) if v]
@@ -221,28 +252,15 @@ def test_bruteforce_hash_gpu_branch(monkeypatch):
     monkeypatch.setattr(sys.modules['src.app.services.hashed.bruteforce_utils'], 'GPU_AVAILABLE', True)
     monkeypatch.setattr(sys.modules['src.app.services.hashed.bruteforce_utils'], 'cp', FakeCP())
 
-    # Parchea itertools.product para solo devolver el string correcto (optimiza test)
     import itertools
     monkeypatch.setattr(itertools, 'product', lambda *a, **k: [("")])
 
     from src.app.services.hashed import bruteforce_utils
-    # Parchea la función para forzar el batch correcto
     orig_gpu_branch = bruteforce_utils.bruteforce_hash
     def patched_bruteforce_hash(hash_str, hash_type, max_len=1, timeout=120):
-        # Solo testea el batch con el string correcto
         batch = [s]
         return fake_gpu_branch(batch)
     monkeypatch.setattr(bruteforce_utils, 'bruteforce_hash', patched_bruteforce_hash)
-    result = bruteforce_utils.bruteforce_hash(h, 'MD5', max_len=1)
-    assert isinstance(result, dict)
-    assert result['original'] == s
-    assert result['timeout'] is False
-
-    # Fuerza GPU_AVAILABLE=True y cupy importado
-    monkeypatch.setattr(sys.modules['src.app.services.hashed.bruteforce_utils'], 'GPU_AVAILABLE', True)
-    monkeypatch.setattr(sys.modules['src.app.services.hashed.bruteforce_utils'], 'cp', FakeCP())
-
-    from src.app.services.hashed import bruteforce_utils
     result = bruteforce_utils.bruteforce_hash(h, 'MD5', max_len=1)
     assert isinstance(result, dict)
     assert result['original'] == s
@@ -278,15 +296,12 @@ def test_bruteforce_hash_gpu_branch_exception(monkeypatch):
     monkeypatch.setattr(sys.modules['src.app.services.hashed.bruteforce_utils'], 'GPU_AVAILABLE', True)
     monkeypatch.setattr(sys.modules['src.app.services.hashed.bruteforce_utils'], 'cp', FakeCP())
 
-    # Parchea itertools.product para solo devolver el string correcto (optimiza test)
     import itertools
     monkeypatch.setattr(itertools, 'product', lambda *a, **k: [("")])
 
     from src.app.services.hashed import bruteforce_utils
-    # Parchea la función para forzar el fallback a CPU
     orig_bruteforce_hash = bruteforce_utils.bruteforce_hash
     def patched_bruteforce_hash(hash_str, hash_type, max_len=1, timeout=120):
-        # Simula el fallback a CPU devolviendo el string correcto
         return {'original': s, 'count': 1, 'timeout': False}
     monkeypatch.setattr(bruteforce_utils, 'bruteforce_hash', patched_bruteforce_hash)
     result = bruteforce_utils.bruteforce_hash(h, 'MD5', max_len=1)

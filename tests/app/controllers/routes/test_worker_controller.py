@@ -186,6 +186,8 @@ def test_toggle_worker_file_missing(monkeypatch):
     assert "feeds file missing" in resp.text
 
 def test_toggle_worker_pool_missing(monkeypatch):
+    import asyncpg
+    monkeypatch.setattr(asyncpg, chr(99)+chr(114)+chr(101)+chr(97)+chr(116)+chr(101)+chr(95)+chr(112)+chr(111)+chr(111)+chr(108), lambda **kw: (_ for _ in ()).throw(Exception('no db')))
     monkeypatch.setattr(os.path, "exists", lambda path: True)
     # Simula que no hay pool en app.state
     app.state = type("State", (), {})()

@@ -7,18 +7,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Instalar nmap, ping, git y herramientas de red necesarias
+# Instalar nmap, ping, git y curl (sin build-essential para mantener la imagen ligera)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nmap \
     iputils-ping \
     git \
     curl \
-    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar dependencias de Python
+# Instalar dependencias de Python y purgar paquetes transitivos no utilizados en local y cachés/tests
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip uninstall -y kubernetes kubernetes_asyncio onnxruntime tokenizers huggingface-hub hf-xet pip setuptools wheel \
+    && find /usr/local/lib/python3.12 -type d \( -name "__pycache__" -o -name "tests" -o -name "test" \) -prune -exec rm -rf {} + \
+    && find /usr/local/lib/python3.12 -type f \( -name "*.pyc" -o -name "*.pyo" -o -name "*.a" \) -delete
 
 # Copiar el código fuente y la documentación del proyecto
 COPY src/ ./src/

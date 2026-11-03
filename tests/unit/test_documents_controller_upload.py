@@ -19,6 +19,7 @@ class FakeUpload:
 def test_upload_single_file(monkeypatch, tmp_path):
     # Ensure BASE_DOCS points to temp
     monkeypatch.setattr(documents_controller, 'BASE_DOCS', tmp_path)
+    monkeypatch.setattr(documents_controller, 'ingest_document', lambda *args, **kwargs: {'file': (args[1] if len(args) > 1 and args[1] else 'hello.txt'), 'path': str(tmp_path / 'hello.txt'), 'doc_id': 'doc1', 'upserted': False, 'message': 'saved'})
 
     f = FakeUpload(b'hello world', filename='hello.txt')
 

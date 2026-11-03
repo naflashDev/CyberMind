@@ -7,20 +7,28 @@
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Optional
 
-import chromadb
-from chromadb.config import Settings
+try:
+    import chromadb
+    from chromadb.config import Settings
+    CHROMA_AVAILABLE = True
+except Exception:
+    chromadb = None
+    Settings = None
+    CHROMA_AVAILABLE = False
 
-from sentence_transformers import SentenceTransformer
+try:
+    from sentence_transformers import SentenceTransformer
+    EMB_MODEL_AVAILABLE = True
+except Exception:
+    SentenceTransformer = None
+    EMB_MODEL_AVAILABLE = False
+
 import os
 from pathlib import Path
 import logging
 import shutil
 import json
 from ..vectorstore.ollama_adapter import OllamaEmbeddingAdapter
-
-# Assume chromadb and sentence-transformers are installed
-CHROMA_AVAILABLE = True
-EMB_MODEL_AVAILABLE = True
 
 
 class EmbeddingAdapter:
