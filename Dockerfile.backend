@@ -7,13 +7,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Instalar nmap, ping, git y herramientas de red necesarias
+# Instalar nmap, ping, git y curl (sin build-essential para mantener la imagen ligera)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nmap \
     iputils-ping \
     git \
     curl \
-    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Instalar dependencias de Python
