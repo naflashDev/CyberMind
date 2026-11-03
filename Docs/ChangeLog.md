@@ -41,6 +41,7 @@
 - Documentación de endpoints de code scanning en `api_endpoints.md`.
 ### Fixed
 - **Optimización y estabilidad de tests automatizados:**
+  - 	ests/unit/test_bruteforce_utils.py: limpieza de duplicados y optimización con pool síncrono para tests rápidos de hashing.
   - 	ests/unit/test_worker_controller_extra.py: corrección de inyección de módulo simulado (pp.services.retention.retention_worker) y activación inmediata del stop_event en FakeThread2, eliminando esperas infinitas / de 24 horas (stop_event.wait(86400)).
   - 	ests/conftest.py: aceleración controlada de 	hreading.Event.wait en bucles de background worker con 	imeouts largos (	imeout > 1), preservando 	imeout=None para la sincronización interna de hilos en multiprocessing.Pool y subprocess.
   - 	ests/integration/test_llm_controller.py: registro de llm_trainer en sys.modules para evitar ModuleNotFoundError: No module named 'app.services.llm.llm_trainer'.
